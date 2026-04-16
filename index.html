@@ -205,6 +205,46 @@
         .badge-done { background: #D1FAE5; color: #065F46; }
         .badge-cancelled { background: #F1F5F9; color: #475569; }
         .badge-approve { background: #FED7AA; color: #9A3412; }
+        .badge-closed { background: #DCFCE7; color: #14532D; }
+
+        /* Priority badges */
+        .prio { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+        .prio-low    { background: #DCFCE7; color: #14532D; }
+        .prio-medium { background: #FEF9C3; color: #713F12; }
+        .prio-high   { background: #FFEDD5; color: #9A3412; }
+        .prio-urgent { background: #FEE2E2; color: #7F1D1D; }
+        [data-theme="dark"] .prio-low    { background:#14532D; color:#BBF7D0; }
+        [data-theme="dark"] .prio-medium { background:#713F12; color:#FEF08A; }
+        [data-theme="dark"] .prio-high   { background:#7C2D12; color:#FED7AA; }
+        [data-theme="dark"] .prio-urgent { background:#7F1D1D; color:#FECACA; }
+
+        /* SLA countdown */
+        .sla { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+        .sla-ok   { background: #DCFCE7; color: #14532D; }
+        .sla-warn { background: #FEF3C7; color: #713F12; }
+        .sla-over { background: #FEE2E2; color: #7F1D1D; }
+        .sla-done { color: var(--muted); font-size: 11px; }
+
+        /* Upload progress card */
+        .upload-progress { background: var(--primary-light); border: 1px solid var(--primary); border-radius: 10px; padding: 14px 16px; margin-top: 14px; }
+        .up-info { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: var(--text); }
+        .up-title { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .up-detail { color: var(--text2); font-size: 12px; }
+        .up-bar { background: var(--card); border-radius: 10px; height: 8px; overflow: hidden; }
+        .up-fill { background: linear-gradient(90deg, var(--primary), #7C3AED); height: 100%; border-radius: 10px; transition: width .3s ease; }
+
+        /* Retry banner */
+        .retry-banner { display: flex; align-items: flex-start; gap: 12px; background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 10px; padding: 14px 16px; margin-top: 14px; }
+        [data-theme="dark"] .retry-banner { background:#78350F; border-color:#F59E0B; }
+        .retry-banner .rb-icon { color: #D97706; font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+        .retry-banner .rb-body { flex: 1; color: #78350F; }
+        [data-theme="dark"] .retry-banner .rb-body { color: #FDE68A; }
+        .retry-banner .rb-title { font-weight: 700; font-size: 14px; }
+        .retry-banner .rb-msg { font-size: 13px; margin-top: 4px; }
+        .retry-banner .rb-note { font-size: 11px; margin-top: 4px; opacity: .85; }
+        [data-theme="dark"] .sla-ok   { background:#14532D; color:#BBF7D0; }
+        [data-theme="dark"] .sla-warn { background:#713F12; color:#FEF08A; }
+        [data-theme="dark"] .sla-over { background:#7F1D1D; color:#FECACA; }
 
         .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); }
         .empty-state i { font-size: 40px; margin-bottom: 12px; opacity: .5; }
@@ -779,6 +819,16 @@
                 </div>
 
                 <div class="form-group">
+                    <label>ระดับความเร่งด่วน <span style="color:red">*</span></label>
+                    <select id="ticketPriority" required>
+                        <option value="low">🟢 ไม่เร่งด่วน (Low) — ขอเสริม / รอได้หลายวัน</option>
+                        <option value="medium" selected>🟡 ปกติ (Medium) — มีปัญหาแต่ทำอย่างอื่นไปพลางได้</option>
+                        <option value="high">🟠 สำคัญ (High) — ทำงานคนเดียวไม่ได้ ต้องเสร็จวันนี้</option>
+                        <option value="urgent">🔴 ด่วนมาก (Urgent) — งานหยุด / CEO / ปิดบัญชี</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label>เบอร์โทรติดต่อ</label>
                     <input type="text" id="ticketPhone" placeholder="เบอร์โทรศัพท์">
                 </div>
@@ -819,8 +869,28 @@
                     <div class="file-chips" id="filePreviews"></div>
                 </div>
 
+                <!-- Upload progress -->
+                <div class="upload-progress" id="uploadProgress" style="display:none;">
+                    <div class="up-info">
+                        <div class="up-title"><i class="fas fa-cloud-upload-alt"></i> <span id="upText">กำลังอัปโหลด...</span></div>
+                        <div class="up-detail" id="upDetail"></div>
+                    </div>
+                    <div class="up-bar"><div class="up-fill" id="upFill" style="width:0%;"></div></div>
+                </div>
+
+                <!-- Retry banner on error -->
+                <div class="retry-banner" id="retryBanner" style="display:none;">
+                    <div class="rb-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="rb-body">
+                        <div class="rb-title">ส่งไม่สำเร็จ</div>
+                        <div class="rb-msg" id="retryMsg"></div>
+                        <div class="rb-note">รูป/ไฟล์ที่อัปสำเร็จแล้วจะไม่ถูกอัปใหม่ ข้อมูลฟอร์มไม่หาย</div>
+                    </div>
+                    <button class="btn btn-primary btn-sm" style="width:auto;white-space:nowrap;" onclick="handleSubmitTicket()"><i class="fas fa-redo"></i> ลองส่งใหม่</button>
+                </div>
+
                 <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:10px;">
-                    <button type="reset" class="btn btn-outline"><i class="fas fa-eraser"></i> ล้างฟอร์ม</button>
+                    <button type="reset" class="btn btn-outline" onclick="clearTicketDraft()"><i class="fas fa-eraser"></i> ล้างฟอร์ม</button>
                     <button type="submit" class="btn btn-success"><i class="fas fa-paper-plane"></i> ส่ง Ticket</button>
                 </div>
             </form>
@@ -870,7 +940,8 @@
             <button class="active" onclick="setFilter('all', this)">ทั้งหมด</button>
             <button onclick="setFilter('เปิด Ticket', this)">เปิด Ticket</button>
             <button onclick="setFilter('กำลังดำเนินการ', this)">กำลังดำเนินการ</button>
-            <button onclick="setFilter('ดำเนินการเรียบร้อย', this)">เสร็จเรียบร้อย</button>
+            <button onclick="setFilter('ดำเนินการเรียบร้อย', this)">รอยืนยันปิดงาน</button>
+            <button onclick="setFilter('ปิดงานแล้ว', this)">ปิดงานแล้ว</button>
             <button onclick="setFilter('ยกเลิก', this)">ยกเลิก</button>
         </div>
 
@@ -883,7 +954,9 @@
                         <th>ประเภทงาน</th>
                         <th>ประเภทปัญหา</th>
                         <th>อาการ</th>
+                        <th>Priority</th>
                         <th>สถานะ</th>
+                        <th>SLA</th>
                         <th>ผู้ดำเนินการ</th>
                         <th></th>
                     </tr>
@@ -1128,11 +1201,22 @@
                 Ticket: <strong id="adminEditTicketNo" style="color:#667eea;"></strong>
             </p>
             <div id="adminEditSummary" style="background:#f8f9ff; border:1px solid #e0e5ff; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#555;"></div>
-            <div class="form-group">
-                <label>ผู้รับผิดชอบ</label>
-                <select id="adminEditAdmin">
-                    <option value="">-- เลือกผู้รับผิดชอบ --</option>
-                </select>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>ผู้รับผิดชอบ</label>
+                    <select id="adminEditAdmin">
+                        <option value="">-- เลือกผู้รับผิดชอบ --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="adminEditPriority">
+                        <option value="low">🟢 ไม่เร่ง</option>
+                        <option value="medium">🟡 ปกติ</option>
+                        <option value="high">🟠 สำคัญ</option>
+                        <option value="urgent">🔴 ด่วนมาก</option>
+                    </select>
+                </div>
             </div>
             <div class="form-group">
                 <label>สถานะ</label>
@@ -1140,7 +1224,8 @@
                     <option value="เปิด Ticket">เปิด Ticket</option>
                     <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
                     <option value="ต้องการ Approve">ต้องการ Approve</option>
-                    <option value="ดำเนินการเรียบร้อย">ดำเนินการเรียบร้อย</option>
+                    <option value="ดำเนินการเรียบร้อย">ดำเนินการเรียบร้อย (รอ user ยืนยัน)</option>
+                    <option value="ปิดงานแล้ว">ปิดงานแล้ว</option>
                     <option value="ยกเลิก">ยกเลิก</option>
                 </select>
             </div>
@@ -1159,6 +1244,25 @@
         <div class="actions">
             <button class="btn btn-outline btn-sm" onclick="closeAdminEdit()"><i class="fas fa-times"></i> ยกเลิก</button>
             <button class="btn btn-success btn-sm" onclick="saveAdminEdit()"><i class="fas fa-save"></i> บันทึก</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== REOPEN TICKET MODAL ========== -->
+<div class="modal-backdrop" id="reopenModal">
+    <div class="modal" style="width:480px;">
+        <h3><i class="fas fa-undo" style="color:var(--warning);"></i> เปิด Ticket ใหม่</h3>
+        <p style="color:var(--text2); font-size:13px; margin-bottom:14px;">
+            Ticket: <strong id="reopenTicketNo" style="color:var(--primary);"></strong>
+        </p>
+        <div class="form-group">
+            <label>เหตุผลที่ต้องการเปิดใหม่ <span style="color:red">*</span></label>
+            <textarea id="reopenReason" rows="3" placeholder="เช่น: ปัญหากลับมาเกิดอีก / วิธีแก้ไม่ได้ผล / อาการใหม่เพิ่มเติม"></textarea>
+            <p class="profile-field-note">ทีม IT จะได้รับแจ้งเตือน และ Ticket จะกลับเป็นสถานะ "เปิด Ticket"</p>
+        </div>
+        <div class="actions" style="display:flex;justify-content:flex-end;gap:8px;">
+            <button class="btn btn-outline btn-sm" onclick="closeReopenModal()"><i class="fas fa-times"></i> ยกเลิก</button>
+            <button class="btn btn-sm" style="background:var(--warning);color:#fff;" onclick="submitReopen()"><i class="fas fa-undo"></i> ยืนยันเปิดใหม่</button>
         </div>
     </div>
 </div>
@@ -1363,6 +1467,68 @@ function showTab(id, btn) {
 }
 
 // ===== Toast =====
+// Priority labels
+const PRIO_LABEL = {
+    low:    { th: 'ไม่เร่ง', icon: '🟢', cls: 'prio-low' },
+    medium: { th: 'ปกติ',    icon: '🟡', cls: 'prio-medium' },
+    high:   { th: 'สำคัญ',   icon: '🟠', cls: 'prio-high' },
+    urgent: { th: 'ด่วนมาก',  icon: '🔴', cls: 'prio-urgent' }
+};
+function renderPrioBadge(p) {
+    const info = PRIO_LABEL[p] || PRIO_LABEL.medium;
+    return `<span class="prio ${info.cls}">${info.icon} ${info.th}</span>`;
+}
+
+// Business-hours minutes between two Date objects (Mon-Fri 08:00-17:00)
+// Returns negative if `to` is before `from` (overdue)
+function businessMinutesBetween(from, to) {
+    if (!from || !to) return 0;
+    if (to < from) return -businessMinutesBetween(to, from);
+    let total = 0;
+    const cur = new Date(from);
+    while (cur < to) {
+        const day = cur.getDay(); // 0=Sun,6=Sat
+        if (day === 0) { cur.setDate(cur.getDate() + 1); cur.setHours(8,0,0,0); continue; }
+        if (day === 6) { cur.setDate(cur.getDate() + 2); cur.setHours(8,0,0,0); continue; }
+        const h = cur.getHours();
+        if (h < 8) { cur.setHours(8,0,0,0); continue; }
+        if (h >= 17) {
+            cur.setDate(cur.getDate() + (day === 5 ? 3 : 1));
+            cur.setHours(8,0,0,0);
+            continue;
+        }
+        const endOfDay = new Date(cur); endOfDay.setHours(17,0,0,0);
+        const stepEnd = to < endOfDay ? to : endOfDay;
+        total += (stepEnd - cur) / 60000;
+        cur.setTime(stepEnd.getTime());
+    }
+    return Math.round(total);
+}
+
+// SLA badge — pauses on terminal statuses
+function renderSLABadge(t) {
+    const terminal = ['ดำเนินการเรียบร้อย', 'ปิดงานแล้ว', 'ยกเลิก'];
+    if (terminal.includes(t.status)) return '<span class="sla-done">-</span>';
+    if (!t.dueAt) return '<span class="sla-done">-</span>';
+    const now = new Date();
+    const due = new Date(t.dueAt);
+    const mins = businessMinutesBetween(now, due);
+    if (mins < 0) {
+        return `<span class="sla sla-over" title="เกินกำหนด">⚠️ เกิน ${formatMinutes(-mins)}</span>`;
+    }
+    const cls = mins < 60 ? 'sla-warn' : 'sla-ok';
+    return `<span class="sla ${cls}" title="ครบกำหนด: ${due.toLocaleString('sv-SE').slice(0,16)}">⏰ ${formatMinutes(mins)}</span>`;
+}
+function formatMinutes(m) {
+    if (m < 60) return m + ' นาที';
+    const h = Math.floor(m / 60);
+    const mm = m % 60;
+    if (h < 8) return mm > 0 ? `${h} ชม. ${mm} นาที` : `${h} ชม.`;
+    const d = Math.floor(h / 9); // 9 business hours per day
+    const hr = h % 9;
+    return d > 0 ? (hr > 0 ? `${d} วัน ${hr} ชม.` : `${d} วัน`) : `${h} ชม.`;
+}
+
 // Ticket search — matches across multiple fields
 function matchesTicketSearch(t, q) {
     if (!q) return true;
@@ -1534,6 +1700,8 @@ async function loadWorklist() {
         Object.keys(worklist).forEach(jt => {
             sel.innerHTML += `<option value="${esc(jt)}">${esc(jt)}</option>`;
         });
+        // Try to restore saved draft (if any) — after jobType options are ready
+        try { restoreTicketDraft(); } catch(_) {}
     } catch (err) {
         showToast(err.message || 'โหลด worklist ไม่สำเร็จ', 'error');
     } finally {
@@ -1604,22 +1772,29 @@ function renderPhotoPreviews() {
     });
 }
 
-async function uploadPendingPhotos() {
-    const urls = [];
+// Upload items preserving previously uploaded URLs (skip re-upload on retry)
+async function uploadBatchWithProgress(items, subDir, onProgress) {
     const stamp = new Date().toISOString().slice(0, 7).replace('-', ''); // YYYYMM
-    for (const f of pendingPhotos) {
-        const ext  = (f.name.split('.').pop() || 'jpg').toLowerCase();
+    const total = items.length;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].url) continue;
+        if (onProgress) onProgress(i + 1, total);
+        const f = items[i].file;
+        const ext  = (f.name.split('.').pop() || 'bin').toLowerCase();
         const rand = Math.random().toString(36).slice(2, 10);
-        const path = `${stamp}/${Date.now()}_${rand}.${ext}`;
+        const path = `${stamp}/${subDir}/${Date.now()}_${i}_${rand}.${ext}`;
         const { error } = await sb.storage.from(STORAGE_BUCKET).upload(path, f, {
             contentType: f.type,
             upsert: false,
         });
-        if (error) throw error;
+        if (error) throw new Error(`อัปโหลดล้มเหลว (${f.name}): ${error.message}`);
         const { data } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-        urls.push(data.publicUrl);
+        items[i].url = data.publicUrl;
+        items[i].name = f.name;
+        items[i].type = f.type || '';
+        items[i].size = f.size;
     }
-    return urls;
+    return items;
 }
 
 // ===== Document file handlers =====
@@ -1681,33 +1856,102 @@ function renderFilePreviews() {
     });
 }
 
-async function uploadPendingFiles() {
-    const out = [];
-    const stamp = new Date().toISOString().slice(0, 7).replace('-', '');
-    for (const f of pendingFiles) {
-        const ext  = (f.name.split('.').pop() || 'bin').toLowerCase();
-        const rand = Math.random().toString(36).slice(2, 10);
-        const path = `files/${stamp}/${Date.now()}_${rand}.${ext}`;
-        const { error } = await sb.storage.from(STORAGE_BUCKET).upload(path, f, {
-            contentType: f.type || 'application/octet-stream',
-            upsert: false,
-        });
-        if (error) throw error;
-        const { data } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-        out.push({ name: f.name, url: data.publicUrl, type: f.type || '', size: f.size });
-    }
-    return out;
+// ===== Upload progress UI helpers =====
+function showUploadProgress(show) {
+    const el = document.getElementById('uploadProgress');
+    if (el) el.style.display = show ? 'block' : 'none';
+}
+function setUploadProgress(text, detail, pct) {
+    document.getElementById('upText').textContent = text;
+    document.getElementById('upDetail').textContent = detail || '';
+    document.getElementById('upFill').style.width = Math.min(100, Math.max(0, pct)) + '%';
+}
+function showRetryBanner(msg) {
+    document.getElementById('retryMsg').textContent = msg;
+    document.getElementById('retryBanner').style.display = 'flex';
+}
+function hideRetryBanner() {
+    document.getElementById('retryBanner').style.display = 'none';
 }
 
-// ===== Submit Ticket (via RPC for atomic ticket_no) =====
-async function handleSubmitTicket(e) {
-    e.preventDefault();
-    setLoading(true);
+// ===== Draft auto-save =====
+const DRAFT_KEY = 'ticketDraftV1';
+function saveTicketDraft() {
+    if (!currentUser) return;
+    const d = {
+        empId: currentUser.employeeId,
+        plant:    document.getElementById('ticketPlant').value,
+        jobType:  document.getElementById('ticketJobType').value,
+        issueType: document.getElementById('ticketIssueType').value,
+        symptom:  document.getElementById('ticketSymptom').value,
+        location: document.getElementById('ticketLocation').value,
+        locationDetail: document.getElementById('ticketLocationDetail').value,
+        priority: document.getElementById('ticketPriority').value,
+        phone:    document.getElementById('ticketPhone').value,
+        vnc:      document.getElementById('ticketVnc').value,
+        request:  document.getElementById('ticketRequest').value,
+        ts:       Date.now()
+    };
+    if (!d.request && !d.jobType && !d.locationDetail && !d.vnc) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+    }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+}
+function clearTicketDraft() {
+    localStorage.removeItem(DRAFT_KEY);
+}
+function restoreTicketDraft() {
     try {
-        const photoUrls = await uploadPendingPhotos();
-        const fileUrls  = await uploadPendingFiles();
+        const s = localStorage.getItem(DRAFT_KEY);
+        if (!s) return;
+        const d = JSON.parse(s);
+        if (!d || d.empId !== currentUser.employeeId) return;
+        if (Date.now() - (d.ts || 0) > 86400000) { // >24h
+            localStorage.removeItem(DRAFT_KEY);
+            return;
+        }
+        if (!d.request && !d.jobType) return;
+        if (!confirm('พบข้อมูลฟอร์มที่ยังไม่ได้ส่ง ต้องการโหลดข้อมูลเดิมกลับมาไหม?')) {
+            localStorage.removeItem(DRAFT_KEY);
+            return;
+        }
+        const setIfExists = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+        setIfExists('ticketPlant',    d.plant);
+        setIfExists('ticketLocation', d.location);
+        setIfExists('ticketLocationDetail', d.locationDetail);
+        setIfExists('ticketPriority', d.priority);
+        setIfExists('ticketPhone',    d.phone);
+        setIfExists('ticketVnc',      d.vnc);
+        setIfExists('ticketRequest',  d.request);
+        // Cascading dropdowns — restore after worklist is loaded
+        if (d.jobType) {
+            setIfExists('ticketJobType', d.jobType);
+            try { onJobTypeChange(); } catch(_) {}
+            setTimeout(() => {
+                setIfExists('ticketIssueType', d.issueType);
+                try { onIssueTypeChange(); } catch(_) {}
+                setTimeout(() => setIfExists('ticketSymptom', d.symptom), 50);
+            }, 80);
+        }
+    } catch(_) {}
+}
 
-        const payload = {
+// ===== Submit Ticket (with progress, retry, draft) =====
+let submitRetryState = null;
+
+async function handleSubmitTicket(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    hideRetryBanner();
+
+    // Prepare items + payload (preserve on retry)
+    let photoItems, fileItems, payload;
+    if (submitRetryState) {
+        ({ photoItems, fileItems, payload } = submitRetryState);
+    } else {
+        photoItems = pendingPhotos.map(file => ({ file }));
+        fileItems  = pendingFiles.map(file => ({ file }));
+        payload = {
             employeeId:   currentUser.employeeId,
             employeeName: `${currentUser.firstName} ${currentUser.lastName}`,
             plant:        document.getElementById('ticketPlant').value,
@@ -1720,15 +1964,39 @@ async function handleSubmitTicket(e) {
                               ? ' — ' + document.getElementById('ticketLocationDetail').value.trim() : ''),
             vncNumber:    document.getElementById('ticketVnc').value.trim(),
             phone:        document.getElementById('ticketPhone').value.trim(),
-            photoUrls,
-            fileUrls,
+            priority:     document.getElementById('ticketPriority').value || 'medium',
         };
+    }
 
+    showUploadProgress(true);
+    try {
+        if (photoItems.length) {
+            setUploadProgress('กำลังอัปโหลดรูป', `0 / ${photoItems.length}`, 0);
+            await uploadBatchWithProgress(photoItems, 'photos', (cur, total) => {
+                setUploadProgress('กำลังอัปโหลดรูป', `${cur} / ${total}`, (cur - 1) / total * 50);
+            });
+        }
+        if (fileItems.length) {
+            setUploadProgress('กำลังอัปโหลดไฟล์', `0 / ${fileItems.length}`, 50);
+            await uploadBatchWithProgress(fileItems, 'files', (cur, total) => {
+                setUploadProgress('กำลังอัปโหลดไฟล์', `${cur} / ${total}`, 50 + (cur - 1) / total * 45);
+            });
+        }
+
+        payload.photoUrls = photoItems.map(x => x.url);
+        payload.fileUrls  = fileItems.map(x => ({ name: x.name, url: x.url, type: x.type, size: x.size }));
+
+        setUploadProgress('กำลังสร้าง Ticket...', '', 95);
         const { data, error } = await sb.rpc('create_ticket', { payload });
         if (error) throw error;
         if (!data || !data.success) throw new Error((data && data.message) || 'สร้าง Ticket ไม่สำเร็จ');
 
+        setUploadProgress('สำเร็จ!', data.ticketId, 100);
         showToast(`สร้าง Ticket สำเร็จ! (${data.ticketId})`);
+
+        submitRetryState = null;
+        clearTicketDraft();
+
         document.getElementById('ticketForm').reset();
         document.getElementById('ticketPhone').value = currentUser.phone || '';
         if (currentUser.company) document.getElementById('ticketPlant').value = currentUser.company;
@@ -1738,10 +2006,17 @@ async function handleSubmitTicket(e) {
         pendingFiles  = [];
         renderPhotoPreviews();
         renderFilePreviews();
+        setTimeout(() => showUploadProgress(false), 800);
     } catch (err) {
-        showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
-    } finally {
-        setLoading(false);
+        submitRetryState = { photoItems, fileItems, payload };
+        const uploadedPhotos = photoItems.filter(x => x.url).length;
+        const uploadedFiles  = fileItems.filter(x => x.url).length;
+        const msg = (err && err.message) || 'เกิดข้อผิดพลาด';
+        const note = (uploadedPhotos + uploadedFiles) > 0
+            ? ` (อัปโหลดสำเร็จแล้ว: รูป ${uploadedPhotos}, ไฟล์ ${uploadedFiles})`
+            : '';
+        showRetryBanner(msg + note);
+        showUploadProgress(false);
     }
 }
 
@@ -1761,6 +2036,7 @@ async function loadTickets() {
             key:          t.key,
             ticketNo:     t.ticket_no || '',
             createdAt:    t.created_at ? new Date(t.created_at).toLocaleString('sv-SE').slice(0, 16) : '',
+            createdAtRaw: t.created_at || null,
             employeeId:   t.employee_id || '',
             employeeName: t.employee_name || '',
             plant:        t.plant || '',
@@ -1775,6 +2051,8 @@ async function loadTickets() {
             reply:        t.reply || '',
             admin:        t.admin || '',
             location:     t.location || '',
+            priority:     t.priority || 'medium',
+            dueAt:        t.due_at || null,
             photoUrls:    Array.isArray(t.photo_urls) ? t.photo_urls : [],
             fileUrls:     Array.isArray(t.file_urls)  ? t.file_urls  : [],
         }));
@@ -1803,9 +2081,14 @@ function renderTickets() {
 
     const isAdmin = !!(currentUser && currentUser.isAdmin);
     const myId = currentUser ? currentUser.employeeId : '';
+    // Sort: urgent first, then high, medium, low — within same priority keep original order (newest first)
+    const prioOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+    filtered = filtered.slice().sort((a, b) => (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9));
+
     tbody.innerHTML = filtered.map((t, i) => {
-        const isMine = t.employeeId === myId;
-        const canCancel = !isAdmin && isMine && t.status === 'เปิด Ticket';
+        const isMine   = t.employeeId === myId;
+        const canCancel  = !isAdmin && isMine && t.status === 'เปิด Ticket';
+        const canConfirm = !isAdmin && isMine && t.status === 'ดำเนินการเรียบร้อย';
         return `
         <tr style="animation-delay:${Math.min(i * 0.03, 0.5)}s">
             <td><span class="ticket-id">${esc(t.ticketNo)}</span></td>
@@ -1813,15 +2096,76 @@ function renderTickets() {
             <td>${esc(t.jobType)}</td>
             <td>${esc(t.issueType)}</td>
             <td>${esc(t.symptom)}</td>
+            <td>${renderPrioBadge(t.priority)}</td>
             <td><span class="badge ${statusBadge(t.status)}">${esc(t.status)}</span></td>
+            <td>${renderSLABadge(t)}</td>
             <td>${esc(t.admin || '-')}</td>
             <td style="white-space:nowrap;">
                 <button class="btn btn-outline btn-sm" onclick="viewTicket(${i})" title="ดู"><i class="fas fa-eye"></i></button>
                 ${isAdmin ? `<button class="btn btn-success btn-sm" onclick="openListEdit(${i})" title="แก้ไข"><i class="fas fa-edit"></i></button>` : ''}
+                ${canConfirm ? `<button class="btn btn-success btn-sm" onclick="confirmTicketClosed(${t.key}, '${esc(t.ticketNo)}')" title="ยืนยันปิดงาน"><i class="fas fa-check"></i></button>` : ''}
+                ${canConfirm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--warning);color:var(--warning);" onclick="openReopenModal(${t.key}, '${esc(t.ticketNo)}')" title="ยังไม่เสร็จ/เปิดใหม่"><i class="fas fa-undo"></i></button>` : ''}
                 ${canCancel ? `<button class="btn btn-outline btn-sm" style="border-color:var(--danger);color:var(--danger);" onclick="cancelMyTicket(${t.key}, '${esc(t.ticketNo)}')" title="ยกเลิก"><i class="fas fa-times"></i></button>` : ''}
             </td>
         </tr>`;
     }).join('');
+}
+
+// ===== User sign-off: confirm closed / reopen =====
+async function confirmTicketClosed(ticketKey, ticketNo) {
+    if (!confirm(`ยืนยันปิดงาน Ticket ${ticketNo}?\n(งานจะถือว่าเสร็จสมบูรณ์)`)) return;
+    setLoading(true);
+    try {
+        const { data, error } = await sb.rpc('confirm_ticket_closed', {
+            p_emp_id: currentUser.employeeId,
+            p_password: currentPwd,
+            p_ticket_key: ticketKey,
+        });
+        if (error) throw error;
+        if (!data || !data.success) throw new Error((data && data.message) || 'ยืนยันไม่สำเร็จ');
+        showToast(`ปิดงาน ${ticketNo} เรียบร้อย ขอบคุณครับ`);
+        loadTickets();
+    } catch (err) {
+        showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+        setLoading(false);
+    }
+}
+
+let reopenTargetKey = null;
+function openReopenModal(ticketKey, ticketNo) {
+    reopenTargetKey = ticketKey;
+    document.getElementById('reopenTicketNo').textContent = ticketNo;
+    document.getElementById('reopenReason').value = '';
+    document.getElementById('reopenModal').classList.add('show');
+    setTimeout(() => document.getElementById('reopenReason').focus(), 100);
+}
+function closeReopenModal() {
+    document.getElementById('reopenModal').classList.remove('show');
+    reopenTargetKey = null;
+}
+async function submitReopen() {
+    const reason = document.getElementById('reopenReason').value.trim();
+    if (!reason) { showToast('กรุณาระบุเหตุผล', 'error'); return; }
+    if (!reopenTargetKey) return;
+    setLoading(true);
+    try {
+        const { data, error } = await sb.rpc('reopen_my_ticket', {
+            p_emp_id: currentUser.employeeId,
+            p_password: currentPwd,
+            p_ticket_key: reopenTargetKey,
+            p_reason: reason,
+        });
+        if (error) throw error;
+        if (!data || !data.success) throw new Error((data && data.message) || 'เปิดใหม่ไม่สำเร็จ');
+        showToast('Ticket ถูกเปิดใหม่เรียบร้อย ทีม IT ได้รับแจ้งแล้ว');
+        closeReopenModal();
+        loadTickets();
+    } catch (err) {
+        showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+        setLoading(false);
+    }
 }
 
 async function cancelMyTicket(ticketKey, ticketNo) {
@@ -1851,7 +2195,8 @@ function updateSummaryCards() {
     el('scTotal').textContent  = tickets.length;
     el('scOpen').textContent   = by('เปิด Ticket');
     el('scInProg').textContent = by('กำลังดำเนินการ');
-    el('scDone').textContent   = by('ดำเนินการเรียบร้อย');
+    // "เสร็จเรียบร้อย" card shows both "ดำเนินการเรียบร้อย" (awaiting user confirm) + "ปิดงานแล้ว" (closed)
+    el('scDone').textContent   = by('ดำเนินการเรียบร้อย') + by('ปิดงานแล้ว');
     el('scCancel').textContent = by('ยกเลิก');
 }
 
@@ -1894,6 +2239,7 @@ function openAdminEditFor(t) {
     sel.value = t.admin || '';
     document.getElementById('adminEditStatus').value = t.status;
     document.getElementById('adminEditReply').value  = t.reply || '';
+    document.getElementById('adminEditPriority').value = t.priority || 'medium';
     document.getElementById('adminEditModal').classList.add('show');
     loadTicketHistory(t.key);
 }
@@ -1910,6 +2256,7 @@ function statusBadge(s) {
     if (s === 'กำลังดำเนินการ') return 'badge-inprogress';
     if (s === 'ต้องการ Approve') return 'badge-approve';
     if (s === 'ดำเนินการเรียบร้อย') return 'badge-done';
+    if (s === 'ปิดงานแล้ว') return 'badge-closed';
     if (s === 'ยกเลิก') return 'badge-cancelled';
     return 'badge-open';
 }
@@ -2523,6 +2870,7 @@ function openAdminEdit(idx) {
 
     document.getElementById('adminEditStatus').value = t.status;
     document.getElementById('adminEditReply').value  = t.reply || '';
+    document.getElementById('adminEditPriority').value = t.priority || 'medium';
     document.getElementById('adminEditModal').classList.add('show');
 
     // Load history asynchronously
@@ -2568,10 +2916,11 @@ function closeAdminEdit() {
 async function saveAdminEdit() {
     if (editingKey == null) return;
     const payload = {
-        key:    editingKey,
-        status: document.getElementById('adminEditStatus').value,
-        admin:  document.getElementById('adminEditAdmin').value.trim(),
-        reply:  document.getElementById('adminEditReply').value.trim(),
+        key:      editingKey,
+        status:   document.getElementById('adminEditStatus').value,
+        admin:    document.getElementById('adminEditAdmin').value.trim(),
+        reply:    document.getElementById('adminEditReply').value.trim(),
+        priority: document.getElementById('adminEditPriority').value,
     };
     setLoading(true);
     try {
@@ -3800,6 +4149,21 @@ function renderFaq() {
     document.getElementById('adminEditModal').addEventListener('click', function(e) { if (e.target === this) closeAdminEdit(); });
     document.getElementById('draftModal').addEventListener('click', function(e) { if (e.target === this) closeDraftModal(); });
     document.getElementById('profileModal').addEventListener('click', function(e) { if (e.target === this) closeProfile(); });
+    document.getElementById('reopenModal').addEventListener('click', function(e) { if (e.target === this) closeReopenModal(); });
+
+    // Auto-save ticket form draft to localStorage on every change
+    const form = document.getElementById('ticketForm');
+    if (form) {
+        let draftTimer = null;
+        form.addEventListener('input', () => {
+            clearTimeout(draftTimer);
+            draftTimer = setTimeout(saveTicketDraft, 500);
+        });
+        form.addEventListener('change', () => {
+            clearTimeout(draftTimer);
+            draftTimer = setTimeout(saveTicketDraft, 200);
+        });
+    }
 
     // Register Service Worker for PWA
     if ('serviceWorker' in navigator) {
