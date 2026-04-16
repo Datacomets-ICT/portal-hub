@@ -932,7 +932,7 @@
             <h2><i class="fas fa-list-alt"></i> รายการ Ticket</h2>
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="ค้นหา: เลข Ticket, ชื่อ, ประเภท, อาการ, ผู้รับผิดชอบ..." oninput="renderTickets()" style="width:320px;">
+                <input type="text" id="searchInput" placeholder="ค้นหา: เลข Ticket, ชื่อ, ประเภท, อาการ, ผู้รับผิดชอบ..." oninput="debouncedSearchTickets()" style="width:320px;">
             </div>
         </div>
 
@@ -1674,9 +1674,9 @@ function enterApp() {
 // ===== Plant list (for ticket form) =====
 async function loadPlants() {
     try {
-        const { data, error } = await sb.from('tickets').select('plant').not('plant', 'is', null);
+        const { data, error } = await sb.rpc('get_plants_list');
         if (error) throw error;
-        const plants = Array.from(new Set((data || []).map(r => r.plant).filter(Boolean))).sort();
+        const plants = (data || []).filter(Boolean);
         const sel = document.getElementById('ticketPlant');
         sel.innerHTML = '<option value="">-- เลือกบริษัท --</option>';
         plants.forEach(p => {
@@ -2035,43 +2035,65 @@ async function handleSubmitTicket(e) {
     }
 }
 
-// ===== Load & Render Tickets =====
-async function loadTickets() {
+// ===== Load & Render Tickets (paginated via RPC) =====
+const PAGE_SIZE = 100;
+let ticketPageOffset  = 0;
+let ticketTotalFiltered = 0;
+let ticketCounts = { total: 0, open: 0, inprogress: 0, approve: 0, resolved: 0, closed: 0, cancelled: 0 };
+
+function mapTicketRow(t) {
+    return {
+        key:          t.key,
+        ticketNo:     t.ticket_no || '',
+        createdAt:    t.created_at ? new Date(t.created_at).toLocaleString('sv-SE').slice(0, 16) : '',
+        createdAtRaw: t.created_at || null,
+        employeeId:   t.employee_id || '',
+        employeeName: t.employee_name || '',
+        plant:        t.plant || '',
+        jobType:      t.job_type || '',
+        issueType:    t.issue_type || '',
+        symptom:      t.symptom || '',
+        detail:       t.detail || '',
+        request:      t.request || '',
+        vncNumber:    t.vnc_number || '',
+        phone:        t.phone || '',
+        status:       t.status || 'เปิด Ticket',
+        reply:        t.reply || '',
+        admin:        t.admin || '',
+        location:     t.location || '',
+        priority:     t.priority || 'medium',
+        dueAt:        t.due_at || null,
+        resolvedAt:   t.resolved_at || null,
+        photoUrls:    Array.isArray(t.photo_urls) ? t.photo_urls : [],
+        fileUrls:     Array.isArray(t.file_urls)  ? t.file_urls  : [],
+    };
+}
+
+async function loadTickets(opts) {
+    // opts: { append: bool } — if true, append next page; otherwise reset
+    const append = !!(opts && opts.append);
+    if (!append) ticketPageOffset = 0;
     setLoading(true);
     try {
-        let query = sb.from('tickets').select('*').order('key', { ascending: false });
-        // Admins see ALL tickets in the list; regular users see only their own
-        if (currentUser.employeeId && !currentUser.isAdmin) {
-            query = query.eq('employee_id', currentUser.employeeId);
-        }
-        const { data, error } = await query;
+        const search = (document.getElementById('searchInput')?.value || '').trim();
+        const status = currentFilter && currentFilter !== 'all' ? currentFilter : null;
+        const { data, error } = await sb.rpc('get_tickets_paginated', {
+            p_emp_id:   currentUser.employeeId,
+            p_password: currentPwd,
+            p_limit:    PAGE_SIZE,
+            p_offset:   ticketPageOffset,
+            p_status:   status,
+            p_search:   search || null,
+            p_plant:    null,
+        });
         if (error) throw error;
+        if (!data || !data.success) throw new Error((data && data.message) || 'โหลด Ticket ไม่สำเร็จ');
 
-        tickets = (data || []).map(t => ({
-            key:          t.key,
-            ticketNo:     t.ticket_no || '',
-            createdAt:    t.created_at ? new Date(t.created_at).toLocaleString('sv-SE').slice(0, 16) : '',
-            createdAtRaw: t.created_at || null,
-            employeeId:   t.employee_id || '',
-            employeeName: t.employee_name || '',
-            plant:        t.plant || '',
-            jobType:      t.job_type || '',
-            issueType:    t.issue_type || '',
-            symptom:      t.symptom || '',
-            detail:       t.detail || '',
-            request:      t.request || '',
-            vncNumber:    t.vnc_number || '',
-            phone:        t.phone || '',
-            status:       t.status || 'เปิด Ticket',
-            reply:        t.reply || '',
-            admin:        t.admin || '',
-            location:     t.location || '',
-            priority:     t.priority || 'medium',
-            dueAt:        t.due_at || null,
-            resolvedAt:   t.resolved_at || null,
-            photoUrls:    Array.isArray(t.photo_urls) ? t.photo_urls : [],
-            fileUrls:     Array.isArray(t.file_urls)  ? t.file_urls  : [],
-        }));
+        const pageRows = (data.tickets || []).map(mapTicketRow);
+        tickets = append ? tickets.concat(pageRows) : pageRows;
+        ticketTotalFiltered = data.filtered_total || 0;
+        ticketCounts = data.counts || ticketCounts;
+        ticketPageOffset += pageRows.length;
         renderTickets();
     } catch (err) {
         showToast(err.message || 'โหลด Ticket ไม่สำเร็จ', 'error');
@@ -2080,28 +2102,30 @@ async function loadTickets() {
     }
 }
 
+async function loadMoreTickets() {
+    if (tickets.length >= ticketTotalFiltered) return;
+    await loadTickets({ append: true });
+}
+
 function renderTickets() {
     const tbody = document.getElementById('ticketTableBody');
     const empty = document.getElementById('emptyState');
-    const search = document.getElementById('searchInput').value.toLowerCase();
 
-    let filtered = tickets;
-    if (currentFilter !== 'all') filtered = filtered.filter(t => t.status === currentFilter);
-    if (search) filtered = filtered.filter(t => matchesTicketSearch(t, search));
-
-    // Update summary cards
+    // Server already filters/sorts; render as-is (already paginated)
     updateSummaryCards();
 
-    if (filtered.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+    if (tickets.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        renderLoadMore();
+        return;
+    }
     empty.style.display = 'none';
 
     const isAdmin = !!(currentUser && currentUser.isAdmin);
     const myId = currentUser ? currentUser.employeeId : '';
-    // Sort: urgent first, then high, medium, low — within same priority keep original order (newest first)
-    const prioOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-    filtered = filtered.slice().sort((a, b) => (prioOrder[a.priority] ?? 9) - (prioOrder[b.priority] ?? 9));
 
-    tbody.innerHTML = filtered.map((t, i) => {
+    tbody.innerHTML = tickets.map((t, i) => {
         const isMine   = t.employeeId === myId;
         const canCancel  = !isAdmin && isMine && t.status === 'เปิด Ticket';
         const canConfirm = !isAdmin && isMine && t.status === 'ดำเนินการเรียบร้อย';
@@ -2125,6 +2149,26 @@ function renderTickets() {
             </td>
         </tr>`;
     }).join('');
+    renderLoadMore();
+}
+
+function renderLoadMore() {
+    let el = document.getElementById('loadMoreWrap');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'loadMoreWrap';
+        el.style.cssText = 'text-align:center; padding:14px; color:var(--muted); font-size:12px;';
+        document.getElementById('ticketTableBody').parentElement.parentElement.appendChild(el);
+    }
+    if (ticketTotalFiltered === 0) {
+        el.innerHTML = '';
+        return;
+    }
+    if (tickets.length >= ticketTotalFiltered) {
+        el.innerHTML = `แสดงครบ ${tickets.length} / ${ticketTotalFiltered} รายการ`;
+    } else {
+        el.innerHTML = `<button class="btn btn-outline btn-sm" onclick="loadMoreTickets()"><i class="fas fa-chevron-down"></i> โหลดเพิ่ม (เหลืออีก ${ticketTotalFiltered - tickets.length})</button>`;
+    }
 }
 
 // ===== User sign-off: confirm closed / reopen =====
@@ -2207,13 +2251,13 @@ async function cancelMyTicket(ticketKey, ticketNo) {
 function updateSummaryCards() {
     const el = (id) => document.getElementById(id);
     if (!el('scTotal')) return;
-    const by = (s) => tickets.filter(t => t.status === s).length;
-    el('scTotal').textContent  = tickets.length;
-    el('scOpen').textContent   = by('เปิด Ticket');
-    el('scInProg').textContent = by('กำลังดำเนินการ');
+    const c = ticketCounts || {};
+    el('scTotal').textContent  = c.total      || 0;
+    el('scOpen').textContent   = c.open       || 0;
+    el('scInProg').textContent = c.inprogress || 0;
     // "เสร็จเรียบร้อย" card shows both "ดำเนินการเรียบร้อย" (awaiting user confirm) + "ปิดงานแล้ว" (closed)
-    el('scDone').textContent   = by('ดำเนินการเรียบร้อย') + by('ปิดงานแล้ว');
-    el('scCancel').textContent = by('ยกเลิก');
+    el('scDone').textContent   = (c.resolved || 0) + (c.closed || 0);
+    el('scCancel').textContent = c.cancelled  || 0;
 }
 
 // Edit from regular ticket list (admin only) — reuse admin edit modal
@@ -2273,7 +2317,14 @@ function setFilter(f, btn) {
     currentFilter = f;
     document.querySelectorAll('.filter-tabs button').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    renderTickets();
+    loadTickets();  // server-side filter
+}
+
+// Debounce ticket search to avoid hammering the API
+let _searchTimer = null;
+function debouncedSearchTickets() {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => loadTickets(), 350);
 }
 
 function statusBadge(s) {
@@ -2521,9 +2572,11 @@ async function loadTicketChatList() {
         // For admin: show ALL tickets with messages. For user: only their tickets (RPC handles filter)
         // Also enrich with ticket info
         const keys = chats.map(c => c.ticketKey);
-        const { data: tix } = await sb.from('tickets')
-            .select('key, ticket_no, employee_name, status')
-            .in('key', keys);
+        const { data: tix } = await sb.rpc('get_tickets_brief', {
+            p_emp_id: currentUser.employeeId,
+            p_password: currentPwd,
+            p_keys: keys,
+        });
         const tixMap = {};
         (tix || []).forEach(t => tixMap[t.key] = t);
 
@@ -3872,12 +3925,11 @@ async function loadNotifications() {
 
         // Admin: unassigned tickets
         if (currentUser.isAdmin) {
-            const { data } = await sb.from('tickets')
-                .select('ticket_no, created_at, employee_name, request, symptom')
-                .eq('status', 'เปิด Ticket')
-                .or('admin.is.null,admin.eq.')
-                .order('created_at', { ascending: false }).limit(10);
-            (data || []).forEach(t => allItems.push({
+            const { data } = await sb.rpc('get_unassigned_tickets', {
+                p_emp_id: currentUser.employeeId,
+                p_password: currentPwd,
+            });
+            (Array.isArray(data) ? data : []).forEach(t => allItems.push({
                 id: 'a-' + t.ticket_no, ticketNo: t.ticket_no, isRead: false,
                 title: 'Ticket รอรับ: ' + t.ticket_no,
                 desc: (t.employee_name || '') + ' — ' + (t.request || t.symptom || '').slice(0, 40),
