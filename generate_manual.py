@@ -9,8 +9,9 @@ from reportlab.lib.colors import HexColor, white
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, HRFlowable, KeepTogether
+    PageBreak, HRFlowable, KeepTogether, Image as RLImage
 )
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from datetime import datetime
@@ -53,6 +54,32 @@ S = {
 
 cell_s  = ParagraphStyle('CS', fontName='Thai', fontSize=10, textColor=C_DARK, leading=14)
 cell_h  = ParagraphStyle('CH', fontName='Thai', fontSize=10, textColor=white, leading=14)
+
+# Image helper — embed screenshots, skip silently if missing
+IMG_DIR   = os.path.join(os.path.dirname(__file__), 'manual_images')
+PAGE_W    = A4[0] - 4 * cm  # content width after margins
+MAX_IMG_H = 11 * cm
+
+def add_img(story, filename, caption=None, width_ratio=0.85):
+    path = os.path.join(IMG_DIR, filename)
+    if not os.path.exists(path):
+        return
+    iw, ih = ImageReader(path).getSize()
+    tw = PAGE_W * width_ratio
+    th = tw * (ih / iw)
+    if th > MAX_IMG_H:
+        th = MAX_IMG_H
+        tw = th * (iw / ih)
+    im = RLImage(path, width=tw, height=th)
+    im.hAlign = 'CENTER'
+    story.append(Spacer(1, 6))
+    story.append(im)
+    if caption:
+        cap = ParagraphStyle('Cap', fontName='Thai', fontSize=9,
+                             textColor=C_MUTED, leading=12, alignment=1)
+        story.append(Spacer(1, 3))
+        story.append(Paragraph(caption, cap))
+    story.append(Spacer(1, 10))
 
 
 def P(t, s=None):
@@ -235,6 +262,7 @@ def build():
     story.append(numbered_step(4, 'กดปุ่ม "เข้าสู่ระบบ"', 'ระบบจะพาเข้าหน้าหลักอัตโนมัติ'))
     story.append(Spacer(1, 8))
     story.append(note_box('หากเป็นพนักงานใหม่ยังไม่มีบัญชี ให้กดปุ่ม "ลงทะเบียนที่นี่" (ดูขั้นตอน 1.2)'))
+    add_img(story, '01_login.png', 'หน้าจอ Login')
 
     story.append(PageBreak())
 
@@ -249,6 +277,7 @@ def build():
     story.append(numbered_step(4, 'รอการอนุมัติ', 'Admin จะอนุมัติภายในไม่นาน หลังจากนั้น Login เข้าใช้งานได้ทันที'))
     story.append(Spacer(1, 8))
     story.append(note_box('หากต้องการใช้งานด่วน ติดต่อทีม IT โดยตรงเพื่อให้อนุมัติบัญชี'))
+    add_img(story, '02_register.png', 'หน้าจอลงทะเบียนผู้ใช้ใหม่')
 
     story.append(Spacer(1, 16))
 
@@ -267,6 +296,7 @@ def build():
     story.append(numbered_step(8, 'กดปุ่ม "ส่ง Ticket"', 'ระบบจะสร้างเลข Ticket อัตโนมัติ เช่น IT26040288'))
     story.append(Spacer(1, 8))
     story.append(info_box('<b>💡 Tip:</b> ยิ่งบอกรายละเอียดเยอะ + แนบ screenshot ทีม IT ก็จะช่วยได้เร็วขึ้น'))
+    add_img(story, '03_new_ticket.png', 'ฟอร์มเปิด Ticket ใหม่')
 
     story.append(PageBreak())
 
@@ -277,6 +307,8 @@ def build():
     story.append(numbered_step(2, 'ใช้ Filter ด้านบน', 'คลิกเพื่อกรองตามสถานะ: ทั้งหมด / เปิด Ticket / กำลังดำเนินการ / เสร็จเรียบร้อย / ยกเลิก'))
     story.append(numbered_step(3, 'ค้นหาด้วยคำค้น', 'พิมพ์คำค้นในช่องค้นหา (เลข ticket, ประเภท, รายละเอียด)'))
     story.append(numbered_step(4, 'คลิกปุ่ม 👁️ "ดู"', 'ดูรายละเอียด Ticket ทั้งหมด รวมรูปแนบ + ข้อความตอบกลับจาก IT'))
+    add_img(story, '04_ticket_list.png', 'หน้ารายการ Ticket พร้อม filter และช่องค้นหา')
+    add_img(story, '05_ticket_detail.png', 'Modal รายละเอียด Ticket (เมื่อกดปุ่ม "ดู")')
     story.append(Spacer(1, 10))
 
     # 1.5 Cancel
@@ -305,6 +337,7 @@ def build():
     story.append(numbered_step(6, 'หากแก้ไม่ได้ บอก AI ว่า "ไม่หาย"', 'AI จะเปิด Ticket ให้อัตโนมัติ พร้อมกรอกข้อมูลจากบทสนทนา'))
     story.append(Spacer(1, 8))
     story.append(info_box('<b>🤖 AI ฉลาดขึ้นเรื่อยๆ:</b> ทุกครั้งที่ Admin ปิด Ticket พร้อมใส่วิธีแก้ ระบบจะเรียนรู้อัตโนมัติ — คำถามเดิมครั้งต่อไป AI จะตอบได้เลย'))
+    add_img(story, '09_ai_chatbot.png', 'กล่องแชท AI IT Support (ปุ่มสีม่วงด้านซ้าย)')
 
     story.append(PageBreak())
 
@@ -320,6 +353,7 @@ def build():
     story.append(numbered_step(5, 'กด ➤ เพื่อส่ง', 'ทีม IT จะได้รับแจ้งเตือนทันที'))
     story.append(Spacer(1, 8))
     story.append(info_box('ข้อความแชททั้งหมด<b>ถูกเก็บถาวร</b>ใน Ticket สามารถย้อนดูได้ตลอด'))
+    add_img(story, '10_ticket_chat.png', 'กล่องแชทระหว่างผู้แจ้งกับทีม IT')
 
     story.append(Spacer(1, 16))
 
@@ -337,6 +371,7 @@ def build():
         ],
         [W*0.4, W*0.6]
     ))
+    add_img(story, '08_notifications.png', 'Panel การแจ้งเตือน (กดกระดิ่งบนขวา)')
     story.append(Spacer(1, 12))
 
     # 1.9 PWA
@@ -351,6 +386,29 @@ def build():
     story.append(numbered_step(1, 'เปิด Safari (ห้ามใช้ Chrome บน iOS)', ''))
     story.append(numbered_step(2, 'กดปุ่ม Share 􀈂 ด้านล่าง', ''))
     story.append(numbered_step(3, 'เลือก "Add to Home Screen"', 'ตั้งชื่อแล้วกด Add'))
+
+    story.append(PageBreak())
+
+    # 1.10 Profile / Settings
+    story.append(Paragraph('1.10 โปรไฟล์และการตั้งค่า', S['h2']))
+    story.append(hr())
+    story.append(Paragraph('คลิกปุ่ม 3 จุด (⋮) มุมบนขวา → เลือก "โปรไฟล์ของฉัน" เพื่อเข้าหน้าตั้งค่าส่วนตัว', S['body']))
+    add_img(story, '11_user_menu.png', 'เมนู 3 จุดที่มุมบนขวา — มี โปรไฟล์ของฉัน / ออกจากระบบ')
+    story.append(Spacer(1, 6))
+
+    story.append(Paragraph('<b>แท็บ "ข้อมูล"</b> — แก้ไข ชื่อเล่น, Email, เบอร์โทร (รหัสพนักงานและแผนกแก้ไม่ได้ ติดต่อ IT)', S['body']))
+    add_img(story, '12_profile_info.png', 'แท็บข้อมูลส่วนตัว')
+
+    story.append(Paragraph('<b>แท็บ "รูปโปรไฟล์"</b> — อัปโหลดรูปโปรไฟล์ (JPG/PNG สูงสุด 5 MB)', S['body']))
+    add_img(story, '13_profile_avatar.png', 'แท็บรูปโปรไฟล์')
+
+    story.append(Paragraph('<b>แท็บ "รหัสผ่าน"</b> — เปลี่ยนรหัสผ่าน (ต้องกรอกรหัสเดิมก่อน)', S['body']))
+    add_img(story, '14_profile_password.png', 'แท็บเปลี่ยนรหัสผ่าน')
+
+    story.append(Paragraph('<b>แท็บ "ธีม"</b> — ปรับรูปลักษณ์การใช้งาน: Light/Dark/Auto, สีหลัก 6 สี, ขนาดตัวอักษร', S['body']))
+    add_img(story, '15_profile_theme.png', 'แท็บธีม — ตั้งค่าการแสดงผล')
+    story.append(Spacer(1, 8))
+    story.append(info_box('การตั้งค่าธีมจะถูกบันทึกในเครื่องนี้อัตโนมัติ (localStorage) — เข้าเครื่องอื่นต้องตั้งใหม่'))
 
     story.append(PageBreak())
 
@@ -407,6 +465,7 @@ def build():
     story.append(numbered_step(7, 'กดปุ่ม "บันทึก"', 'ระบบจะแจ้ง User ทันที + บันทึกประวัติอัตโนมัติ'))
     story.append(Spacer(1, 8))
     story.append(info_box('📚 <b>AI เรียนรู้อัตโนมัติ:</b> เมื่อเปลี่ยนสถานะเป็น "ดำเนินการเรียบร้อย" + ใส่วิธีแก้ ระบบจะเพิ่มเข้า Knowledge Base ทันที'))
+    add_img(story, '06_admin_edit.png', 'Modal แก้ไข Ticket สำหรับ Admin')
 
     story.append(PageBreak())
 
@@ -426,6 +485,7 @@ def build():
     story.append(numbered_step(2, 'ดูรายชื่อที่ลงทะเบียน', 'รหัส, ชื่อ, สังกัด, ตำแหน่ง, อีเมล, วันที่สมัคร'))
     story.append(numbered_step(3, 'กดปุ่มเขียว ✅ อนุมัติ', 'User เข้าใช้งานได้ทันที'))
     story.append(numbered_step(4, 'หรือปุ่มแดง ❌ ปฏิเสธ', 'ลบการสมัครทิ้ง'))
+    add_img(story, '07_approval.png', 'หน้าอนุมัติผู้ลงทะเบียนใหม่ (สำหรับ Admin)')
 
     story.append(Spacer(1, 16))
 
