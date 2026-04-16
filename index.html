@@ -1225,9 +1225,9 @@
                     <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
                     <option value="ต้องการ Approve">ต้องการ Approve</option>
                     <option value="ดำเนินการเรียบร้อย">ดำเนินการเรียบร้อย (รอ user ยืนยัน)</option>
-                    <option value="ปิดงานแล้ว">ปิดงานแล้ว</option>
                     <option value="ยกเลิก">ยกเลิก</option>
                 </select>
+                <p class="profile-field-note" style="margin-top:4px;">สถานะ "ปิดงานแล้ว" = ผู้แจ้งต้องกดยืนยันเอง · ถ้าผู้แจ้งไม่ตอบกลับ Ticket จะค้างที่ "ดำเนินการเรียบร้อย"</p>
             </div>
             <div class="form-group">
                 <label>วิธีแก้ไขปัญหา</label>
@@ -2237,7 +2237,16 @@ function openAdminEditFor(t) {
         sel.innerHTML += `<option value="${esc(t.admin)}">${esc(t.admin)} (เดิม)</option>`;
     }
     sel.value = t.admin || '';
-    document.getElementById('adminEditStatus').value = t.status;
+    const statusSel = document.getElementById('adminEditStatus');
+    // Add "ปิดงานแล้ว" as a visible-but-disabled option only when the ticket is already in that state
+    [...statusSel.options].forEach(o => { if (o.dataset.locked) o.remove(); });
+    if (t.status === 'ปิดงานแล้ว' && ![...statusSel.options].some(o => o.value === 'ปิดงานแล้ว')) {
+        const opt = new Option('ปิดงานแล้ว (ผู้แจ้งยืนยันแล้ว)', 'ปิดงานแล้ว');
+        opt.dataset.locked = '1';
+        opt.disabled = true;
+        statusSel.appendChild(opt);
+    }
+    statusSel.value = t.status;
     document.getElementById('adminEditReply').value  = t.reply || '';
     document.getElementById('adminEditPriority').value = t.priority || 'medium';
     document.getElementById('adminEditModal').classList.add('show');
@@ -2868,7 +2877,15 @@ function openAdminEdit(idx) {
     }
     sel.value = t.admin || '';
 
-    document.getElementById('adminEditStatus').value = t.status;
+    const statusSel2 = document.getElementById('adminEditStatus');
+    [...statusSel2.options].forEach(o => { if (o.dataset.locked) o.remove(); });
+    if (t.status === 'ปิดงานแล้ว' && ![...statusSel2.options].some(o => o.value === 'ปิดงานแล้ว')) {
+        const opt = new Option('ปิดงานแล้ว (ผู้แจ้งยืนยันแล้ว)', 'ปิดงานแล้ว');
+        opt.dataset.locked = '1';
+        opt.disabled = true;
+        statusSel2.appendChild(opt);
+    }
+    statusSel2.value = t.status;
     document.getElementById('adminEditReply').value  = t.reply || '';
     document.getElementById('adminEditPriority').value = t.priority || 'medium';
     document.getElementById('adminEditModal').classList.add('show');
