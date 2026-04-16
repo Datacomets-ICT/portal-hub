@@ -1505,6 +1505,21 @@ function businessMinutesBetween(from, to) {
     return Math.round(total);
 }
 
+// Auto-close countdown — returns days until auto-close, or null if not applicable
+const AUTO_CLOSE_DAYS = 7;
+function daysUntilAutoClose(t) {
+    if (t.status !== 'ดำเนินการเรียบร้อย' || !t.resolvedAt) return null;
+    const deadline = new Date(t.resolvedAt).getTime() + AUTO_CLOSE_DAYS * 86400000;
+    const remainMs = deadline - Date.now();
+    return Math.max(0, Math.ceil(remainMs / 86400000));
+}
+function confirmTooltip(t) {
+    const d = daysUntilAutoClose(t);
+    if (d === null) return 'ยืนยันปิดงาน';
+    if (d === 0)    return 'ยืนยันปิดงาน (วันนี้ระบบจะปิดอัตโนมัติ)';
+    return `ยืนยันปิดงาน (อีก ${d} วันระบบจะปิดอัตโนมัติ)`;
+}
+
 // SLA badge — pauses on terminal statuses
 function renderSLABadge(t) {
     const terminal = ['ดำเนินการเรียบร้อย', 'ปิดงานแล้ว', 'ยกเลิก'];
@@ -2053,6 +2068,7 @@ async function loadTickets() {
             location:     t.location || '',
             priority:     t.priority || 'medium',
             dueAt:        t.due_at || null,
+            resolvedAt:   t.resolved_at || null,
             photoUrls:    Array.isArray(t.photo_urls) ? t.photo_urls : [],
             fileUrls:     Array.isArray(t.file_urls)  ? t.file_urls  : [],
         }));
@@ -2103,7 +2119,7 @@ function renderTickets() {
             <td style="white-space:nowrap;">
                 <button class="btn btn-outline btn-sm" onclick="viewTicket(${i})" title="ดู"><i class="fas fa-eye"></i></button>
                 ${isAdmin ? `<button class="btn btn-success btn-sm" onclick="openListEdit(${i})" title="แก้ไข"><i class="fas fa-edit"></i></button>` : ''}
-                ${canConfirm ? `<button class="btn btn-success btn-sm" onclick="confirmTicketClosed(${t.key}, '${esc(t.ticketNo)}')" title="ยืนยันปิดงาน"><i class="fas fa-check"></i></button>` : ''}
+                ${canConfirm ? `<button class="btn btn-success btn-sm" onclick="confirmTicketClosed(${t.key}, '${esc(t.ticketNo)}')" title="${esc(confirmTooltip(t))}"><i class="fas fa-check"></i></button>` : ''}
                 ${canConfirm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--warning);color:var(--warning);" onclick="openReopenModal(${t.key}, '${esc(t.ticketNo)}')" title="ยังไม่เสร็จ/เปิดใหม่"><i class="fas fa-undo"></i></button>` : ''}
                 ${canCancel ? `<button class="btn btn-outline btn-sm" style="border-color:var(--danger);color:var(--danger);" onclick="cancelMyTicket(${t.key}, '${esc(t.ticketNo)}')" title="ยกเลิก"><i class="fas fa-times"></i></button>` : ''}
             </td>
@@ -2298,7 +2314,18 @@ function viewTicket(idx) {
           }</div></div></div>`
         : '';
 
+    // Auto-close countdown banner for user-owned "ดำเนินการเรียบร้อย" tickets
+    const myId = currentUser ? currentUser.employeeId : '';
+    const isMine = t.employeeId === myId;
+    const daysLeft = daysUntilAutoClose(t);
+    const autoCloseBanner = (isMine && daysLeft !== null) ? `
+        <div style="background: ${daysLeft <= 2 ? '#FEF3C7' : '#EFF6FF'}; border: 1px solid ${daysLeft <= 2 ? '#F59E0B' : '#3B82F6'}; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: ${daysLeft <= 2 ? '#92400E' : '#1E40AF'};">
+            <i class="fas fa-clock"></i> ${daysLeft === 0 ? '<b>วันนี้</b>ระบบจะปิด Ticket นี้อัตโนมัติ' : `อีก <b>${daysLeft} วัน</b>ระบบจะปิด Ticket นี้อัตโนมัติ`} — กดยืนยันปิดงานหรือเปิดใหม่ที่รายการ Ticket
+        </div>
+    ` : '';
+
     document.getElementById('modalContent').innerHTML = `
+        ${autoCloseBanner}
         <div class="detail-row"><div class="dlabel">Ticket No.</div><div class="dvalue"><strong>${esc(t.ticketNo)}</strong></div></div>
         <div class="detail-row"><div class="dlabel">วันที่แจ้ง</div><div class="dvalue">${esc(t.createdAt)}</div></div>
         <div class="detail-row"><div class="dlabel">สถานะ</div><div class="dvalue"><span class="badge ${statusBadge(t.status)}">${esc(t.status)}</span></div></div>
