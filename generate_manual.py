@@ -212,13 +212,15 @@ def build():
         ('ส่วนที่ 1: สำหรับผู้ใช้งานทั่วไป (User)', C_PRIMARY, [
             '1.1  การ Login เข้าสู่ระบบ',
             '1.2  การลงทะเบียนผู้ใช้ใหม่',
-            '1.3  การเปิด Ticket ใหม่',
-            '1.4  การดูรายการ Ticket ของตัวเอง',
+            '1.3  การเปิด Ticket ใหม่ (Priority + Auto-save)',
+            '1.4  การดูรายการ Ticket ของตัวเอง (SLA countdown)',
             '1.5  การยกเลิก Ticket',
-            '1.6  การใช้ AI Chatbot (IT Support)',
-            '1.7  การแชทกับทีม IT ใน Ticket',
-            '1.8  การรับการแจ้งเตือน',
-            '1.9  ติดตั้งเป็นแอปบนมือถือ (PWA)',
+            '1.6  การยืนยันปิดงาน / เปิด Ticket ใหม่',
+            '1.7  การใช้ AI Chatbot (IT Support)',
+            '1.8  การแชทกับทีม IT + ข้อมูลติดต่อด่วน',
+            '1.9  การรับการแจ้งเตือน',
+            '1.10 ติดตั้งเป็นแอปบนมือถือ (PWA)',
+            '1.11 โปรไฟล์และการตั้งค่า',
         ]),
         ('ส่วนที่ 2: สำหรับทีม IT (Admin)', C_WARN, [
             '2.1  สิทธิ์และฟังก์ชันพิเศษของ Admin',
@@ -292,11 +294,15 @@ def build():
     story.append(numbered_step(4, 'เลือกประเภทปัญหา และ อาการ', 'จาก dropdown ที่ระบบเสนอให้'))
     story.append(numbered_step(5, 'เลือกโลเคชั่น', 'Comets HQ, Comets FAC, ICT, JA, บ้านแสง + ระบุโซน/จุดที่พบปัญหา'))
     story.append(numbered_step(6, 'กรอกรายละเอียดคำขอ', 'บอกปัญหาให้ละเอียด เช่น "คอมเปิดไม่ติด กดปุ่มแล้วมีเสียงบี๊บ 3 ครั้ง"'))
-    story.append(numbered_step(7, 'แนบรูปหรือไฟล์ (ถ้ามี)', 'แนบได้สูงสุด 5 รูป × 5 MB และ 5 ไฟล์เอกสาร × 10 MB'))
-    story.append(numbered_step(8, 'กดปุ่ม "ส่ง Ticket"', 'ระบบจะสร้างเลข Ticket อัตโนมัติ เช่น IT26040288'))
+    story.append(numbered_step(7, 'เลือกระดับความเร่งด่วน (Priority)',
+        '🔴 ด่วนมาก (งานหยุด) · 🟠 สำคัญ (ต้องเสร็จวันนี้) · 🟡 ปกติ (ค่าเริ่มต้น) · 🟢 ไม่เร่ง (ขอเสริม)'))
+    story.append(numbered_step(8, 'แนบรูปหรือไฟล์ (ถ้ามี)', 'แนบได้สูงสุด 5 รูป × 5 MB และ 5 ไฟล์เอกสาร × 10 MB'))
+    story.append(numbered_step(9, 'กดปุ่ม "ส่ง Ticket"', 'ระบบจะสร้างเลข Ticket อัตโนมัติ เช่น IT26040288 และแสดง progress bar ตอนอัปโหลด'))
     story.append(Spacer(1, 8))
     story.append(info_box('<b>💡 Tip:</b> ยิ่งบอกรายละเอียดเยอะ + แนบ screenshot ทีม IT ก็จะช่วยได้เร็วขึ้น'))
-    add_img(story, '03_new_ticket.png', 'ฟอร์มเปิด Ticket ใหม่')
+    story.append(info_box('<b>🔄 Auto-save:</b> ระบบจะบันทึกข้อมูลในฟอร์มทุก 0.5 วินาที ถ้าอินเทอร์เน็ตหลุดหรือรีเฟรชหน้าระหว่างกรอก สามารถกลับมากรอกต่อได้ (เก็บได้ 24 ชม.)'))
+    story.append(info_box('<b>⚠️ ถ้าส่งไม่สำเร็จ:</b> รูปที่อัปโหลดแล้วจะไม่ถูกอัปใหม่ · กดปุ่ม "ลองส่งใหม่" ได้ทันที ไม่ต้องเลือกไฟล์ใหม่'))
+    add_img(story, '03_new_ticket.png', 'ฟอร์มเปิด Ticket ใหม่ พร้อมช่องเลือกระดับความเร่งด่วน')
 
     story.append(PageBreak())
 
@@ -307,7 +313,14 @@ def build():
     story.append(numbered_step(2, 'ใช้ Filter ด้านบน', 'คลิกเพื่อกรองตามสถานะ: ทั้งหมด / เปิด Ticket / กำลังดำเนินการ / เสร็จเรียบร้อย / ยกเลิก'))
     story.append(numbered_step(3, 'ค้นหาด้วยคำค้น', 'พิมพ์คำค้นในช่องค้นหา (เลข ticket, ประเภท, รายละเอียด)'))
     story.append(numbered_step(4, 'คลิกปุ่ม 👁️ "ดู"', 'ดูรายละเอียด Ticket ทั้งหมด รวมรูปแนบ + ข้อความตอบกลับจาก IT'))
-    add_img(story, '04_ticket_list.png', 'หน้ารายการ Ticket พร้อม filter และช่องค้นหา')
+    story.append(Spacer(1, 8))
+    story.append(Paragraph('<b>คอลัมน์ที่สำคัญ:</b>', S['body']))
+    story.append(Paragraph('• <b>Priority</b> — 🔴🟠🟡🟢 บอกระดับความเร่งด่วน · เรียง Urgent มาก่อนอัตโนมัติ', S['step']))
+    story.append(Paragraph('• <b>SLA</b> — เวลาที่เหลือก่อนครบกำหนด (นับเฉพาะเวลาทำงาน จ-ศ 08:00–17:00) · เหลือน้อย = สีเหลือง · เกินกำหนด = สีแดง', S['step']))
+    story.append(Paragraph('• <b>สถานะ</b> — "เปิด Ticket" → "กำลังดำเนินการ" → "ดำเนินการเรียบร้อย" → "ปิดงานแล้ว"', S['step']))
+    story.append(Spacer(1, 6))
+    story.append(info_box('<b>📄 Pagination:</b> ระบบโหลด 100 Ticket ล่าสุดก่อน ถ้าต้องการดูเก่ากว่ากดปุ่ม "โหลดเพิ่ม" ด้านล่างตาราง'))
+    add_img(story, '04_ticket_list.png', 'หน้ารายการ Ticket พร้อม Priority + SLA countdown + สถานะ')
     add_img(story, '05_ticket_detail.png', 'Modal รายละเอียด Ticket (เมื่อกดปุ่ม "ดู")')
     story.append(Spacer(1, 10))
 
@@ -322,10 +335,31 @@ def build():
     story.append(Spacer(1, 8))
     story.append(note_box('ยกเลิกได้เฉพาะ Ticket ที่ยังอยู่ในสถานะ "เปิด Ticket" เท่านั้น หากทีม IT เริ่มดำเนินการแล้วต้องติดต่อทีม IT โดยตรง'))
 
+    story.append(Spacer(1, 16))
+
+    # 1.6 User sign-off (confirm / reopen)
+    story.append(Paragraph('1.6 การยืนยันปิดงาน / เปิด Ticket ใหม่', S['h2']))
+    story.append(hr())
+    story.append(Paragraph('เมื่อทีม IT ทำงานเสร็จ จะเปลี่ยนสถานะเป็น <b>"ดำเนินการเรียบร้อย"</b> และรอให้ผู้แจ้งยืนยันว่างานเสร็จจริง', S['body']))
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph('<b>กรณี 1: งานแก้ไขเรียบร้อย</b>', S['h3']))
+    story.append(numbered_step(1, 'ไปที่ Ticket List', 'หา Ticket ที่สถานะ "ดำเนินการเรียบร้อย" (ของตัวเอง)'))
+    story.append(numbered_step(2, 'กดปุ่ม ✓ สีเขียว "ยืนยันปิดงาน"', 'สถานะจะเปลี่ยนเป็น "ปิดงานแล้ว" · ทีม IT ได้รับแจ้งเตือน'))
+    story.append(Spacer(1, 8))
+
+    story.append(Paragraph('<b>กรณี 2: ปัญหายังไม่หาย / ต้องการเปิดใหม่</b>', S['h3']))
+    story.append(numbered_step(1, 'กดปุ่ม ↺ สีส้ม "ยังไม่เสร็จ/เปิดใหม่"', ''))
+    story.append(numbered_step(2, 'ใส่เหตุผลว่าทำไมยังไม่เสร็จ', 'เช่น "ปัญหากลับมาเกิดอีก" / "วิธีแก้ที่ให้มาไม่ได้ผล" / "อาการใหม่เพิ่มเติม"'))
+    story.append(numbered_step(3, 'กด "ยืนยันเปิดใหม่"', 'สถานะจะกลับเป็น "เปิด Ticket" · ทีม IT ได้รับแจ้งเตือนพร้อมเหตุผลของคุณ'))
+    story.append(Spacer(1, 8))
+    story.append(info_box('<b>⏰ Auto-close 7 วัน:</b> ถ้าไม่กดยืนยันภายใน 7 วัน ระบบจะปิด Ticket อัตโนมัติ · หากปัญหากลับมาภายหลัง สามารถกดเปิดใหม่ได้'))
+    story.append(note_box('ใน modal "รายละเอียด Ticket" จะมี banner นับถอยหลังบอกว่าอีกกี่วันจะปิดอัตโนมัติ (แถบสีฟ้า ถ้าเหลือ ≤2 วันจะเปลี่ยนเป็นสีส้ม)'))
+
     story.append(PageBreak())
 
-    # 1.6 AI Chatbot
-    story.append(Paragraph('1.6 การใช้ AI Chatbot (IT Support)', S['h2']))
+    # 1.7 AI Chatbot (was 1.6)
+    story.append(Paragraph('1.7 การใช้ AI Chatbot (IT Support)', S['h2']))
     story.append(hr())
     story.append(Paragraph('ใช้ AI Chatbot เพื่อสอบถามปัญหา IT เบื้องต้น ตอบได้ทันที 24 ชั่วโมง', S['body']))
     story.append(Spacer(1, 6))
@@ -342,7 +376,7 @@ def build():
     story.append(PageBreak())
 
     # 1.7 Ticket chat
-    story.append(Paragraph('1.7 การแชทกับทีม IT ใน Ticket', S['h2']))
+    story.append(Paragraph('1.8 การแชทกับทีม IT ใน Ticket + ข้อมูลติดต่อด่วน', S['h2']))
     story.append(hr())
     story.append(Paragraph('เมื่อมี Ticket ที่ทีม IT เริ่มตอบกลับ จะสามารถแชทโต้ตอบได้', S['body']))
     story.append(Spacer(1, 6))
@@ -350,15 +384,26 @@ def build():
     story.append(numbered_step(2, 'คลิกเปิดกล่องแชท', 'จะเห็นรายการ Ticket ที่มีการสนทนา'))
     story.append(numbered_step(3, 'คลิก Ticket ที่ต้องการ', 'เข้าดูข้อความทั้งหมด'))
     story.append(numbered_step(4, 'พิมพ์ตอบ หรือแนบรูป/ไฟล์', 'รองรับรูปภาพ และไฟล์ PDF, Word, Excel, ZIP (สูงสุด 10 MB/ไฟล์)'))
-    story.append(numbered_step(5, 'กด ➤ เพื่อส่ง', 'ทีม IT จะได้รับแจ้งเตือนทันที'))
+    story.append(numbered_step(5, 'กด ➤ เพื่อส่ง', 'ทีม IT จะได้รับแจ้งเตือนทันที (ส่งแบบ Realtime · ไม่ต้องรอ refresh)'))
     story.append(Spacer(1, 8))
     story.append(info_box('ข้อความแชททั้งหมด<b>ถูกเก็บถาวร</b>ใน Ticket สามารถย้อนดูได้ตลอด'))
+    story.append(info_box('<b>⚡ Realtime:</b> ข้อความเด้งทันทีแบบ LINE (ไม่ต้องรอโพลล์ 5 วินาที) · Shift+Enter = ขึ้นบรรทัดใหม่ · Enter = ส่ง'))
     add_img(story, '10_ticket_chat.png', 'กล่องแชทระหว่างผู้แจ้งกับทีม IT')
+
+    story.append(Spacer(1, 10))
+    story.append(Paragraph('<b>📞 ข้อมูลติดต่อด่วน (Contact Popup)</b>', S['h3']))
+    story.append(Paragraph('ในรายการแชท Ticket ทางซ้าย คลิกที่ไอคอน avatar ข้างชื่อ Ticket จะเปิดกล่องข้อมูลติดต่อเล็กๆ', S['body']))
+    story.append(numbered_step(1, 'คลิกไอคอน avatar ใน chat list', 'Popup เด้งโชว์ข้อมูลของอีกฝ่าย'))
+    story.append(numbered_step(2, 'กดที่เบอร์โทรศัพท์', 'เปิดหน้าต่างโทรออกทันที (บนมือถือ) หรือ copy ได้'))
+    story.append(numbered_step(3, 'กดที่อีเมล', 'เปิดโปรแกรมส่งเมลพร้อมกรอกปลายทางให้เรียบร้อย'))
+    story.append(Spacer(1, 6))
+    story.append(info_box('<b>📌 ใช้เมื่อไหร่?</b> เมื่องานด่วนมากจริงๆ ต้องการโทร/อีเมลตรงถึง IT (หรือ IT โทรหาผู้แจ้ง) โดยไม่ต้องเปิด HR directory'))
+    add_img(story, '17_contact_popup.png', 'Contact popup — เบอร์โทร + อีเมลของอีกฝ่าย กดเพื่อโทร/เมลได้ทันที')
 
     story.append(Spacer(1, 16))
 
     # 1.8 Notifications
-    story.append(Paragraph('1.8 การรับการแจ้งเตือน', S['h2']))
+    story.append(Paragraph('1.9 การรับการแจ้งเตือน', S['h2']))
     story.append(hr())
     story.append(Paragraph('ระบบแจ้งเตือนเมื่อมีการเปลี่ยนแปลงใน Ticket ของคุณ', S['body']))
     story.append(Spacer(1, 8))
@@ -375,7 +420,7 @@ def build():
     story.append(Spacer(1, 12))
 
     # 1.9 PWA
-    story.append(Paragraph('1.9 ติดตั้งเป็นแอปบนมือถือ (PWA)', S['h2']))
+    story.append(Paragraph('1.10 ติดตั้งเป็นแอปบนมือถือ (PWA)', S['h2']))
     story.append(hr())
     story.append(Paragraph('<b>📱 Android (Chrome):</b>', S['h3']))
     story.append(numbered_step(1, 'เปิด Chrome', 'เข้าเว็บไซต์ระบบ'))
@@ -389,8 +434,8 @@ def build():
 
     story.append(PageBreak())
 
-    # 1.10 Profile / Settings
-    story.append(Paragraph('1.10 โปรไฟล์และการตั้งค่า', S['h2']))
+    # 1.11 Profile / Settings
+    story.append(Paragraph('1.11 โปรไฟล์และการตั้งค่า', S['h2']))
     story.append(hr())
     story.append(Paragraph('คลิกปุ่ม 3 จุด (⋮) มุมบนขวา → เลือก "โปรไฟล์ของฉัน" เพื่อเข้าหน้าตั้งค่าส่วนตัว', S['body']))
     add_img(story, '11_user_menu.png', 'เมนู 3 จุดที่มุมบนขวา — มี โปรไฟล์ของฉัน / ออกจากระบบ')
@@ -407,8 +452,12 @@ def build():
 
     story.append(Paragraph('<b>แท็บ "ธีม"</b> — ปรับรูปลักษณ์การใช้งาน: Light/Dark/Auto, สีหลัก 6 สี, ขนาดตัวอักษร', S['body']))
     add_img(story, '15_profile_theme.png', 'แท็บธีม — ตั้งค่าการแสดงผล')
+
+    story.append(Paragraph('<b>แท็บ "แจ้งเตือน"</b> — เปิด/ปิดเสียงแจ้งเตือน + popup เด้งขวาบน (การแจ้งเตือนในกระดิ่งยังทำงานปกติ)', S['body']))
+    add_img(story, '16_profile_notify.png', 'แท็บแจ้งเตือน — ตั้งค่าเสียงและ popup')
+
     story.append(Spacer(1, 8))
-    story.append(info_box('การตั้งค่าธีมจะถูกบันทึกในเครื่องนี้อัตโนมัติ (localStorage) — เข้าเครื่องอื่นต้องตั้งใหม่'))
+    story.append(info_box('การตั้งค่าธีม + แจ้งเตือนจะถูกบันทึกในเครื่องนี้อัตโนมัติ (localStorage) — เข้าเครื่องอื่นต้องตั้งใหม่'))
 
     story.append(PageBreak())
 
@@ -459,13 +508,15 @@ def build():
     story.append(numbered_step(1, 'คลิกปุ่มดินสอเขียว ✏️', 'ในแถว Ticket ที่ต้องการแก้ไข'))
     story.append(numbered_step(2, 'Modal เปิดขึ้น พร้อมข้อมูลสรุป Ticket', 'ผู้แจ้ง, สถานที่, ประเภทปัญหา, รายละเอียด'))
     story.append(numbered_step(3, 'เลือก "ผู้รับผิดชอบ"', 'จาก dropdown รายชื่อทีม IT ที่ active'))
-    story.append(numbered_step(4, 'เปลี่ยน "สถานะ"', 'เปิด Ticket → กำลังดำเนินการ → ต้องการ Approve → ดำเนินการเรียบร้อย / ยกเลิก'))
-    story.append(numbered_step(5, 'กรอก "วิธีแก้ไขปัญหา"', 'อธิบายวิธีแก้ที่ใช้จริง (ข้อมูลนี้จะถูกเรียนรู้โดย AI)'))
-    story.append(numbered_step(6, 'ดูประวัติการแก้ไขด้านล่าง', 'เห็นใคร/เมื่อไหร่/เปลี่ยนอะไร'))
-    story.append(numbered_step(7, 'กดปุ่ม "บันทึก"', 'ระบบจะแจ้ง User ทันที + บันทึกประวัติอัตโนมัติ'))
+    story.append(numbered_step(4, 'ปรับ "Priority"', '🔴 ด่วนมาก / 🟠 สำคัญ / 🟡 ปกติ / 🟢 ไม่เร่ง · SLA deadline จะคำนวณใหม่อัตโนมัติ'))
+    story.append(numbered_step(5, 'เปลี่ยน "สถานะ"', 'เปิด Ticket → กำลังดำเนินการ → ต้องการ Approve → ดำเนินการเรียบร้อย (รอ user ยืนยัน) / ยกเลิก'))
+    story.append(numbered_step(6, 'กรอก "วิธีแก้ไขปัญหา"', 'อธิบายวิธีแก้ที่ใช้จริง (ข้อมูลนี้จะถูกเรียนรู้โดย AI)'))
+    story.append(numbered_step(7, 'ดูประวัติการแก้ไขด้านล่าง', 'เห็นใคร/เมื่อไหร่/เปลี่ยนอะไร'))
+    story.append(numbered_step(8, 'กดปุ่ม "บันทึก"', 'ระบบจะแจ้ง User ทันที + บันทึกประวัติอัตโนมัติ'))
     story.append(Spacer(1, 8))
     story.append(info_box('📚 <b>AI เรียนรู้อัตโนมัติ:</b> เมื่อเปลี่ยนสถานะเป็น "ดำเนินการเรียบร้อย" + ใส่วิธีแก้ ระบบจะเพิ่มเข้า Knowledge Base ทันที'))
-    add_img(story, '06_admin_edit.png', 'Modal แก้ไข Ticket สำหรับ Admin')
+    story.append(note_box('<b>⚠️ "ปิดงานแล้ว"</b> = สถานะที่ <b>ผู้แจ้งกดยืนยันเอง</b>เท่านั้น · Admin เลือกให้ใน dropdown ไม่ได้ · ถ้าผู้แจ้งไม่ยืนยันภายใน 7 วัน ระบบจะปิดอัตโนมัติ'))
+    add_img(story, '06_admin_edit.png', 'Modal แก้ไข Ticket สำหรับ Admin (มี Priority dropdown)')
 
     story.append(PageBreak())
 
@@ -515,14 +566,29 @@ def build():
     story.append(tbl(
         ['สถานะ', 'สี Badge', 'ความหมาย', 'ใครเปลี่ยนได้'],
         [
-            ['เปิด Ticket', '🟡 เหลือง', 'เพิ่งส่ง ยังไม่มีคนรับ (default ตอนสร้าง)', 'Admin / User (ยกเลิก)'],
-            ['กำลังดำเนินการ', '🔵 น้ำเงิน', 'ทีม IT กำลังแก้ไข', 'Admin'],
-            ['ต้องการ Approve', '🟠 ส้ม', 'รอผู้บริหาร/หัวหน้าอนุมัติ (เช่น ขอซื้อ/ขอเปลี่ยนอุปกรณ์)', 'Admin'],
-            ['ดำเนินการเรียบร้อย', '🟢 เขียว', 'แก้ไขเสร็จแล้ว (ระบบเรียนรู้ AI อัตโนมัติ)', 'Admin'],
-            ['ยกเลิก', '⚫ เทา', 'ยกเลิก Ticket', 'Admin / User (ก่อนเริ่มงาน)'],
+            ['เปิด Ticket',         '🟡 เหลือง',  'เพิ่งส่ง ยังไม่มีคนรับ (default ตอนสร้าง)',                         'Admin / User (ยกเลิก)'],
+            ['กำลังดำเนินการ',       '🔵 น้ำเงิน', 'ทีม IT กำลังแก้ไข',                                               'Admin'],
+            ['ต้องการ Approve',      '🟠 ส้ม',    'รอผู้บริหาร/หัวหน้าอนุมัติ (เช่น ขอซื้อ/ขอเปลี่ยนอุปกรณ์)',          'Admin'],
+            ['ดำเนินการเรียบร้อย',   '🟢 เขียว',  'IT แก้เสร็จ รอผู้แจ้งยืนยัน (AI learn แล้ว)',                      'Admin'],
+            ['ปิดงานแล้ว',          '🟢 เขียวเข้ม','ผู้แจ้งยืนยันว่างานเสร็จจริง (สถานะสุดท้าย)',                      'User เท่านั้น / ระบบ (auto หลัง 7 วัน)'],
+            ['ยกเลิก',              '⚫ เทา',    'ยกเลิก Ticket',                                                  'Admin / User (ก่อนเริ่มงาน)'],
         ],
         [W*0.18, W*0.14, W*0.42, W*0.26]
     ))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph('<b>Priority × SLA (เวลาทำงาน จ–ศ 08:00–17:00):</b>', S['body']))
+    story.append(tbl(
+        ['Priority', 'SLA (ชม. ทำงาน)', 'ใช้เมื่อไหร่'],
+        [
+            ['🔴 Urgent',  '2 ชม.',  'งานหยุด / CEO / ปิดบัญชี'],
+            ['🟠 High',    '4 ชม.',  'ทำงานคนเดียวไม่ได้ ต้องเสร็จวันนี้'],
+            ['🟡 Medium',  '8 ชม.',  'ค่าเริ่มต้น · มีปัญหาแต่ทำอย่างอื่นไปพลางได้'],
+            ['🟢 Low',     '24 ชม.', 'ขอเสริม / ไม่เร่ง'],
+        ],
+        [W*0.22, W*0.22, W*0.56]
+    ))
+    story.append(Spacer(1, 8))
+    story.append(info_box('Auto-close อัตโนมัติหลัง 7 วันถ้าผู้แจ้งไม่ยืนยัน · ระบบแจ้งเตือน User ว่าเกิดอะไร · User กด "เปิดใหม่" ได้ตลอดถ้าปัญหากลับมา'))
     story.append(PageBreak())
 
     # =============================================================

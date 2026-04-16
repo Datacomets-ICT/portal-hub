@@ -173,6 +173,51 @@ def main():
         time.sleep(0.5)
         shot(page, '15_profile_theme.png')
 
+        # ---- 16. Profile - Notify tab ----
+        print('▶ Profile - Notify tab')
+        try:
+            page.click('.profile-tabs button:has-text("แจ้งเตือน")', timeout=3000)
+            time.sleep(0.5)
+            shot(page, '16_profile_notify.png')
+        except Exception as e:
+            print(f'  ⚠ notify tab skipped: {e}')
+        # Close profile
+        try:
+            page.evaluate("document.getElementById('profileModal').classList.remove('show')")
+        except Exception:
+            pass
+        time.sleep(0.5)
+
+        # ---- 17. Contact popup (click an avatar in ticket chat list) ----
+        print('▶ Contact popup')
+        try:
+            # Open ticket chat panel
+            page.evaluate("document.body.classList.add('has-ticket-chat')")
+            page.click('.sb-btn-ticket', timeout=3000)
+            time.sleep(1.5)
+            # Click the avatar on the first ticket item
+            avatar = page.locator('.tchat-ticket-item .ti-avatar').first
+            if avatar.count() > 0:
+                avatar.click()
+                page.wait_for_selector('#contactPopup.show', timeout=5000)
+                time.sleep(1)
+                shot(page, '17_contact_popup.png')
+                page.evaluate("document.getElementById('contactPopup').classList.remove('show')")
+            page.evaluate("document.getElementById('tchatPanel').classList.remove('show')")
+        except Exception as e:
+            print(f'  ⚠ contact popup skipped: {e}')
+        time.sleep(0.5)
+
+        # ---- 18. Left sidebar (with all FABs) ----
+        print('▶ Left sidebar buttons')
+        try:
+            # Hover over manual button to show tooltip
+            page.hover('.sb-btn-manual', timeout=3000)
+            time.sleep(0.8)
+            shot(page, '18_sidebar.png', clip={'x': 0, 'y': 0, 'width': 320, 'height': 800})
+        except Exception as e:
+            print(f'  ⚠ sidebar skipped: {e}')
+
         browser.close()
     print('\n✅ Done. Images saved to', OUT_DIR)
 
