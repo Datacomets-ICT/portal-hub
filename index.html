@@ -65,10 +65,10 @@
         [data-theme="dark"] .sb-btn .sb-label::before { border-right-color:#0F172A; }
         [data-theme="dark"] .color-swatches label:has(input:checked) { border-color:#fff; }
 
-        /* ===== Font size presets ===== */
-        [data-fontsize="s"] { font-size: 13px; }
-        [data-fontsize="m"] { font-size: 14px; }
-        [data-fontsize="l"] { font-size: 16px; }
+        /* ===== Font size presets (zoom scales entire page since existing CSS uses px) ===== */
+        [data-fontsize="s"] { zoom: 0.9; }
+        [data-fontsize="m"] { zoom: 1; }
+        [data-fontsize="l"] { zoom: 1.12; }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Noto Sans Thai', sans-serif; background: var(--bg); min-height: 100vh; color: var(--text); transition: background .2s, color .2s; }
