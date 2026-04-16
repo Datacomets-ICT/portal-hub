@@ -2497,7 +2497,8 @@ function openTicketChat(ticketKey, ticketNo) {
     document.getElementById('tchatPanel').classList.add('show');
     showTicketChatView();
     loadTicketChatMessages();
-    startTChatPolling();
+    subscribeToTicketMessages(ticketKey);   // realtime (instant)
+    startTChatPolling();                     // fallback poll every 15s
     setTimeout(() => { const i = document.getElementById('tchatInput'); if (i) i.focus(); }, 100);
 }
 
@@ -2514,6 +2515,7 @@ function toggleTicketChat() {
 
 function showTicketChatList() {
     activeTicketChat = null;
+    unsubscribeFromTicketMessages();  // no active ticket → drop subscription
     document.getElementById('tchatTickets').style.display = 'block';
     document.getElementById('tchatBody').style.display = 'none';
     document.getElementById('tchatInputArea').style.display = 'none';
@@ -2536,10 +2538,41 @@ function showTicketChatView() {
 function closeTicketChat() {
     document.getElementById('tchatPanel').classList.remove('show');
     stopTChatPolling();
+    unsubscribeFromTicketMessages();
+}
+
+// Chat realtime subscription (single active ticket at a time)
+let tchatRealtimeSub = null;
+function subscribeToTicketMessages(ticketKey) {
+    unsubscribeFromTicketMessages();
+    try {
+        tchatRealtimeSub = sb.channel(`tchat_${ticketKey}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'ticket_messages',
+                filter: `ticket_key=eq.${ticketKey}`,
+            }, () => {
+                if (document.visibilityState !== 'visible') return;
+                if (activeTicketChat && activeTicketChat.key === ticketKey) {
+                    loadTicketChatMessages(true);
+                }
+            })
+            .subscribe();
+    } catch (e) {
+        console.warn('Realtime subscription failed, polling fallback will handle updates:', e);
+    }
+}
+function unsubscribeFromTicketMessages() {
+    if (tchatRealtimeSub) {
+        try { sb.removeChannel(tchatRealtimeSub); } catch (_) {}
+        tchatRealtimeSub = null;
+    }
 }
 
 function startTChatPolling() {
     stopTChatPolling();
+    // Fallback polling: slower (15s) since realtime handles the instant case
     tchatRefreshTimer = setInterval(() => {
         const panel = document.getElementById('tchatPanel');
         if (!panel.classList.contains('show')) { stopTChatPolling(); return; }
@@ -2547,10 +2580,10 @@ function startTChatPolling() {
         if (activeTicketChat) {
             loadTicketChatMessages(true);
         } else {
-            // Viewing list — refresh list
+            // Viewing list — refresh list (no realtime sub here)
             loadTicketChatList();
         }
-    }, 5000);
+    }, 15000);
 }
 
 function stopTChatPolling() {
@@ -2609,6 +2642,7 @@ function openTicketChatItem(ticketKey, ticketNo) {
     showTicketChatView();
     lastTChatCount = -1;
     loadTicketChatMessages();
+    subscribeToTicketMessages(ticketKey);  // realtime
     setTimeout(() => { const i = document.getElementById('tchatInput'); if (i) i.focus(); }, 100);
 }
 
