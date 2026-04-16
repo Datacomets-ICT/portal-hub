@@ -225,6 +225,25 @@
         .sla-over { background: #FEE2E2; color: #7F1D1D; }
         .sla-done { color: var(--muted); font-size: 11px; }
 
+        /* Contact popup (quick email/phone card) */
+        .contact-popup { display: none; position: fixed; z-index: 9999; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.18); min-width: 280px; max-width: 340px; animation: scaleIn .15s ease; overflow: hidden; }
+        .contact-popup.show { display: block; }
+        .cp-head { display: flex; align-items: center; gap: 10px; padding: 14px; background: linear-gradient(135deg, var(--primary), #7C3AED); color: #fff; }
+        .cp-head .cp-avatar { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; flex-shrink: 0; overflow: hidden; border: 2px solid rgba(255,255,255,.3); }
+        .cp-head .cp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .cp-head .cp-info { flex: 1; min-width: 0; }
+        .cp-head .cp-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cp-head .cp-sub { font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cp-head .cp-close { background: rgba(255,255,255,.15); border: none; color: #fff; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+        .cp-head .cp-close:hover { background: rgba(255,255,255,.3); }
+        .cp-body { padding: 10px 14px 14px; }
+        .cp-role { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 8px 0 4px; }
+        .cp-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: var(--text); font-size: 13px; text-decoration: none; transition: background .12s; border: 1px solid var(--border); margin-bottom: 6px; background: var(--bg); }
+        .cp-row:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+        .cp-row i { color: var(--primary); width: 16px; text-align: center; flex-shrink: 0; }
+        .cp-row .cp-val { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cp-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 8px; font-style: italic; }
+
         /* Upload progress card */
         .upload-progress { background: var(--primary-light); border: 1px solid var(--primary); border-radius: 10px; padding: 14px 16px; margin-top: 14px; }
         .up-info { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; color: var(--text); }
@@ -1247,6 +1266,9 @@
         </div>
     </div>
 </div>
+
+<!-- ========== CONTACT POPUP ========== -->
+<div class="contact-popup" id="contactPopup"></div>
 
 <!-- ========== REOPEN TICKET MODAL ========== -->
 <div class="modal-backdrop" id="reopenModal">
@@ -2621,7 +2643,7 @@ async function loadTicketChatList() {
                 ? `<span class="ti-badge">${c.unreadCount > 99 ? '99+' : c.unreadCount}</span>` : '';
             return `
                 <div class="tchat-ticket-item" onclick="openTicketChatItem(${c.ticketKey}, '${esc(c.ticketNo)}')">
-                    <div class="ti-avatar"><i class="fas fa-ticket-alt"></i></div>
+                    <div class="ti-avatar" onclick="event.stopPropagation(); showContactPopup(event, ${c.ticketKey})" title="ดูข้อมูลติดต่อ" style="cursor:pointer;"><i class="fas fa-ticket-alt"></i></div>
                     <div class="ti-content">
                         <div class="ti-top">
                             <span class="ti-no">${esc(c.ticketNo)}</span>
@@ -3073,6 +3095,92 @@ async function saveAdminEdit() {
 }
 
 function closeModal() { document.getElementById('ticketModal').classList.remove('show'); }
+
+// ===== Contact popup (quick email/phone for chat list) =====
+async function showContactPopup(evt, ticketKey) {
+    const popup = document.getElementById('contactPopup');
+    if (!popup) return;
+    // Position near the clicked avatar
+    const rect = evt.currentTarget.getBoundingClientRect();
+    popup.style.left = Math.min(rect.right + 8, window.innerWidth - 360) + 'px';
+    popup.style.top  = Math.min(rect.top, window.innerHeight - 300) + 'px';
+    popup.innerHTML = `<div class="cp-head"><div class="cp-avatar"><i class="fas fa-spinner fa-spin"></i></div><div class="cp-info"><div class="cp-name">กำลังโหลด...</div></div></div>`;
+    popup.classList.add('show');
+
+    try {
+        const { data, error } = await sb.rpc('get_ticket_contacts', {
+            p_emp_id: currentUser.employeeId,
+            p_password: currentPwd,
+            p_ticket_key: ticketKey,
+        });
+        if (error) throw error;
+        if (!data || !data.success) throw new Error((data && data.message) || 'โหลดข้อมูลไม่สำเร็จ');
+
+        // Which person to highlight first?
+        // If caller is admin → show owner's contact (to contact the user)
+        // If caller is user  → show admin's contact (to contact IT)
+        const isAdmin = !!(currentUser && currentUser.isAdmin);
+        const primary = isAdmin ? data.owner : data.admin;
+        const secondary = isAdmin ? data.admin : data.owner;
+        const primaryRole = isAdmin ? 'ผู้แจ้ง Ticket' : 'ทีม IT ที่รับผิดชอบ';
+        const secondaryRole = isAdmin ? 'ทีม IT ที่รับผิดชอบ' : 'ผู้แจ้ง Ticket';
+
+        popup.innerHTML = renderContactCard(primary, primaryRole, secondary, secondaryRole);
+    } catch (err) {
+        popup.innerHTML = `<div class="cp-head"><div class="cp-info"><div class="cp-name">เกิดข้อผิดพลาด</div><div class="cp-sub">${esc(err.message || '')}</div></div><button class="cp-close" onclick="hideContactPopup()"><i class="fas fa-times"></i></button></div>`;
+    }
+}
+
+function renderContactCard(primary, primaryRole, secondary, secondaryRole) {
+    const personBlock = (p, role, isHeader) => {
+        if (!p) return `<div class="cp-role">${esc(role)}</div><div class="cp-empty">ยังไม่มีข้อมูล</div>`;
+        const name = p.nickname || `${p.firstName} ${p.lastName}`.trim() || p.employeeId;
+        const sub = [p.department, p.section].filter(Boolean).join(' / ') || p.position || p.employeeId;
+        const avatar = p.avatarUrl
+            ? `<img src="${esc(p.avatarUrl)}" alt="">`
+            : esc((name || 'U').charAt(0).toUpperCase());
+        const rows = [];
+        if (p.phone) rows.push(`<a class="cp-row" href="tel:${esc(p.phone)}"><i class="fas fa-phone"></i><span class="cp-val">${esc(p.phone)}</span></a>`);
+        if (p.email) rows.push(`<a class="cp-row" href="mailto:${esc(p.email)}"><i class="fas fa-envelope"></i><span class="cp-val">${esc(p.email)}</span></a>`);
+        if (rows.length === 0) rows.push('<div class="cp-empty">ไม่มีเบอร์/อีเมลในระบบ</div>');
+
+        if (isHeader) {
+            return `
+                <div class="cp-head">
+                    <div class="cp-avatar">${avatar}</div>
+                    <div class="cp-info">
+                        <div class="cp-name">${esc(name)}</div>
+                        <div class="cp-sub">${esc(role)} · ${esc(sub)}</div>
+                    </div>
+                    <button class="cp-close" onclick="hideContactPopup()"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="cp-body">${rows.join('')}
+            `;
+        }
+        return `
+            <div class="cp-role">${esc(role)}: ${esc(name)}</div>
+            ${rows.join('')}
+        `;
+    };
+
+    let html = personBlock(primary, primaryRole, true);
+    if (secondary) html += personBlock(secondary, secondaryRole, false);
+    html += '</div>';  // close cp-body
+    return html;
+}
+
+function hideContactPopup() {
+    const popup = document.getElementById('contactPopup');
+    if (popup) popup.classList.remove('show');
+}
+
+// Click-outside to close
+document.addEventListener('click', (e) => {
+    const popup = document.getElementById('contactPopup');
+    if (popup && popup.classList.contains('show') && !popup.contains(e.target) && !e.target.closest('[onclick*="showContactPopup"]')) {
+        popup.classList.remove('show');
+    }
+});
 
 // ===== 3-dot User Menu =====
 function toggleUserMenu(e) {
