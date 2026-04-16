@@ -212,9 +212,12 @@
 
         /* ===== Toast ===== */
         .toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; }
-        .toast { background: var(--text); color: #fff; padding: 12px 18px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; animation: slideIn .35s cubic-bezier(.21,1.02,.73,1); box-shadow: 0 8px 24px rgba(0,0,0,.15); }
+        .toast { background: var(--text); color: #fff; padding: 12px 18px; padding-right: 40px; border-radius: 10px; margin-bottom: 8px; font-size: 13px; display: flex; align-items: center; gap: 8px; animation: slideIn .35s cubic-bezier(.21,1.02,.73,1); box-shadow: 0 8px 24px rgba(0,0,0,.15); position: relative; max-width: 420px; }
         .toast.success { background: var(--success); }
         .toast.error { background: var(--danger); }
+        .toast .toast-close { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); background: rgba(255,255,255,.15); color: #fff; border: none; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center; transition: background .15s; }
+        .toast .toast-close:hover { background: rgba(255,255,255,.3); }
+        .toast.paused { opacity: .98; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
         /* ===== Loading ===== */
@@ -281,6 +284,21 @@
         .profile-hero .ph-name { font-weight: 700; color: var(--text); font-size: 14px; }
         .profile-hero .ph-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
         .nav-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+
+        /* ===== Toggle switch (for notify prefs) ===== */
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .toggle-row:last-of-type { border-bottom: none; }
+        .toggle-text { flex: 1; }
+        .toggle-label { font-size: 14px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+        .toggle-label i { width: 18px; color: var(--primary); }
+        .toggle-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background: #CBD5E1; border-radius: 24px; transition: .2s; }
+        .slider::before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+        .switch input:checked + .slider { background: var(--primary); }
+        .switch input:checked + .slider::before { transform: translateX(20px); }
+        [data-theme="dark"] .slider { background: #475569; }
         .modal h3 { font-size: 16px; margin-bottom: 16px; color: var(--text); font-weight: 700; }
         .modal .detail-row { display: flex; padding: 8px 0; border-bottom: 1px solid var(--border); }
         .modal .detail-row .dlabel { width: 130px; font-weight: 600; color: var(--muted); font-size: 12px; flex-shrink: 0; }
@@ -388,8 +406,8 @@
         .tchat-meta { font-size: 10px; color: var(--muted); margin-top: 2px; padding: 0 4px; }
 
         .tchat-input-area { border-top: 1px solid var(--border); padding: 10px 12px; background: var(--card); display: flex; gap: 6px; align-items: center; }
-        .tchat-input-area input[type=text] { flex: 1; padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 20px; font-size: 13px; font-family: inherit; outline: none; background: var(--bg); }
-        .tchat-input-area input[type=text]:focus { border-color: var(--success); }
+        .tchat-input-area textarea { flex: 1; padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 18px; font-size: 13px; font-family: inherit; outline: none; background: var(--bg); resize: none; max-height: 120px; min-height: 38px; line-height: 1.4; }
+        .tchat-input-area textarea:focus { border-color: var(--success); }
         .tchat-input-area button { width: 38px; height: 38px; border-radius: 50%; background: var(--success); color: #fff; border: none; cursor: pointer; font-size: 14px; flex-shrink: 0; transition: all .15s; }
         .tchat-input-area button:hover { background: #059669; }
         .tchat-attach-btn { background: transparent !important; color: var(--muted) !important; }
@@ -408,10 +426,11 @@
         .tchat-file i { font-size: 16px; }
         .tchat-file .fn { font-size: 12px; }
 
-        @media (max-width: 480px) {
+        @media (max-width: 768px) {
             .tchat-panel { width: 100vw; height: 100vh; max-height: 100vh; bottom: 0; left: 0; border-radius: 0; }
-            .chat-sidebar { top: auto; bottom: 20px; transform: none; border-radius: 0 16px 16px 0; }
+            .chat-sidebar { top: auto; bottom: 12px; left: 12px; transform: none; flex-direction: row; border-radius: 14px; border: 1px solid var(--border); padding: 8px 10px; gap: 10px; }
             .sb-btn { width: 40px; height: 40px; font-size: 14px; }
+            .sb-btn .sb-label { display: none; }
         }
 
         /* ===== Notification Toast (popup) ===== */
@@ -524,14 +543,14 @@
         .chat-draft .cancel-btn { background: #F1F5F9; color: var(--text2); }
 
         .chat-input-area { border-top: 1px solid var(--border); padding: 10px 12px; background: var(--card); display: flex; gap: 8px; }
-        .chat-input-area input { flex: 1; padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 20px; font-size: 13px; font-family: inherit; outline: none; background: var(--bg); }
-        .chat-input-area input:focus { border-color: var(--primary); }
+        .chat-input-area textarea { flex: 1; padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 18px; font-size: 13px; font-family: inherit; outline: none; background: var(--bg); resize: none; max-height: 120px; min-height: 38px; line-height: 1.4; }
+        .chat-input-area textarea:focus { border-color: var(--primary); }
         .chat-input-area button { width: 38px; height: 38px; border-radius: 50%; background: var(--primary); color: #fff; border: none; cursor: pointer; font-size: 14px; flex-shrink: 0; transition: background .15s; }
         .chat-input-area button:hover { background: var(--primary-dark); }
         .chat-input-area button:disabled { opacity: .4; cursor: not-allowed; }
 
         /* ===== Responsive ===== */
-        @media (max-width: 480px) {
+        @media (max-width: 768px) {
             .chat-panel { width: 100vw; height: 100vh; max-height: 100vh; bottom: 0; left: 0; border-radius: 0; }
         }
         @media (max-width: 768px) {
@@ -701,7 +720,7 @@
     <div class="content tab-content" id="tabNewTicket">
         <div class="ticket-form-card">
             <h2><i class="fas fa-edit"></i> เปิด Ticket ใหม่</h2>
-            <p class="subtitle">กรอกรายละเอียดปัญหาหรือคำขอของคุณ</p>
+            <p class="subtitle">กรอกรายละเอียดปัญหาหรือคำขอของคุณ · <span style="color:var(--danger);font-weight:600;">*</span> = ช่องที่บังคับกรอก</p>
 
             <div class="user-info-bar">
                 <div class="info-item"><i class="fas fa-id-badge"></i> รหัส: <strong id="infoEmpId">-</strong></div>
@@ -843,7 +862,7 @@
             <h2><i class="fas fa-list-alt"></i> รายการ Ticket</h2>
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="ค้นหา Ticket..." oninput="renderTickets()">
+                <input type="text" id="searchInput" placeholder="ค้นหา: เลข Ticket, ชื่อ, ประเภท, อาการ, ผู้รับผิดชอบ..." oninput="renderTickets()" style="width:320px;">
             </div>
         </div>
 
@@ -874,6 +893,8 @@
             <div class="empty-state" id="emptyState" style="display:none;">
                 <i class="fas fa-inbox"></i>
                 <p>ยังไม่มี Ticket</p>
+                <p style="font-size:12px; margin-top:4px;">ลองเปิด Ticket ใหม่ หรือสอบถามกับ AI Chatbot ทางซ้ายของหน้าจอ</p>
+                <button class="btn btn-primary btn-sm" style="margin-top:14px;width:auto;" onclick="showTab('tabNewTicket', document.querySelector('.nav-links button:first-child'))"><i class="fas fa-plus"></i> เปิด Ticket ใหม่</button>
             </div>
         </div>
     </div>
@@ -904,6 +925,7 @@
             <div class="empty-state" id="approvalEmpty" style="display:none;">
                 <i class="fas fa-check-circle" style="color:var(--success);"></i>
                 <p>ไม่มีผู้ลงทะเบียนรออนุมัติ</p>
+                <p style="font-size:12px; margin-top:4px;">จะมีการแจ้งเตือนในกระดิ่ง 🔔 เมื่อมีผู้สมัครใหม่</p>
             </div>
         </div>
     </div>
@@ -981,7 +1003,7 @@
     <div class="tchat-input-area" id="tchatInputArea" style="display:none;">
         <input type="file" id="tchatFileInput" class="tchat-attach-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.csv" onchange="onTChatFileSelected(event)">
         <button class="tchat-attach-btn" onclick="document.getElementById('tchatFileInput').click()" title="แนบรูป/ไฟล์"><i class="fas fa-paperclip"></i></button>
-        <input type="text" id="tchatInput" placeholder="พิมพ์ข้อความ..." autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter') sendTicketChatMessage()">
+        <textarea id="tchatInput" rows="1" placeholder="พิมพ์ข้อความ... (Shift+Enter ขึ้นบรรทัดใหม่)" autocomplete="off" autocorrect="off" spellcheck="false" oninput="autoGrowTextarea(this)" onkeydown="handleChatEnter(event, sendTicketChatMessage)"></textarea>
         <button onclick="sendTicketChatMessage()"><i class="fas fa-paper-plane"></i></button>
     </div>
 </div>
@@ -998,7 +1020,7 @@
     </div>
     <div class="chat-body" id="chatBody"></div>
     <div class="chat-input-area">
-        <input type="text" id="chatInput" placeholder="พิมพ์ปัญหาที่พบ..." autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter') sendChat()">
+        <textarea id="chatInput" rows="1" placeholder="พิมพ์ปัญหาที่พบ... (Shift+Enter ขึ้นบรรทัดใหม่)" autocomplete="off" autocorrect="off" spellcheck="false" oninput="autoGrowTextarea(this)" onkeydown="handleChatEnter(event, sendChat)"></textarea>
         <button id="chatSendBtn" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
     </div>
 </div>
@@ -1159,6 +1181,7 @@
             <button onclick="switchProfileTab(event,'secAvatar')"><i class="fas fa-camera"></i> รูปโปรไฟล์</button>
             <button onclick="switchProfileTab(event,'secPassword')"><i class="fas fa-key"></i> รหัสผ่าน</button>
             <button onclick="switchProfileTab(event,'secAppearance')"><i class="fas fa-palette"></i> ธีม</button>
+            <button onclick="switchProfileTab(event,'secNotify')"><i class="fas fa-bell"></i> แจ้งเตือน</button>
         </div>
 
         <!-- Section: ข้อมูลส่วนตัว -->
@@ -1258,6 +1281,28 @@
                 <button class="btn btn-primary btn-sm" style="width:auto;" onclick="closeProfile()"><i class="fas fa-check"></i> เสร็จสิ้น</button>
             </div>
         </div>
+
+        <!-- Section: การแจ้งเตือน -->
+        <div class="profile-section" id="secNotify">
+            <div class="toggle-row">
+                <div class="toggle-text">
+                    <div class="toggle-label"><i class="fas fa-volume-up"></i> เสียงแจ้งเตือน</div>
+                    <div class="toggle-desc">เสียง beep เมื่อมี Ticket ใหม่หรือข้อความเข้า</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="notifSound" onchange="saveNotifPref('sound', this.checked)"><span class="slider"></span></label>
+            </div>
+            <div class="toggle-row">
+                <div class="toggle-text">
+                    <div class="toggle-label"><i class="fas fa-bell"></i> Popup แจ้งเตือน</div>
+                    <div class="toggle-desc">กล่องเด้งขวาบนเมื่อมี Ticket ใหม่</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="notifPopup" onchange="saveNotifPref('popup', this.checked)"><span class="slider"></span></label>
+            </div>
+            <p class="profile-field-note" style="margin-top:14px;">การตั้งค่าจะถูกบันทึกในเครื่องนี้อัตโนมัติ · การแจ้งเตือนในกระดิ่ง 🔔 จะยังทำงานปกติ</p>
+            <div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+                <button class="btn btn-primary btn-sm" style="width:auto;" onclick="closeProfile()"><i class="fas fa-check"></i> เสร็จสิ้น</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1318,13 +1363,53 @@ function showTab(id, btn) {
 }
 
 // ===== Toast =====
+// Ticket search — matches across multiple fields
+function matchesTicketSearch(t, q) {
+    if (!q) return true;
+    const fields = [
+        t.ticketNo, t.jobType, t.issueType, t.symptom, t.request, t.detail,
+        t.employeeName, t.employeeId, t.admin, t.plant, t.location, t.vncNumber, t.phone
+    ];
+    return fields.some(f => (f || '').toString().toLowerCase().includes(q));
+}
+
+// Auto-grow textarea based on content
+function autoGrowTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+// Enter = send, Shift+Enter = newline
+function handleChatEnter(e, sendFn) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        sendFn();
+    }
+}
+
 function showToast(msg, type = 'success') {
     const c = document.getElementById('toastContainer');
     const t = document.createElement('div');
     t.className = `toast ${type}`;
-    t.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${msg}`;
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-circle';
+    t.innerHTML = `<i class="fas fa-${icon}"></i> <span style="flex:1;">${msg}</span><button class="toast-close" title="ปิด"><i class="fas fa-times"></i></button>`;
     c.appendChild(t);
-    setTimeout(() => t.remove(), 3500);
+
+    let timer = setTimeout(() => t.remove(), 3500);
+    // Close button
+    t.querySelector('.toast-close').addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearTimeout(timer);
+        t.remove();
+    });
+    // Pause on hover
+    t.addEventListener('mouseenter', () => {
+        clearTimeout(timer);
+        t.classList.add('paused');
+    });
+    t.addEventListener('mouseleave', () => {
+        t.classList.remove('paused');
+        timer = setTimeout(() => t.remove(), 2000);
+    });
 }
 
 // ===== Loading =====
@@ -1708,12 +1793,7 @@ function renderTickets() {
 
     let filtered = tickets;
     if (currentFilter !== 'all') filtered = filtered.filter(t => t.status === currentFilter);
-    if (search) filtered = filtered.filter(t =>
-        t.ticketNo.toLowerCase().includes(search) ||
-        (t.jobType || '').toLowerCase().includes(search) ||
-        (t.issueType || '').toLowerCase().includes(search) ||
-        (t.request || '').toLowerCase().includes(search)
-    );
+    if (search) filtered = filtered.filter(t => matchesTicketSearch(t, search));
 
     // Update summary cards
     updateSummaryCards();
@@ -1780,12 +1860,7 @@ function openListEdit(idx) {
     const search = document.getElementById('searchInput').value.toLowerCase();
     let filtered = tickets;
     if (currentFilter !== 'all') filtered = filtered.filter(t => t.status === currentFilter);
-    if (search) filtered = filtered.filter(t =>
-        t.ticketNo.toLowerCase().includes(search) ||
-        (t.jobType || '').toLowerCase().includes(search) ||
-        (t.issueType || '').toLowerCase().includes(search) ||
-        (t.request || '').toLowerCase().includes(search)
-    );
+    if (search) filtered = filtered.filter(t => matchesTicketSearch(t, search));
     const t = filtered[idx];
     if (!t) return;
 
@@ -1844,12 +1919,7 @@ function viewTicket(idx) {
     const search = document.getElementById('searchInput').value.toLowerCase();
     let filtered = tickets;
     if (currentFilter !== 'all') filtered = filtered.filter(t => t.status === currentFilter);
-    if (search) filtered = filtered.filter(t =>
-        t.ticketNo.toLowerCase().includes(search) ||
-        (t.jobType || '').toLowerCase().includes(search) ||
-        (t.issueType || '').toLowerCase().includes(search) ||
-        (t.request || '').toLowerCase().includes(search)
-    );
+    if (search) filtered = filtered.filter(t => matchesTicketSearch(t, search));
     const t = filtered[idx];
     if (!t) return;
 
@@ -2254,6 +2324,7 @@ async function sendTicketChatMessage() {
         if (!data || !data.success) throw new Error((data && data.message) || 'ส่งไม่สำเร็จ');
 
         input.value = '';
+        input.style.height = 'auto';
         clearTChatAttachment();
         loadTicketChatMessages();
     } catch (err) {
@@ -2355,14 +2426,7 @@ function getAdminFiltered() {
         ? adminTickets.filter(t => t.plant === adminPlant)
         : adminTickets;
     if (adminFilter !== 'all') filtered = filtered.filter(t => t.status === adminFilter);
-    if (search) filtered = filtered.filter(t =>
-        t.ticketNo.toLowerCase().includes(search) ||
-        (t.employeeName || '').toLowerCase().includes(search) ||
-        (t.employeeId || '').toLowerCase().includes(search) ||
-        (t.jobType || '').toLowerCase().includes(search) ||
-        (t.issueType || '').toLowerCase().includes(search) ||
-        (t.request || '').toLowerCase().includes(search)
-    );
+    if (search) filtered = filtered.filter(t => matchesTicketSearch(t, search));
     return filtered;
 }
 
@@ -2598,6 +2662,22 @@ function applyFontSize(size, silent) {
     const r = document.querySelector(`input[name="fontsize"][value="${size}"]`);
     if (r) r.checked = true;
 }
+function saveNotifPref(key, value) {
+    let prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem(UI_KEY) || '{}'); } catch(_) {}
+    prefs['notif_' + key] = value;
+    localStorage.setItem(UI_KEY, JSON.stringify(prefs));
+}
+function getNotifPref(key, defaultVal) {
+    try {
+        const prefs = JSON.parse(localStorage.getItem(UI_KEY) || '{}');
+        const v = prefs['notif_' + key];
+        return (v === undefined || v === null) ? defaultVal : v;
+    } catch (_) {
+        return defaultVal;
+    }
+}
+
 function resetAppearance() {
     localStorage.removeItem(UI_KEY);
     applyTheme('light');
@@ -2647,6 +2727,10 @@ function openProfile() {
     const r2 = document.querySelector(`input[name="accent"][value="${prefs.accent || 'indigo'}"]`);      if (r2) r2.checked = true;
     const r3 = document.querySelector(`input[name="fontsize"][value="${prefs.fontsize || 'm'}"]`);       if (r3) r3.checked = true;
 
+    // Sync notify toggles
+    document.getElementById('notifSound').checked = getNotifPref('sound', true);
+    document.getElementById('notifPopup').checked = getNotifPref('popup', true);
+
     // Default to Info tab
     switchProfileTab(null, 'secInfo');
     document.getElementById('profileModal').classList.add('show');
@@ -2661,7 +2745,7 @@ function switchProfileTab(evt, sectionId) {
         evt.currentTarget.classList.add('active');
     } else {
         // programmatic — map section to button by order
-        const map = { secInfo:0, secAvatar:1, secPassword:2, secAppearance:3 };
+        const map = { secInfo:0, secAvatar:1, secPassword:2, secAppearance:3, secNotify:4 };
         const idx = map[sectionId] || 0;
         const btns = document.querySelectorAll('.profile-tabs button');
         if (btns[idx]) btns[idx].classList.add('active');
@@ -2925,6 +3009,7 @@ async function sendChat() {
     if (!text) return;
 
     input.value = '';
+    input.style.height = 'auto';
     chatBusy = true;
     document.getElementById('chatSendBtn').disabled = true;
 
@@ -3494,6 +3579,7 @@ async function markAllRead() {
 }
 
 function showNotifToast(ticket) {
+    if (!getNotifPref('popup', true)) return;
     const container = document.getElementById('notifToastContainer');
     const div = document.createElement('div');
     div.className = 'notif-toast';
@@ -3522,6 +3608,7 @@ function showNotifToast(ticket) {
 }
 
 function playNotifSound() {
+    if (!getNotifPref('sound', true)) return;
     try {
         if (!notifAudio) {
             // Create a simple beep using AudioContext
