@@ -1117,8 +1117,8 @@
 
     <!-- Tab: Dashboard (Admin) -->
     <div class="content tab-content admin-only" id="tabDashboard" style="display:none;max-width:1400px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h2 style="margin:0;"><i class="fas fa-chart-bar"></i> Dashboard</h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <h2 style="margin:0;font-size:16px;"><i class="fas fa-chart-bar"></i> Dashboard</h2>
             <button class="btn btn-outline btn-sm" onclick="loadDashboard()"><i class="fas fa-sync"></i> รีเฟรช</button>
         </div>
 
@@ -1127,43 +1127,43 @@
         </div>
         <div id="dashContent" style="display:none;">
             <!-- Row 1: SLA Cards -->
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;" id="dashSlaCards"></div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;" id="dashSlaCards"></div>
 
-            <!-- Row 2: Monthly (full width, compact) -->
-            <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;">
-                <h3 style="font-size:13px;margin-bottom:8px;">📊 Ticket ต่อเดือน</h3>
-                <canvas id="chartMonthly" height="65"></canvas>
+            <!-- Row 2: Monthly (compact fixed height) -->
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;height:200px;">
+                <h3 style="font-size:12px;margin-bottom:6px;">📊 Ticket ต่อเดือน</h3>
+                <div style="height:160px;"><canvas id="chartMonthly"></canvas></div>
             </div>
 
-            <!-- Row 3: Plant (small doughnut) + Admin (compact bar) + Priority (small doughnut) -->
-            <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;margin-bottom:12px;">
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                    <h3 style="font-size:12px;margin-bottom:6px;">🏢 สังกัด</h3>
-                    <canvas id="chartPlant" height="140"></canvas>
+            <!-- Row 3: 3 charts side by side (fixed height) -->
+            <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:8px;margin-bottom:10px;">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
+                    <h3 style="font-size:11px;margin-bottom:4px;">🏢 สังกัด</h3>
+                    <div style="height:170px;"><canvas id="chartPlant"></canvas></div>
                 </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                    <h3 style="font-size:12px;margin-bottom:6px;">👤 ผู้ดำเนินการ</h3>
-                    <canvas id="chartAdmin" height="140"></canvas>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
+                    <h3 style="font-size:11px;margin-bottom:4px;">👤 ผู้ดำเนินการ</h3>
+                    <div style="height:170px;"><canvas id="chartAdmin"></canvas></div>
                 </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                    <h3 style="font-size:12px;margin-bottom:6px;">⚡ Priority</h3>
-                    <canvas id="chartPriority" height="140"></canvas>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
+                    <h3 style="font-size:11px;margin-bottom:4px;">⚡ Priority</h3>
+                    <div style="height:170px;"><canvas id="chartPriority"></canvas></div>
                 </div>
             </div>
 
-            <!-- Row 4: Top Issues + Top Symptoms + Department -->
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                    <h3 style="font-size:12px;margin-bottom:6px;">🔥 Top ประเภทปัญหา</h3>
-                    <canvas id="chartIssues" height="170"></canvas>
+            <!-- Row 4: 3 horizontal bars (fixed height) -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
+                    <h3 style="font-size:11px;margin-bottom:4px;">🔥 Top ประเภทปัญหา</h3>
+                    <div style="height:170px;"><canvas id="chartIssues"></canvas></div>
                 </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                    <h3 style="font-size:12px;margin-bottom:6px;">📋 Top อาการ</h3>
-                    <canvas id="chartSymptoms" height="170"></canvas>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
+                    <h3 style="font-size:11px;margin-bottom:4px;">📋 Top อาการ</h3>
+                    <div style="height:170px;"><canvas id="chartSymptoms"></canvas></div>
                 </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
-                    <h3 style="font-size:12px;margin-bottom:6px;">🏗️ แผนก</h3>
-                    <canvas id="chartDept" height="170"></canvas>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
+                    <h3 style="font-size:11px;margin-bottom:4px;">🏗️ แผนก</h3>
+                    <div style="height:170px;"><canvas id="chartDept"></canvas></div>
                 </div>
             </div>
         </div>
