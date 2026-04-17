@@ -3078,12 +3078,16 @@ function closeAdminEdit() {
 
 async function saveAdminEdit() {
     if (editingKey == null) return;
+    const admin    = document.getElementById('adminEditAdmin').value.trim();
+    const priority = document.getElementById('adminEditPriority').value;
+    if (!admin) { showToast('กรุณาเลือกผู้รับผิดชอบ', 'error'); document.getElementById('adminEditAdmin').focus(); return; }
+    if (!priority) { showToast('กรุณาเลือก Priority', 'error'); document.getElementById('adminEditPriority').focus(); return; }
     const payload = {
         key:      editingKey,
         status:   document.getElementById('adminEditStatus').value,
-        admin:    document.getElementById('adminEditAdmin').value.trim(),
+        admin,
         reply:    document.getElementById('adminEditReply').value.trim(),
-        priority: document.getElementById('adminEditPriority').value,
+        priority,
     };
     setLoading(true);
     try {
