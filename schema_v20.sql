@@ -58,6 +58,7 @@ begin
         'position',   coalesce(owner_emp.position, ''),
         'email',      coalesce(owner_emp.email, ''),
         'phone',      coalesce(owner_emp.phone, ''),
+        'lineId',     coalesce(owner_emp.line_id, ''),
         'avatarUrl',  coalesce(owner_emp.avatar_url, '')
       )
     else null end,
