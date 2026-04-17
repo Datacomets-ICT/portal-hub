@@ -200,10 +200,12 @@ $body$;
 revoke all on function get_tickets_paginated(text, text, int, int, text, text, text, text, text, text) from public;
 grant execute on function get_tickets_paginated(text, text, int, int, text, text, text, text, text, text) to anon, authenticated;
 
--- Dashboard aggregation RPC
+-- Dashboard aggregation RPC (with year/month filter)
 create or replace function get_dashboard_stats(
   p_emp_id   text,
-  p_password text
+  p_password text,
+  p_year     int default null,
+  p_month    int default null
 ) returns json
 language plpgsql
 security definer
@@ -211,15 +213,23 @@ set search_path = public
 as $body$
 declare
   emp employees%rowtype;
+  f   text := '';  -- WHERE fragment for date filter
 begin
   select * into emp from employees where employee_id = p_emp_id and password = p_password;
   if not found or not coalesce(emp.is_admin, false) then
     return json_build_object('success', false, 'message', 'Admin only');
   end if;
 
+  -- Build date filter fragment
+  if p_year is not null then
+    f := f || ' and extract(year from created_at) = ' || p_year;
+  end if;
+  if p_month is not null then
+    f := f || ' and extract(month from created_at) = ' || p_month;
+  end if;
+
   return json_build_object(
     'success', true,
-    -- Tickets per month (last 12 months)
     'monthly', (
       select coalesce(json_agg(row_to_json(x) order by x.month), '[]'::json)
       from (
@@ -228,44 +238,52 @@ begin
                count(*) filter (where status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว')) as resolved,
                count(*) filter (where status = 'เปิด Ticket') as open
         from tickets
-        where created_at >= now() - interval '12 months'
+        where created_at >= now() - interval '24 months'
+          and (p_year is null or extract(year from created_at) = p_year)
         group by to_char(created_at, 'YYYY-MM')
       ) x
     ),
-    -- By company/plant
     'byPlant', (
       select coalesce(json_agg(row_to_json(x) order by x.total desc), '[]'::json)
       from (
         select coalesce(plant, 'ไม่ระบุ') as plant, count(*) as total
-        from tickets group by plant
+        from tickets where true
+          and (p_year is null or extract(year from created_at) = p_year)
+          and (p_month is null or extract(month from created_at) = p_month)
+        group by plant
       ) x
     ),
-    -- Top 10 issue types
     'topIssues', (
       select coalesce(json_agg(row_to_json(x)), '[]'::json)
       from (
         select coalesce(issue_type, 'ไม่ระบุ') as issue, count(*) as total
-        from tickets group by issue_type order by count(*) desc limit 10
+        from tickets where true
+          and (p_year is null or extract(year from created_at) = p_year)
+          and (p_month is null or extract(month from created_at) = p_month)
+        group by issue_type order by count(*) desc limit 10
       ) x
     ),
-    -- Top 10 symptoms
     'topSymptoms', (
       select coalesce(json_agg(row_to_json(x)), '[]'::json)
       from (
         select coalesce(symptom, 'ไม่ระบุ') as symptom, count(*) as total
-        from tickets group by symptom order by count(*) desc limit 10
+        from tickets where true
+          and (p_year is null or extract(year from created_at) = p_year)
+          and (p_month is null or extract(month from created_at) = p_month)
+        group by symptom order by count(*) desc limit 10
       ) x
     ),
-    -- By admin (who handles most)
     'byAdmin', (
       select coalesce(json_agg(row_to_json(x) order by x.total desc), '[]'::json)
       from (
         select coalesce(admin, 'ยังไม่มอบหมาย') as admin, count(*) as total,
                count(*) filter (where status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว')) as resolved
-        from tickets group by admin
+        from tickets where true
+          and (p_year is null or extract(year from created_at) = p_year)
+          and (p_month is null or extract(month from created_at) = p_month)
+        group by admin
       ) x
     ),
-    -- By department
     'byDept', (
       select coalesce(json_agg(row_to_json(x) order by x.total desc), '[]'::json)
       from (
@@ -274,32 +292,39 @@ begin
                count(*) as total
         from tickets t
         left join employees e on e.employee_id = t.employee_id
+        where true
+          and (p_year is null or extract(year from t.created_at) = p_year)
+          and (p_month is null or extract(month from t.created_at) = p_month)
         group by e.department, e.section
         order by count(*) desc limit 15
       ) x
     ),
-    -- Priority distribution
     'byPriority', (
       select coalesce(json_agg(row_to_json(x)), '[]'::json)
       from (
         select coalesce(priority, 'medium') as priority, count(*) as total
-        from tickets group by priority
+        from tickets where true
+          and (p_year is null or extract(year from created_at) = p_year)
+          and (p_month is null or extract(month from created_at) = p_month)
+        group by priority
       ) x
     ),
-    -- SLA performance
     'slaPerf', (
       select json_build_object(
         'total',   count(*) filter (where status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว')),
         'onTime',  count(*) filter (where status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว') and (resolved_at is null or due_at is null or resolved_at <= due_at)),
         'overdue', count(*) filter (where status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว') and resolved_at is not null and due_at is not null and resolved_at > due_at)
       ) from tickets
+      where true
+        and (p_year is null or extract(year from created_at) = p_year)
+        and (p_month is null or extract(month from created_at) = p_month)
     )
   );
 end;
 $body$;
 
-revoke all on function get_dashboard_stats(text, text) from public;
-grant execute on function get_dashboard_stats(text, text) to anon, authenticated;
+revoke all on function get_dashboard_stats(text, text, int, int) from public;
+grant execute on function get_dashboard_stats(text, text, int, int) to anon, authenticated;
 
 -- Updated update_ticket to accept reply photos
 create or replace function update_ticket(

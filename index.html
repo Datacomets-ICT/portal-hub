@@ -1117,9 +1117,19 @@
 
     <!-- Tab: Dashboard (Admin) -->
     <div class="content tab-content admin-only" id="tabDashboard" style="display:none;max-width:1400px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <h2 style="margin:0;font-size:16px;"><i class="fas fa-chart-bar"></i> Dashboard</h2>
-            <button class="btn btn-outline btn-sm" onclick="loadDashboard()"><i class="fas fa-sync"></i> รีเฟรช</button>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <select id="dashYear" onchange="loadDashboard()" style="padding:5px 10px;font-size:12px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-family:inherit;"></select>
+                <select id="dashMonth" onchange="loadDashboard()" style="padding:5px 10px;font-size:12px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-family:inherit;">
+                    <option value="">ทุกเดือน</option>
+                    <option value="1">ม.ค.</option><option value="2">ก.พ.</option><option value="3">มี.ค.</option>
+                    <option value="4">เม.ย.</option><option value="5">พ.ค.</option><option value="6">มิ.ย.</option>
+                    <option value="7">ก.ค.</option><option value="8">ส.ค.</option><option value="9">ก.ย.</option>
+                    <option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
+                </select>
+                <button class="btn btn-outline btn-sm" onclick="loadDashboard()" style="height:30px;"><i class="fas fa-sync"></i></button>
+            </div>
         </div>
 
         <div id="dashLoading" style="text-align:center;padding:40px;color:var(--muted);">
@@ -4869,17 +4879,36 @@ function renderAdminReplyPhotoPreviews() {
 
 // ===== Dashboard =====
 let dashCharts = {};
+let dashYearPopulated = false;
+
 async function loadDashboard() {
     if (!currentUser || !currentUser.isAdmin) return;
+
+    // Populate year dropdown once
+    if (!dashYearPopulated) {
+        const sel = document.getElementById('dashYear');
+        const thisYear = new Date().getFullYear();
+        sel.innerHTML = '<option value="">ทุกปี</option>';
+        for (let y = thisYear; y >= thisYear - 3; y--) {
+            sel.innerHTML += `<option value="${y}"${y === thisYear ? ' selected' : ''}>${y}</option>`;
+        }
+        dashYearPopulated = true;
+    }
+
     const loading = document.getElementById('dashLoading');
     const content = document.getElementById('dashContent');
     if (loading) loading.style.display = 'block';
     if (content) content.style.display = 'none';
 
+    const dashYear  = document.getElementById('dashYear')?.value || null;
+    const dashMonth = document.getElementById('dashMonth')?.value || null;
+
     try {
         const { data, error } = await sb.rpc('get_dashboard_stats', {
-            p_emp_id: currentUser.employeeId,
+            p_emp_id:   currentUser.employeeId,
             p_password: currentPwd,
+            p_year:     dashYear ? parseInt(dashYear) : null,
+            p_month:    dashMonth ? parseInt(dashMonth) : null,
         });
         if (error) throw error;
         if (!data || !data.success) throw new Error(data?.message || 'โหลดไม่สำเร็จ');
