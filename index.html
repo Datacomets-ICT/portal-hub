@@ -474,8 +474,30 @@
         .tchat-meta { font-size: 10px; color: var(--muted); margin-top: 2px; padding: 0 4px; }
 
         .tchat-input-area { border-top: 1px solid var(--border); padding: 10px 12px; background: var(--card); display: flex; gap: 6px; align-items: center; }
+        .tchat-input-area { position: relative; }
         .tchat-input-area textarea { flex: 1; padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 18px; font-size: 13px; font-family: inherit; outline: none; background: var(--bg); resize: none; max-height: 120px; min-height: 38px; line-height: 1.4; }
         .tchat-input-area textarea:focus { border-color: var(--success); }
+
+        /* Sticker panel */
+        .sticker-panel { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; background: var(--card); border: 1px solid var(--border); border-radius: 14px; max-height: 280px; display: none; box-shadow: 0 -8px 30px rgba(0,0,0,.12); overflow: hidden; z-index: 10; animation: fadeInUp .15s ease; }
+        .sticker-panel.show { display: block; }
+        .sticker-tabs { display: flex; border-bottom: 1px solid var(--border); }
+        .sticker-tabs button { flex: 1; padding: 9px 6px; border: none; background: transparent; font-size: 12px; font-family: inherit; cursor: pointer; color: var(--muted); font-weight: 600; transition: all .12s; }
+        .sticker-tabs button:hover { color: var(--text); }
+        .sticker-tabs button.active { color: var(--primary); border-bottom: 2px solid var(--primary); background: var(--primary-light); }
+        .sticker-content { overflow-y: auto; max-height: 230px; }
+        .sticker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 8px; }
+        .sticker-grid button { width: 100%; aspect-ratio: 1; border: none; background: transparent; font-size: 28px; cursor: pointer; border-radius: 10px; transition: all .1s; display: flex; align-items: center; justify-content: center; }
+        .sticker-grid button:hover { background: var(--primary-light); transform: scale(1.15); }
+        .sticker-grid button:active { transform: scale(0.95); }
+        .quick-replies { padding: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .quick-reply-btn { padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 20px; background: var(--bg); font-size: 12px; cursor: pointer; font-family: inherit; color: var(--text2); font-weight: 500; transition: all .12s; }
+        .quick-reply-btn:hover { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+        .sticker-btn { background: transparent !important; color: var(--muted) !important; font-size: 18px !important; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; transition: all .12s; flex-shrink: 0; }
+        .sticker-btn:hover { color: var(--primary) !important; background: var(--primary-light) !important; }
+
+        /* Emoji-only messages (no bubble, large font) */
+        .tchat-msg.emoji-only { background: transparent !important; border: none !important; font-size: 42px; line-height: 1.2; padding: 0; }
         .tchat-input-area button { width: 38px; height: 38px; border-radius: 50%; background: var(--success); color: #fff; border: none; cursor: pointer; font-size: 14px; flex-shrink: 0; transition: all .15s; }
         .tchat-input-area button:hover { background: #059669; }
         .tchat-attach-btn { background: transparent !important; color: var(--muted) !important; }
@@ -1112,9 +1134,62 @@
         <button class="premove" onclick="clearTChatAttachment()"><i class="fas fa-times"></i></button>
     </div>
     <div class="tchat-input-area" id="tchatInputArea" style="display:none;">
+        <!-- Sticker Panel -->
+        <div class="sticker-panel" id="stickerPanel">
+            <div class="sticker-tabs">
+                <button class="active" onclick="switchStickerTab(event,'stickerEmoji')">😊 อีโมจิ</button>
+                <button onclick="switchStickerTab(event,'stickerQuick')">💬 ตอบเร็ว</button>
+            </div>
+            <div class="sticker-content">
+                <div class="sticker-grid" id="stickerEmoji">
+                    <button onclick="sendSticker('👍')">👍</button>
+                    <button onclick="sendSticker('❤️')">❤️</button>
+                    <button onclick="sendSticker('😊')">😊</button>
+                    <button onclick="sendSticker('🙏')">🙏</button>
+                    <button onclick="sendSticker('👏')">👏</button>
+                    <button onclick="sendSticker('🎉')">🎉</button>
+                    <button onclick="sendSticker('✅')">✅</button>
+                    <button onclick="sendSticker('😂')">😂</button>
+                    <button onclick="sendSticker('🤔')">🤔</button>
+                    <button onclick="sendSticker('💪')">💪</button>
+                    <button onclick="sendSticker('🔥')">🔥</button>
+                    <button onclick="sendSticker('⭐')">⭐</button>
+                    <button onclick="sendSticker('😅')">😅</button>
+                    <button onclick="sendSticker('👋')">👋</button>
+                    <button onclick="sendSticker('🤝')">🤝</button>
+                    <button onclick="sendSticker('😭')">😭</button>
+                    <button onclick="sendSticker('🥰')">🥰</button>
+                    <button onclick="sendSticker('😎')">😎</button>
+                    <button onclick="sendSticker('👀')">👀</button>
+                    <button onclick="sendSticker('💯')">💯</button>
+                    <button onclick="sendSticker('🫡')">🫡</button>
+                    <button onclick="sendSticker('💻')">💻</button>
+                    <button onclick="sendSticker('🖨️')">🖨️</button>
+                    <button onclick="sendSticker('🔧')">🔧</button>
+                    <button onclick="sendSticker('⚡')">⚡</button>
+                    <button onclick="sendSticker('📧')">📧</button>
+                    <button onclick="sendSticker('☕')">☕</button>
+                    <button onclick="sendSticker('🍜')">🍜</button>
+                </div>
+                <div class="quick-replies" id="stickerQuick" style="display:none;">
+                    <button class="quick-reply-btn" onclick="sendSticker('ได้ครับ 👍')">ได้ครับ 👍</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('ขอบคุณครับ 🙏')">ขอบคุณครับ 🙏</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('รับทราบครับ ✅')">รับทราบครับ ✅</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('กำลังทำอยู่ครับ 🔧')">กำลังทำอยู่ครับ 🔧</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('เสร็จแล้วครับ 🎉')">เสร็จแล้วครับ 🎉</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('รอสักครู่ครับ ⏳')">รอสักครู่ครับ ⏳</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('ตอนนี้ไม่อยู่ออฟฟิศครับ 🏠')">ไม่อยู่ออฟฟิศครับ 🏠</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('ลองรีเครื่องดูครับ 💻')">ลองรีเครื่องดูครับ 💻</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('ช่วยส่ง screenshot มาหน่อยครับ 📸')">ส่ง screenshot หน่อย 📸</button>
+                    <button class="quick-reply-btn" onclick="sendSticker('จะไปดูให้เดี๋ยวนี้ครับ 🚀')">จะไปดูให้เดี๋ยวนี้ 🚀</button>
+                </div>
+            </div>
+        </div>
+
         <input type="file" id="tchatFileInput" class="tchat-attach-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.csv" onchange="onTChatFileSelected(event)">
         <button class="tchat-attach-btn" onclick="document.getElementById('tchatFileInput').click()" title="แนบรูป/ไฟล์"><i class="fas fa-paperclip"></i></button>
-        <textarea id="tchatInput" rows="1" placeholder="พิมพ์ข้อความ... (Shift+Enter ขึ้นบรรทัดใหม่)" autocomplete="off" autocorrect="off" spellcheck="false" oninput="autoGrowTextarea(this)" onkeydown="handleChatEnter(event, sendTicketChatMessage)"></textarea>
+        <button class="sticker-btn" onclick="toggleStickerPanel()" title="สติกเกอร์ / ตอบเร็ว">😊</button>
+        <textarea id="tchatInput" rows="1" placeholder="พิมพ์ข้อความ..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="autoGrowTextarea(this)" onkeydown="handleChatEnter(event, sendTicketChatMessage)"></textarea>
         <button onclick="sendTicketChatMessage()"><i class="fas fa-paper-plane"></i></button>
     </div>
 </div>
@@ -2757,9 +2832,10 @@ async function loadTicketChatMessages(silent = false) {
             }
             const textHtml = m.message ? esc(m.message) : '';
             const msgContent = (textHtml && attHtml) ? `${textHtml}<br>${attHtml}` : (attHtml || textHtml);
+            const emojiClass = (!attHtml && m.message && isEmojiOnly(m.message)) ? ' emoji-only' : '';
             return `
                 <div class="tchat-group ${isMe ? 'me' : 'them'}">
-                    <div class="tchat-msg ${isMe ? 'me' : 'them'}">${msgContent}</div>
+                    <div class="tchat-msg ${isMe ? 'me' : 'them'}${emojiClass}">${msgContent}</div>
                     <div class="tchat-meta">${esc(m.senderName || m.senderId)} · ${esc(dt)}</div>
                 </div>`;
         }).join('');
@@ -3128,6 +3204,41 @@ async function saveAdminEdit() {
 }
 
 function closeModal() { document.getElementById('ticketModal').classList.remove('show'); }
+
+// ===== Sticker Panel =====
+function toggleStickerPanel() {
+    const panel = document.getElementById('stickerPanel');
+    panel.classList.toggle('show');
+}
+function closeStickerPanel() {
+    const panel = document.getElementById('stickerPanel');
+    if (panel) panel.classList.remove('show');
+}
+function switchStickerTab(evt, tabId) {
+    document.querySelectorAll('#stickerPanel .sticker-content > div').forEach(d => d.style.display = 'none');
+    document.getElementById(tabId).style.display = '';
+    document.querySelectorAll('#stickerPanel .sticker-tabs button').forEach(b => b.classList.remove('active'));
+    if (evt && evt.currentTarget) evt.currentTarget.classList.add('active');
+}
+function sendSticker(text) {
+    closeStickerPanel();
+    const input = document.getElementById('tchatInput');
+    input.value = text;
+    sendTicketChatMessage();
+}
+// Detect emoji-only message (1-6 emoji, no other text)
+function isEmojiOnly(text) {
+    if (!text || text.length > 12) return false;
+    const stripped = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200D\uFE0F\s]/gu, '');
+    return stripped === '' && text.trim().length > 0;
+}
+// Click outside closes sticker panel
+document.addEventListener('click', (e) => {
+    const panel = document.getElementById('stickerPanel');
+    if (panel && panel.classList.contains('show') && !e.target.closest('.sticker-panel') && !e.target.closest('.sticker-btn')) {
+        panel.classList.remove('show');
+    }
+});
 
 // ===== Image Lightbox =====
 function openLightbox(src) {
