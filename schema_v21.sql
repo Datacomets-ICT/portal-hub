@@ -312,6 +312,28 @@ begin
         group by priority
       ) x
     ),
+    'adminPerf', (
+      select coalesce(json_agg(row_to_json(x) order by x.pending desc, x.total desc), '[]'::json)
+      from (
+        select
+          coalesce(t.admin, 'ยังไม่มอบหมาย') as admin,
+          count(*) as total,
+          count(*) filter (where t.status in ('เปิด Ticket','กำลังดำเนินการ')) as pending,
+          count(*) filter (where t.status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว')) as resolved,
+          count(*) filter (where t.status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว')
+            and t.due_at is not null and (t.resolved_at is null or t.resolved_at <= t.due_at)) as on_time,
+          round(avg(case when t.resolved_at is not null and t.status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว')
+            then extract(epoch from (t.resolved_at - t.created_at)) / 3600.0
+            else null end)::numeric, 1) as avg_hours,
+          count(*) filter (where t.priority = 'urgent' and t.status in ('เปิด Ticket','กำลังดำเนินการ')) as urgent_pending,
+          count(*) filter (where t.priority = 'high' and t.status in ('เปิด Ticket','กำลังดำเนินการ')) as high_pending
+        from tickets t
+        where t.admin is not null and t.admin <> ''
+          and (p_year is null or extract(year from t.created_at) = p_year)
+          and (p_month is null or extract(month from t.created_at) = p_month)
+        group by t.admin
+      ) x
+    ),
     'slaPerf', (
       select json_build_object(
         'total',   count(*) filter (where status in ('ดำเนินการเรียบร้อย','ปิดงานแล้ว')),
