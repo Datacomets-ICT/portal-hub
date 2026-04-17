@@ -13,6 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #4F46E5; --primary-light: #EEF2FF; --primary-dark: #3730A3; --bg: #F8FAFC; --card: #fff; --text: #0F172A; --text2: #475569; --muted: #94A3B8; --border: #E2E8F0; --success: #10B981; --warning: #F59E0B; --danger: #EF4444; --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04); --shadow-md: 0 4px 12px rgba(0,0,0,.08); }
 
@@ -243,6 +244,14 @@
         .cp-row i { color: var(--primary); width: 16px; text-align: center; flex-shrink: 0; }
         .cp-row .cp-val { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cp-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 8px; font-style: italic; }
+
+        /* Image Lightbox */
+        .lightbox { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.88); display: none; align-items: center; justify-content: center; cursor: zoom-out; backdrop-filter: blur(4px); animation: fadeIn .15s ease; }
+        .lightbox.show { display: flex; }
+        .lightbox img { max-width: 92vw; max-height: 90vh; object-fit: contain; border-radius: 8px; box-shadow: 0 8px 40px rgba(0,0,0,.6); cursor: default; }
+        .lightbox .lb-close { position: fixed; top: 16px; right: 20px; background: rgba(255,255,255,.15); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: background .15s; z-index: 10001; }
+        .lightbox .lb-close:hover { background: rgba(255,255,255,.3); }
+        .lightbox .lb-info { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,.6); font-size: 12px; }
 
         /* Upload progress card */
         .upload-progress { background: var(--primary-light); border: 1px solid var(--primary); border-radius: 10px; padding: 14px 16px; margin-top: 14px; }
@@ -627,6 +636,13 @@
 
 <div class="loading-overlay" id="loadingOverlay"><div class="spinner"></div></div>
 <div class="toast-container" id="toastContainer"></div>
+
+<!-- Image Lightbox -->
+<div class="lightbox" id="lightboxOverlay" onclick="closeLightbox(event)">
+    <button class="lb-close" onclick="closeLightbox(event)"><i class="fas fa-times"></i></button>
+    <img id="lightboxImg" src="" alt="preview" onclick="event.stopPropagation()">
+    <div class="lb-info">คลิกข้างนอกหรือกด ESC เพื่อปิด</div>
+</div>
 <div class="notif-toast-container" id="notifToastContainer"></div>
 
 <!-- ========== LOGIN ========== -->
@@ -949,9 +965,12 @@
 
         <div class="list-header">
             <h2><i class="fas fa-list-alt"></i> รายการ Ticket</h2>
-            <div class="search-box">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="ค้นหา: เลข Ticket, ชื่อ, ประเภท, อาการ, ผู้รับผิดชอบ..." oninput="debouncedSearchTickets()" style="width:320px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <button class="btn btn-outline btn-sm admin-only" onclick="exportTicketsExcel()" title="Export ข้อมูล Ticket ทั้งหมดเป็น Excel"><i class="fas fa-file-excel" style="color:#059669;"></i> Export Excel</button>
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="ค้นหา: เลข Ticket, ชื่อ, ประเภท, อาการ, ผู้รับผิดชอบ..." oninput="debouncedSearchTickets()" style="width:320px;">
+                </div>
             </div>
         </div>
 
@@ -2370,7 +2389,7 @@ function viewTicket(idx) {
 
     const photosHtml = (t.photoUrls && t.photoUrls.length)
         ? `<div class="detail-row"><div class="dlabel">รูปแนบ</div><div class="dvalue"><div class="detail-images">${
-            t.photoUrls.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt=""></a>`).join('')
+            t.photoUrls.map(u => `<img src="${esc(u)}" alt="" style="cursor:zoom-in;" onclick="openLightbox('${esc(u)}')">`).join('')
           }</div></div></div>`
         : '';
 
@@ -2728,7 +2747,7 @@ async function loadTicketChatMessages(silent = false) {
             let attHtml = '';
             if (m.attachmentUrl) {
                 if (m.attachmentType === 'image') {
-                    attHtml = `<a href="${esc(m.attachmentUrl)}" target="_blank" rel="noopener"><img src="${esc(m.attachmentUrl)}" alt="" style="max-width:200px;"></a>`;
+                    attHtml = `<img src="${esc(m.attachmentUrl)}" alt="" style="max-width:200px;cursor:zoom-in;border-radius:8px;" onclick="event.stopPropagation();openLightbox('${esc(m.attachmentUrl)}')">`;
                 } else {
                     attHtml = `<a class="tchat-file" href="${esc(m.attachmentUrl)}" target="_blank" rel="noopener" download="${esc(m.attachmentName || '')}">
                         <i class="fas ${fileIcon(m.attachmentName || '')}"></i>
@@ -3109,6 +3128,83 @@ async function saveAdminEdit() {
 }
 
 function closeModal() { document.getElementById('ticketModal').classList.remove('show'); }
+
+// ===== Image Lightbox =====
+function openLightbox(src) {
+    const img = document.getElementById('lightboxImg');
+    img.src = src;
+    document.getElementById('lightboxOverlay').classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+function closeLightbox(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('lightboxOverlay').classList.remove('show');
+    document.body.style.overflow = '';
+}
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('lightboxOverlay').classList.contains('show')) {
+        closeLightbox();
+    }
+});
+
+// ===== Export Tickets to Excel (.xlsx) =====
+async function exportTicketsExcel() {
+    if (typeof XLSX === 'undefined') { showToast('ไม่พบ SheetJS library', 'error'); return; }
+    showToast('กำลังเตรียมข้อมูล...');
+    try {
+        // Fetch ALL tickets (not just paginated page)
+        const { data, error } = await sb.rpc('get_tickets_paginated', {
+            p_emp_id:   currentUser.employeeId,
+            p_password: currentPwd,
+            p_limit:    50000,
+            p_offset:   0,
+            p_status:   null,
+            p_search:   null,
+            p_plant:    null,
+        });
+        if (error) throw error;
+        if (!data || !data.success) throw new Error('โหลดข้อมูลไม่สำเร็จ');
+
+        const allTickets = data.tickets || [];
+        if (allTickets.length === 0) { showToast('ไม่มี Ticket ให้ export', 'error'); return; }
+
+        const PRIO = { urgent: 'ด่วนมาก', high: 'สำคัญ', medium: 'ปกติ', low: 'ไม่เร่ง' };
+        const rows = allTickets.map(t => ({
+            'Ticket No':      t.ticket_no || '',
+            'วันที่แจ้ง':       t.created_at ? new Date(t.created_at).toLocaleString('sv-SE').slice(0, 16) : '',
+            'ผู้แจ้ง':          t.employee_name || '',
+            'รหัสพนักงาน':      t.employee_id || '',
+            'สังกัด':           t.plant || '',
+            'ประเภทงาน':       t.job_type || '',
+            'ประเภทปัญหา':      t.issue_type || '',
+            'อาการ':            t.symptom || '',
+            'รายละเอียด':       t.request || '',
+            'Priority':        PRIO[t.priority] || t.priority || 'ปกติ',
+            'สถานะ':            t.status || '',
+            'ผู้รับผิดชอบ':      t.admin || '',
+            'วิธีแก้ไข':         t.reply || '',
+            'โลเคชั่น':          t.location || '',
+            'VNC/IP':          t.vnc_number || '',
+            'เบอร์โทร':          t.phone || '',
+            'SLA ครบกำหนด':    t.due_at ? new Date(t.due_at).toLocaleString('sv-SE').slice(0, 16) : '',
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(rows);
+        // Auto column widths
+        const colWidths = Object.keys(rows[0]).map(k => ({
+            wch: Math.max(k.length + 2, ...rows.slice(0, 50).map(r => String(r[k] || '').length).concat([8]))
+        }));
+        ws['!cols'] = colWidths;
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Tickets');
+        const now = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+        XLSX.writeFile(wb, `tickets_export_${now}.xlsx`);
+        showToast(`Export สำเร็จ — ${rows.length} Ticket`);
+    } catch (err) {
+        showToast(err.message || 'Export ไม่สำเร็จ', 'error');
+    }
+}
 
 // ===== Contact popup (quick email/phone for chat list) =====
 async function showContactPopup(evt, ticketKey) {
