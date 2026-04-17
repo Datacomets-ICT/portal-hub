@@ -1030,13 +1030,18 @@
         <!-- Advanced filters (admin) -->
         <div class="adv-filters admin-only" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end;">
             <div class="form-group" style="margin:0;min-width:140px;">
-                <label style="font-size:11px;margin-bottom:3px;">สังกัด</label>
+                <label style="font-size:11px;margin-bottom:3px;">สังกัด/โลเคชั่น</label>
                 <select id="filterPlant" onchange="loadTickets()" style="padding:6px 10px;font-size:12px;">
                     <option value="">ทั้งหมด</option>
+                    <option value="Comets HQ">Comets HQ</option>
+                    <option value="Comets FAC">Comets FAC</option>
+                    <option value="ICT">ICT</option>
+                    <option value="JA">JA</option>
+                    <option value="บ้านแสง">บ้านแสง</option>
                 </select>
             </div>
             <div class="form-group" style="margin:0;min-width:140px;">
-                <label style="font-size:11px;margin-bottom:3px;">ผู้รับผิดชอบ</label>
+                <label style="font-size:11px;margin-bottom:3px;">ผู้ดำเนินการ</label>
                 <select id="filterAdmin" onchange="loadTickets()" style="padding:6px 10px;font-size:12px;">
                     <option value="">ทั้งหมด</option>
                 </select>
@@ -1111,56 +1116,54 @@
     </div>
 
     <!-- Tab: Dashboard (Admin) -->
-    <div class="content tab-content admin-only" id="tabDashboard" style="display:none;">
-        <h2><i class="fas fa-chart-bar"></i> Dashboard — วิเคราะห์ปัญหา</h2>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">ข้อมูลรวมจาก Ticket ทั้งหมดในระบบ</p>
+    <div class="content tab-content admin-only" id="tabDashboard" style="display:none;max-width:1400px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h2 style="margin:0;"><i class="fas fa-chart-bar"></i> Dashboard</h2>
+            <button class="btn btn-outline btn-sm" onclick="loadDashboard()"><i class="fas fa-sync"></i> รีเฟรช</button>
+        </div>
 
         <div id="dashLoading" style="text-align:center;padding:40px;color:var(--muted);">
             <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i><br>กำลังโหลด...
         </div>
         <div id="dashContent" style="display:none;">
-            <!-- SLA Performance -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;" id="dashSlaCards"></div>
+            <!-- Row 1: SLA Cards -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;" id="dashSlaCards"></div>
 
-            <!-- Monthly chart -->
-            <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px;">
-                <h3 style="font-size:15px;margin-bottom:12px;color:var(--text);">📊 จำนวน Ticket ต่อเดือน</h3>
-                <canvas id="chartMonthly" height="100"></canvas>
+            <!-- Row 2: Monthly (full width, compact) -->
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;">
+                <h3 style="font-size:13px;margin-bottom:8px;">📊 Ticket ต่อเดือน</h3>
+                <canvas id="chartMonthly" height="65"></canvas>
             </div>
 
-            <!-- By Plant + By Admin -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
-                    <h3 style="font-size:14px;margin-bottom:12px;">🏢 แยกตามสังกัด</h3>
-                    <canvas id="chartPlant" height="200"></canvas>
+            <!-- Row 3: Plant (small doughnut) + Admin (compact bar) + Priority (small doughnut) -->
+            <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;margin-bottom:12px;">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
+                    <h3 style="font-size:12px;margin-bottom:6px;">🏢 สังกัด</h3>
+                    <canvas id="chartPlant" height="140"></canvas>
                 </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
-                    <h3 style="font-size:14px;margin-bottom:12px;">👤 แยกตามผู้รับผิดชอบ</h3>
-                    <canvas id="chartAdmin" height="200"></canvas>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
+                    <h3 style="font-size:12px;margin-bottom:6px;">👤 ผู้ดำเนินการ</h3>
+                    <canvas id="chartAdmin" height="140"></canvas>
                 </div>
-            </div>
-
-            <!-- Top Issues + Top Symptoms -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
-                    <h3 style="font-size:14px;margin-bottom:12px;">🔥 Top 10 ประเภทปัญหา</h3>
-                    <canvas id="chartIssues" height="250"></canvas>
-                </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
-                    <h3 style="font-size:14px;margin-bottom:12px;">📋 Top 10 อาการ</h3>
-                    <canvas id="chartSymptoms" height="250"></canvas>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
+                    <h3 style="font-size:12px;margin-bottom:6px;">⚡ Priority</h3>
+                    <canvas id="chartPriority" height="140"></canvas>
                 </div>
             </div>
 
-            <!-- By Department + Priority -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
-                    <h3 style="font-size:14px;margin-bottom:12px;">🏗️ แยกตามแผนก</h3>
-                    <canvas id="chartDept" height="250"></canvas>
+            <!-- Row 4: Top Issues + Top Symptoms + Department -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
+                    <h3 style="font-size:12px;margin-bottom:6px;">🔥 Top ประเภทปัญหา</h3>
+                    <canvas id="chartIssues" height="170"></canvas>
                 </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
-                    <h3 style="font-size:14px;margin-bottom:12px;">⚡ แยกตาม Priority</h3>
-                    <canvas id="chartPriority" height="200"></canvas>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
+                    <h3 style="font-size:12px;margin-bottom:6px;">📋 Top อาการ</h3>
+                    <canvas id="chartSymptoms" height="170"></canvas>
+                </div>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;">
+                    <h3 style="font-size:12px;margin-bottom:6px;">🏗️ แผนก</h3>
+                    <canvas id="chartDept" height="170"></canvas>
                 </div>
             </div>
         </div>
@@ -4904,34 +4907,34 @@ async function loadDashboard() {
             <div class="summary-card"><div class="sc-icon" style="background:#EEF2FF;color:#4F46E5;"><i class="fas fa-percentage"></i></div><div class="sc-count">${sla.total > 0 ? Math.round(((sla.onTime||0)/(sla.total))*100) : 0}%</div><div class="sc-label">SLA Performance</div></div>
         `;
 
+        const compact = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
+        const compactLegend = (pos) => ({ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: pos, labels: { font: { size: 10 }, boxWidth: 10, padding: 6 } } } });
+
         // Monthly chart
         const monthly = data.monthly || [];
         dashCharts.monthly = new Chart(document.getElementById('chartMonthly'), {
             type: 'bar',
             data: {
-                labels: monthly.map(m => m.month),
+                labels: monthly.map(m => m.month.slice(5)),  // show "04" instead of "2025-04"
                 datasets: [
                     { label: 'ทั้งหมด', data: monthly.map(m => m.total), backgroundColor: '#4F46E5' },
-                    { label: 'เสร็จแล้ว', data: monthly.map(m => m.resolved), backgroundColor: '#10B981' },
-                    { label: 'ยังเปิด', data: monthly.map(m => m.open), backgroundColor: '#F59E0B' },
+                    { label: 'เสร็จ', data: monthly.map(m => m.resolved), backgroundColor: '#10B981' },
+                    { label: 'เปิด', data: monthly.map(m => m.open), backgroundColor: '#F59E0B' },
                 ]
             },
-            options: { responsive: true, plugins: { legend: { position: 'top' } } }
+            options: { ...compactLegend('top'), scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } } }
         });
 
         // By Plant (doughnut)
         const byPlant = data.byPlant || [];
         dashCharts.plant = new Chart(document.getElementById('chartPlant'), {
             type: 'doughnut',
-            data: {
-                labels: byPlant.map(p => p.plant),
-                datasets: [{ data: byPlant.map(p => p.total), backgroundColor: colors }]
-            },
-            options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+            data: { labels: byPlant.map(p => p.plant), datasets: [{ data: byPlant.map(p => p.total), backgroundColor: colors }] },
+            options: compactLegend('bottom')
         });
 
         // By Admin (horizontal bar)
-        const byAdmin = (data.byAdmin || []).slice(0, 10);
+        const byAdmin = (data.byAdmin || []).filter(a => a.admin !== 'ยังไม่มอบหมาย').slice(0, 7);
         dashCharts.admin = new Chart(document.getElementById('chartAdmin'), {
             type: 'bar',
             data: {
@@ -4941,40 +4944,31 @@ async function loadDashboard() {
                     { label: 'เสร็จ', data: byAdmin.map(a => a.resolved), backgroundColor: '#10B981' },
                 ]
             },
-            options: { indexAxis: 'y', responsive: true, plugins: { legend: { position: 'top' } } }
+            options: { indexAxis: 'y', ...compactLegend('top'), scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 10 } } } } }
         });
 
-        // Top Issues (horizontal bar)
-        const topIssues = data.topIssues || [];
+        // Top Issues
+        const topIssues = (data.topIssues || []).slice(0, 7);
         dashCharts.issues = new Chart(document.getElementById('chartIssues'), {
             type: 'bar',
-            data: {
-                labels: topIssues.map(i => i.issue),
-                datasets: [{ label: 'จำนวน', data: topIssues.map(i => i.total), backgroundColor: colors }]
-            },
-            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+            data: { labels: topIssues.map(i => i.issue?.slice(0, 20)), datasets: [{ data: topIssues.map(i => i.total), backgroundColor: colors }] },
+            options: { indexAxis: 'y', ...compact, scales: { y: { ticks: { font: { size: 10 } } } } }
         });
 
         // Top Symptoms
-        const topSx = data.topSymptoms || [];
+        const topSx = (data.topSymptoms || []).slice(0, 7);
         dashCharts.symptoms = new Chart(document.getElementById('chartSymptoms'), {
             type: 'bar',
-            data: {
-                labels: topSx.map(s => s.symptom),
-                datasets: [{ label: 'จำนวน', data: topSx.map(s => s.total), backgroundColor: colors }]
-            },
-            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+            data: { labels: topSx.map(s => s.symptom?.slice(0, 20)), datasets: [{ data: topSx.map(s => s.total), backgroundColor: colors }] },
+            options: { indexAxis: 'y', ...compact, scales: { y: { ticks: { font: { size: 10 } } } } }
         });
 
         // By Department
-        const byDept = (data.byDept || []).slice(0, 10);
+        const byDept = (data.byDept || []).slice(0, 7);
         dashCharts.dept = new Chart(document.getElementById('chartDept'), {
             type: 'bar',
-            data: {
-                labels: byDept.map(d => (d.dept || '') + (d.section ? ' / ' + d.section : '')),
-                datasets: [{ label: 'จำนวน', data: byDept.map(d => d.total), backgroundColor: colors }]
-            },
-            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+            data: { labels: byDept.map(d => (d.dept||'').slice(0,15)), datasets: [{ data: byDept.map(d => d.total), backgroundColor: colors }] },
+            options: { indexAxis: 'y', ...compact, scales: { y: { ticks: { font: { size: 10 } } } } }
         });
 
         // Priority (doughnut)
@@ -4983,11 +4977,8 @@ async function loadDashboard() {
         const prioLabels = { urgent: 'ด่วนมาก', high: 'สำคัญ', medium: 'ปกติ', low: 'ไม่เร่ง' };
         dashCharts.priority = new Chart(document.getElementById('chartPriority'), {
             type: 'doughnut',
-            data: {
-                labels: byPrio.map(p => prioLabels[p.priority] || p.priority),
-                datasets: [{ data: byPrio.map(p => p.total), backgroundColor: byPrio.map(p => prioColors[p.priority] || '#94A3B8') }]
-            },
-            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            data: { labels: byPrio.map(p => prioLabels[p.priority] || p.priority), datasets: [{ data: byPrio.map(p => p.total), backgroundColor: byPrio.map(p => prioColors[p.priority] || '#94A3B8') }] },
+            options: compactLegend('bottom')
         });
 
     } catch (err) {

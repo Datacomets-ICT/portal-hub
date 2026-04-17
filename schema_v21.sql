@@ -139,7 +139,7 @@ begin
       select count(*) from tickets t
       where (is_adm or t.employee_id = p_emp_id)
         and (p_status is null or p_status = '' or p_status = 'all' or t.status = p_status)
-        and (p_plant  is null or p_plant  = '' or t.plant  = p_plant)
+        and (p_plant  is null or p_plant  = '' or t.plant = p_plant or t.location like p_plant || '%')
         and (p_admin  is null or p_admin  = '' or t.admin  = p_admin)
         and (d_from is null or t.created_at >= d_from)
         and (d_to   is null or t.created_at <  d_to)
@@ -167,7 +167,7 @@ begin
         from tickets t
         where (is_adm or t.employee_id = p_emp_id)
           and (p_status is null or p_status = '' or p_status = 'all' or t.status = p_status)
-          and (p_plant  is null or p_plant  = '' or t.plant  = p_plant)
+          and (p_plant  is null or p_plant  = '' or t.plant = p_plant or t.location like p_plant || '%')
           and (p_admin  is null or p_admin  = '' or t.admin  = p_admin)
           and (d_from is null or t.created_at >= d_from)
           and (d_to   is null or t.created_at <  d_to)
