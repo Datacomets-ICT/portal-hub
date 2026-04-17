@@ -2690,8 +2690,11 @@ function subscribeToGlobalChatUpdates() {
                 clearTimeout(_globalChatDebounce);
                 _globalChatDebounce = setTimeout(() => {
                     checkTicketChatsExist();
-                    // If actively viewing a chat, also refresh that chat's messages
-                    if (activeTicketChat) loadTicketChatMessages(true);
+                    // Only refresh chat messages if the panel is VISIBLE (avoid auto-mark-as-read when hidden)
+                    const tcPanel = document.getElementById('tchatPanel');
+                    if (activeTicketChat && tcPanel && tcPanel.classList.contains('show')) {
+                        loadTicketChatMessages(true);
+                    }
                 }, 400);
             })
             .subscribe();
@@ -2835,8 +2838,9 @@ async function loadTicketChatMessages(silent = false) {
         // Silent mode: skip rerender if no new messages
         if (silent && msgs.length === lastTChatCount) return;
 
-        // New message arrived during polling → mark as read + update badge
-        if (silent && msgs.length > lastTChatCount && lastTChatCount >= 0) {
+        // New message arrived during polling → mark as read ONLY if panel is visible
+        const tchatVisible = document.getElementById('tchatPanel')?.classList.contains('show');
+        if (silent && msgs.length > lastTChatCount && lastTChatCount >= 0 && tchatVisible) {
             try {
                 await sb.rpc('mark_ticket_chat_read', {
                     p_emp_id: currentUser.employeeId,
