@@ -245,6 +245,17 @@
         .cp-row .cp-val { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cp-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 8px; font-style: italic; }
 
+        /* VNC help popup */
+        .vnc-help-btn { color: var(--primary); cursor: pointer; font-size: 13px; margin-left: 4px; opacity: .7; transition: opacity .15s; }
+        .vnc-help-btn:hover { opacity: 1; }
+        .vnc-help-popup { display: none; position: absolute; z-index: 50; background: var(--card); border: 1px solid var(--primary); border-radius: 10px; box-shadow: 0 8px 30px rgba(0,0,0,.15); width: 320px; margin-top: 4px; animation: scaleIn .15s ease; }
+        .vnc-help-popup.show { display: block; }
+        .vnc-help-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--primary-light); border-radius: 10px 10px 0 0; font-size: 13px; color: var(--primary); }
+        .vnc-help-header button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; }
+        .vnc-help-body { padding: 12px 14px; font-size: 12px; color: var(--text2); line-height: 1.7; }
+        .vnc-help-body p { margin-bottom: 4px; }
+        .vnc-help-body code { background: var(--primary-light); padding: 2px 8px; border-radius: 4px; font-size: 12px; color: var(--primary); font-weight: 600; }
+
         /* Image Lightbox */
         .lightbox { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.88); display: none; align-items: center; justify-content: center; cursor: zoom-out; backdrop-filter: blur(4px); animation: fadeIn .15s ease; }
         .lightbox.show { display: flex; }
@@ -896,7 +907,17 @@
                 </div>
 
                 <div class="form-group">
-                    <label>VNC / IP Address</label>
+                    <label>VNC / IP Address <span class="vnc-help-btn" onclick="toggleVncHelp(event)" title="วิธีดู VNC"><i class="fas fa-question-circle"></i></span></label>
+                    <div class="vnc-help-popup" id="vncHelpPopup">
+                        <div class="vnc-help-header"><b>วิธีดูหมายเลข VNC</b><button onclick="toggleVncHelp(event)"><i class="fas fa-times"></i></button></div>
+                        <div class="vnc-help-body">
+                            <p>1. มองที่ <b>Taskbar มุมขวาล่าง</b> ของหน้าจอ</p>
+                            <p>2. หาไอคอน <b>TightVNC</b> (รูปตัว V สีเขียว/แดง)</p>
+                            <p>3. <b>เอาเมาส์ชี้ค้างไว้</b> จะเห็นข้อความ เช่น<br><code>TightVNC Service - 192.168.120.91</code></p>
+                            <p>4. พิมพ์เลข <b>192.168.xxx.xxx</b> ลงในช่องนี้</p>
+                            <p style="color:var(--muted);font-size:11px;margin-top:8px;">* ถ้าไม่เจอไอคอน กด ลูกศร ▲ ที่ taskbar เพื่อดู hidden icons</p>
+                        </div>
+                    </div>
                     <input type="text" id="ticketVnc" placeholder="เช่น 192.168.x.x">
                 </div>
 
@@ -3248,6 +3269,18 @@ async function saveAdminEdit() {
 }
 
 function closeModal() { document.getElementById('ticketModal').classList.remove('show'); }
+
+// ===== VNC Help Popup =====
+function toggleVncHelp(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('vncHelpPopup').classList.toggle('show');
+}
+document.addEventListener('click', (e) => {
+    const popup = document.getElementById('vncHelpPopup');
+    if (popup && popup.classList.contains('show') && !e.target.closest('.vnc-help-popup') && !e.target.closest('.vnc-help-btn')) {
+        popup.classList.remove('show');
+    }
+});
 
 // ===== Sticker Panel =====
 function toggleStickerPanel() {
