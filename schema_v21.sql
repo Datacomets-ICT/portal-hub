@@ -200,6 +200,9 @@ $body$;
 revoke all on function get_tickets_paginated(text, text, int, int, text, text, text, text, text, text) from public;
 grant execute on function get_tickets_paginated(text, text, int, int, text, text, text, text, text, text) to anon, authenticated;
 
+-- Drop old 2-param version (conflicts with new 4-param signature)
+drop function if exists get_dashboard_stats(text, text);
+
 -- Dashboard aggregation RPC (with year/month filter)
 create or replace function get_dashboard_stats(
   p_emp_id   text,
