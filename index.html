@@ -14,6 +14,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root { --primary: #4F46E5; --primary-light: #EEF2FF; --primary-dark: #3730A3; --bg: #F8FAFC; --card: #fff; --text: #0F172A; --text2: #475569; --muted: #94A3B8; --border: #E2E8F0; --success: #10B981; --warning: #F59E0B; --danger: #EF4444; --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04); --shadow-md: 0 4px 12px rgba(0,0,0,.08); }
 
@@ -786,6 +787,7 @@
             <button class="active" onclick="showTab('tabNewTicket', this)"><i class="fas fa-plus-circle"></i> เปิด Ticket</button>
             <button onclick="showTab('tabTicketList', this)"><i class="fas fa-list"></i> Ticket List</button>
             <button class="admin-only" onclick="showTab('tabApproval', this)"><i class="fas fa-user-check"></i> อนุมัติ <span class="approve-badge" id="approveBadge" style="display:none;background:var(--danger);color:#fff;font-size:9px;padding:1px 6px;border-radius:4px;margin-left:4px;"></span></button>
+            <button class="admin-only" onclick="showTab('tabDashboard', this)"><i class="fas fa-chart-bar"></i> Dashboard</button>
         </div>
         <div class="user-info">
             <div class="notif-wrap">
@@ -1025,6 +1027,30 @@
             <button onclick="setFilter('ปิดงานแล้ว', this)">ปิดงานแล้ว</button>
             <button onclick="setFilter('ยกเลิก', this)">ยกเลิก</button>
         </div>
+        <!-- Advanced filters (admin) -->
+        <div class="adv-filters admin-only" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end;">
+            <div class="form-group" style="margin:0;min-width:140px;">
+                <label style="font-size:11px;margin-bottom:3px;">สังกัด</label>
+                <select id="filterPlant" onchange="loadTickets()" style="padding:6px 10px;font-size:12px;">
+                    <option value="">ทั้งหมด</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;min-width:140px;">
+                <label style="font-size:11px;margin-bottom:3px;">ผู้รับผิดชอบ</label>
+                <select id="filterAdmin" onchange="loadTickets()" style="padding:6px 10px;font-size:12px;">
+                    <option value="">ทั้งหมด</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label style="font-size:11px;margin-bottom:3px;">จากวันที่</label>
+                <input type="date" id="filterDateFrom" onchange="loadTickets()" style="padding:5px 8px;font-size:12px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+                <label style="font-size:11px;margin-bottom:3px;">ถึงวันที่</label>
+                <input type="date" id="filterDateTo" onchange="loadTickets()" style="padding:5px 8px;font-size:12px;">
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="clearAdvFilters()" style="height:34px;"><i class="fas fa-times"></i> ล้าง</button>
+        </div>
 
         <div class="ticket-table">
             <table>
@@ -1080,6 +1106,62 @@
                 <i class="fas fa-check-circle" style="color:var(--success);"></i>
                 <p>ไม่มีผู้ลงทะเบียนรออนุมัติ</p>
                 <p style="font-size:12px; margin-top:4px;">จะมีการแจ้งเตือนในกระดิ่ง 🔔 เมื่อมีผู้สมัครใหม่</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Dashboard (Admin) -->
+    <div class="content tab-content admin-only" id="tabDashboard" style="display:none;">
+        <h2><i class="fas fa-chart-bar"></i> Dashboard — วิเคราะห์ปัญหา</h2>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">ข้อมูลรวมจาก Ticket ทั้งหมดในระบบ</p>
+
+        <div id="dashLoading" style="text-align:center;padding:40px;color:var(--muted);">
+            <i class="fas fa-spinner fa-spin" style="font-size:24px;"></i><br>กำลังโหลด...
+        </div>
+        <div id="dashContent" style="display:none;">
+            <!-- SLA Performance -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;" id="dashSlaCards"></div>
+
+            <!-- Monthly chart -->
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px;">
+                <h3 style="font-size:15px;margin-bottom:12px;color:var(--text);">📊 จำนวน Ticket ต่อเดือน</h3>
+                <canvas id="chartMonthly" height="100"></canvas>
+            </div>
+
+            <!-- By Plant + By Admin -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                    <h3 style="font-size:14px;margin-bottom:12px;">🏢 แยกตามสังกัด</h3>
+                    <canvas id="chartPlant" height="200"></canvas>
+                </div>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                    <h3 style="font-size:14px;margin-bottom:12px;">👤 แยกตามผู้รับผิดชอบ</h3>
+                    <canvas id="chartAdmin" height="200"></canvas>
+                </div>
+            </div>
+
+            <!-- Top Issues + Top Symptoms -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                    <h3 style="font-size:14px;margin-bottom:12px;">🔥 Top 10 ประเภทปัญหา</h3>
+                    <canvas id="chartIssues" height="250"></canvas>
+                </div>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                    <h3 style="font-size:14px;margin-bottom:12px;">📋 Top 10 อาการ</h3>
+                    <canvas id="chartSymptoms" height="250"></canvas>
+                </div>
+            </div>
+
+            <!-- By Department + Priority -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                    <h3 style="font-size:14px;margin-bottom:12px;">🏗️ แยกตามแผนก</h3>
+                    <canvas id="chartDept" height="250"></canvas>
+                </div>
+                <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;">
+                    <h3 style="font-size:14px;margin-bottom:12px;">⚡ แยกตาม Priority</h3>
+                    <canvas id="chartPriority" height="200"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -1367,6 +1449,15 @@
                 <label>วิธีแก้ไขปัญหา</label>
                 <textarea id="adminEditReply" placeholder="อธิบายวิธีแก้ปัญหา..." style="min-height:100px;"></textarea>
             </div>
+            <div class="form-group">
+                <label>แนบรูปวิธีแก้ (Admin)</label>
+                <label class="file-upload-zone" for="adminReplyPhotos" style="margin-bottom:6px;">
+                    <i class="fas fa-camera"></i>
+                    <div class="upload-text"><p>คลิกเพื่อเลือกรูปแก้ปัญหา</p><span class="hint">JPG, PNG สูงสุด 5 รูป × 5 MB</span></div>
+                </label>
+                <input type="file" id="adminReplyPhotos" accept="image/*" multiple style="display:none;" onchange="onAdminReplyPhotosSelected(event)">
+                <div id="adminReplyPhotoPreview" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+            </div>
 
             <div class="history-section">
                 <h4><i class="fas fa-history"></i> ประวัติการแก้ไข</h4>
@@ -1440,6 +1531,10 @@
                     <label>เบอร์โทร</label>
                     <input type="tel" id="profPhone" placeholder="08x-xxx-xxxx" maxlength="20">
                 </div>
+            </div>
+            <div class="form-group">
+                <label><i class="fab fa-line" style="color:#06C755;"></i> LINE ID</label>
+                <input type="text" id="profLineId" placeholder="เช่น @mylineid" maxlength="50">
             </div>
             <p class="profile-field-note">รหัสพนักงาน ชื่อ-นามสกุล และแผนก แก้ไขไม่ได้ ติดต่อ IT หากต้องการแก้</p>
             <div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
@@ -1590,6 +1685,7 @@ function showTab(id, btn) {
     if (id === 'tabTicketList') loadTickets();
     if (id === 'tabFaq') loadFaq();
     if (id === 'tabApproval') loadPendingRegistrations();
+    if (id === 'tabDashboard') loadDashboard();
 
     // Auto-refresh ticket list every 30s for admins
     if (adminRefreshTimer) { clearInterval(adminRefreshTimer); adminRefreshTimer = null; }
@@ -1807,9 +1903,10 @@ function enterApp() {
     }, 60000);
 
     if (currentUser.isAdmin) {
-        loadAssignees();
+        loadAssignees().then(() => populateFilterDropdowns());
         loadPendingRegistrations();
     }
+    populateFilterDropdowns();
 }
 
 // ===== Plant list (for ticket form) =====
@@ -2219,13 +2316,16 @@ async function loadTickets(opts) {
         const search = (document.getElementById('searchInput')?.value || '').trim();
         const status = currentFilter && currentFilter !== 'all' ? currentFilter : null;
         const { data, error } = await sb.rpc('get_tickets_paginated', {
-            p_emp_id:   currentUser.employeeId,
-            p_password: currentPwd,
-            p_limit:    PAGE_SIZE,
-            p_offset:   ticketPageOffset,
-            p_status:   status,
-            p_search:   search || null,
-            p_plant:    null,
+            p_emp_id:    currentUser.employeeId,
+            p_password:  currentPwd,
+            p_limit:     PAGE_SIZE,
+            p_offset:    ticketPageOffset,
+            p_status:    status,
+            p_search:    search || null,
+            p_plant:     document.getElementById('filterPlant')?.value || null,
+            p_admin:     document.getElementById('filterAdmin')?.value || null,
+            p_date_from: document.getElementById('filterDateFrom')?.value || null,
+            p_date_to:   document.getElementById('filterDateTo')?.value || null,
         });
         if (error) throw error;
         if (!data || !data.success) throw new Error((data && data.message) || 'โหลด Ticket ไม่สำเร็จ');
@@ -2466,6 +2566,40 @@ let _searchTimer = null;
 function debouncedSearchTickets() {
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(() => loadTickets(), 350);
+}
+function clearAdvFilters() {
+    ['filterPlant','filterAdmin','filterDateFrom','filterDateTo'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    loadTickets();
+}
+// Populate filter dropdowns from loaded data
+function populateFilterDropdowns() {
+    // Plant dropdown
+    sb.rpc('get_plants_list').then(({ data }) => {
+        const sel = document.getElementById('filterPlant');
+        if (!sel) return;
+        const val = sel.value;
+        sel.innerHTML = '<option value="">ทั้งหมด</option>';
+        (data || []).filter(Boolean).forEach(p => {
+            sel.innerHTML += `<option value="${esc(p)}">${esc(p)}</option>`;
+        });
+        sel.value = val;
+    });
+    // Admin dropdown (use assignees list)
+    if (currentUser && currentUser.isAdmin && assignees.length > 0) {
+        const sel = document.getElementById('filterAdmin');
+        if (!sel) return;
+        const val = sel.value;
+        sel.innerHTML = '<option value="">ทั้งหมด</option>';
+        assignees.forEach(a => {
+            const name = a.nickname || `${a.firstName} ${a.lastName}`.trim() || a.employeeId;
+            const label = `${a.employeeId}_${name}`;
+            sel.innerHTML += `<option value="${esc(label)}">${esc(label)}</option>`;
+        });
+        sel.value = val;
+    }
 }
 
 function statusBadge(s) {
@@ -3242,12 +3376,28 @@ async function saveAdminEdit() {
     const priority = document.getElementById('adminEditPriority').value;
     if (!admin) { showToast('กรุณาเลือกผู้รับผิดชอบ', 'error'); document.getElementById('adminEditAdmin').focus(); return; }
     if (!priority) { showToast('กรุณาเลือก Priority', 'error'); document.getElementById('adminEditPriority').focus(); return; }
+    // Upload admin reply photos if any
+    const replyPhotoUrls = [];
+    if (adminReplyPhotos.length > 0) {
+        const stamp = new Date().toISOString().slice(0,7).replace('-','');
+        for (const f of adminReplyPhotos) {
+            const ext = (f.name.split('.').pop()||'jpg').toLowerCase();
+            const rand = Math.random().toString(36).slice(2,10);
+            const path = `${stamp}/reply_${Date.now()}_${rand}.${ext}`;
+            const { error: upErr } = await sb.storage.from(STORAGE_BUCKET).upload(path, f, { contentType: f.type, upsert: false });
+            if (upErr) { showToast('อัปโหลดรูปล้มเหลว: ' + upErr.message, 'error'); return; }
+            const { data: pub } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+            replyPhotoUrls.push(pub.publicUrl);
+        }
+    }
+
     const payload = {
-        key:      editingKey,
-        status:   document.getElementById('adminEditStatus').value,
+        key:         editingKey,
+        status:      document.getElementById('adminEditStatus').value,
         admin,
-        reply:    document.getElementById('adminEditReply').value.trim(),
+        reply:       document.getElementById('adminEditReply').value.trim(),
         priority,
+        replyPhotos: replyPhotoUrls.length > 0 ? replyPhotoUrls : undefined,
     };
     setLoading(true);
     try {
@@ -3259,6 +3409,8 @@ async function saveAdminEdit() {
         if (error) throw error;
         if (!data || !data.success) throw new Error((data && data.message) || 'อัปเดตไม่สำเร็จ');
         showToast('อัปเดตเรียบร้อย');
+        adminReplyPhotos = [];
+        renderAdminReplyPhotoPreviews();
         closeAdminEdit();
         loadTickets();
     } catch (err) {
@@ -3440,6 +3592,7 @@ function renderContactCard(primary, primaryRole, secondary, secondaryRole) {
         const rows = [];
         if (p.phone) rows.push(`<a class="cp-row" href="tel:${esc(p.phone)}"><i class="fas fa-phone"></i><span class="cp-val">${esc(p.phone)}</span></a>`);
         if (p.email) rows.push(`<a class="cp-row" href="mailto:${esc(p.email)}"><i class="fas fa-envelope"></i><span class="cp-val">${esc(p.email)}</span></a>`);
+        if (p.lineId) rows.push(`<div class="cp-row"><i class="fab fa-line" style="color:#06C755;"></i><span class="cp-val">${esc(p.lineId)}</span></div>`);
         if (rows.length === 0) rows.push('<div class="cp-empty">ไม่มีเบอร์/อีเมลในระบบ</div>');
 
         if (isHeader) {
@@ -3600,6 +3753,7 @@ function openProfile() {
     document.getElementById('profNickname').value = currentUser.nickname || '';
     document.getElementById('profEmail').value    = currentUser.email || '';
     document.getElementById('profPhone').value    = currentUser.phone || '';
+    document.getElementById('profLineId').value   = currentUser.lineId || '';
 
     // Clear password fields
     document.getElementById('pwOld').value     = '';
@@ -3640,9 +3794,10 @@ function switchProfileTab(evt, sectionId) {
 
 async function saveProfileInfo() {
     if (!currentUser) return;
-    const nick  = document.getElementById('profNickname').value.trim();
-    const email = document.getElementById('profEmail').value.trim();
-    const phone = document.getElementById('profPhone').value.trim();
+    const nick   = document.getElementById('profNickname').value.trim();
+    const email  = document.getElementById('profEmail').value.trim();
+    const phone  = document.getElementById('profPhone').value.trim();
+    const lineId = document.getElementById('profLineId').value.trim();
 
     setLoading(true);
     try {
@@ -3652,6 +3807,7 @@ async function saveProfileInfo() {
             p_nickname: nick,
             p_email:    email,
             p_phone:    phone,
+            p_line_id:  lineId,
         });
         if (error) throw error;
         if (!data || !data.success) throw new Error(data && data.message || 'บันทึกไม่สำเร็จ');
@@ -3659,6 +3815,7 @@ async function saveProfileInfo() {
         currentUser.nickname = nick;
         currentUser.email    = email;
         currentUser.phone    = phone;
+        currentUser.lineId   = lineId;
         sessionStorage.setItem('ticketUser', JSON.stringify(currentUser));
 
         // Refresh header display
@@ -4687,6 +4844,157 @@ function renderFaq() {
 }
 
 // ===== Init =====
+// ===== Admin Reply Photos =====
+let adminReplyPhotos = [];
+function onAdminReplyPhotosSelected(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    for (const f of files) {
+        if (adminReplyPhotos.length >= 5) { showToast('สูงสุด 5 รูป', 'error'); break; }
+        if (f.size > 5 * 1024 * 1024) { showToast('รูปใหญ่เกิน 5MB', 'error'); continue; }
+        adminReplyPhotos.push(f);
+    }
+    renderAdminReplyPhotoPreviews();
+}
+function renderAdminReplyPhotoPreviews() {
+    const wrap = document.getElementById('adminReplyPhotoPreview');
+    if (!wrap) return;
+    wrap.innerHTML = adminReplyPhotos.map((f, i) =>
+        `<div style="position:relative;"><img src="${URL.createObjectURL(f)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"><button type="button" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:10px;cursor:pointer;" onclick="adminReplyPhotos.splice(${i},1);renderAdminReplyPhotoPreviews();">×</button></div>`
+    ).join('');
+}
+
+// ===== Dashboard =====
+let dashCharts = {};
+async function loadDashboard() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    const loading = document.getElementById('dashLoading');
+    const content = document.getElementById('dashContent');
+    if (loading) loading.style.display = 'block';
+    if (content) content.style.display = 'none';
+
+    try {
+        const { data, error } = await sb.rpc('get_dashboard_stats', {
+            p_emp_id: currentUser.employeeId,
+            p_password: currentPwd,
+        });
+        if (error) throw error;
+        if (!data || !data.success) throw new Error(data?.message || 'โหลดไม่สำเร็จ');
+
+        if (loading) loading.style.display = 'none';
+        if (content) content.style.display = 'block';
+
+        // Destroy old charts
+        Object.values(dashCharts).forEach(c => c.destroy && c.destroy());
+        dashCharts = {};
+
+        const colors = ['#4F46E5','#F97316','#10B981','#EF4444','#0EA5E9','#7C3AED','#F59E0B','#EC4899','#14B8A6','#8B5CF6'];
+        const darkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+        const gridColor = darkMode ? 'rgba(255,255,255,.1)' : 'rgba(0,0,0,.06)';
+        const textColor = darkMode ? '#CBD5E1' : '#475569';
+        Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = gridColor;
+
+        // SLA Cards
+        const sla = data.slaPerf || {};
+        document.getElementById('dashSlaCards').innerHTML = `
+            <div class="summary-card"><div class="sc-icon" style="background:#DBEAFE;color:#2563EB;"><i class="fas fa-ticket-alt"></i></div><div class="sc-count">${sla.total||0}</div><div class="sc-label">Ticket ที่เสร็จแล้ว</div></div>
+            <div class="summary-card"><div class="sc-icon" style="background:#D1FAE5;color:#059669;"><i class="fas fa-check"></i></div><div class="sc-count">${sla.onTime||0}</div><div class="sc-label">ทัน SLA ✅</div></div>
+            <div class="summary-card"><div class="sc-icon" style="background:#FEE2E2;color:#DC2626;"><i class="fas fa-exclamation-triangle"></i></div><div class="sc-count">${sla.overdue||0}</div><div class="sc-label">เกิน SLA ⚠️</div></div>
+            <div class="summary-card"><div class="sc-icon" style="background:#EEF2FF;color:#4F46E5;"><i class="fas fa-percentage"></i></div><div class="sc-count">${sla.total > 0 ? Math.round(((sla.onTime||0)/(sla.total))*100) : 0}%</div><div class="sc-label">SLA Performance</div></div>
+        `;
+
+        // Monthly chart
+        const monthly = data.monthly || [];
+        dashCharts.monthly = new Chart(document.getElementById('chartMonthly'), {
+            type: 'bar',
+            data: {
+                labels: monthly.map(m => m.month),
+                datasets: [
+                    { label: 'ทั้งหมด', data: monthly.map(m => m.total), backgroundColor: '#4F46E5' },
+                    { label: 'เสร็จแล้ว', data: monthly.map(m => m.resolved), backgroundColor: '#10B981' },
+                    { label: 'ยังเปิด', data: monthly.map(m => m.open), backgroundColor: '#F59E0B' },
+                ]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'top' } } }
+        });
+
+        // By Plant (doughnut)
+        const byPlant = data.byPlant || [];
+        dashCharts.plant = new Chart(document.getElementById('chartPlant'), {
+            type: 'doughnut',
+            data: {
+                labels: byPlant.map(p => p.plant),
+                datasets: [{ data: byPlant.map(p => p.total), backgroundColor: colors }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+        });
+
+        // By Admin (horizontal bar)
+        const byAdmin = (data.byAdmin || []).slice(0, 10);
+        dashCharts.admin = new Chart(document.getElementById('chartAdmin'), {
+            type: 'bar',
+            data: {
+                labels: byAdmin.map(a => a.admin),
+                datasets: [
+                    { label: 'ทั้งหมด', data: byAdmin.map(a => a.total), backgroundColor: '#4F46E5' },
+                    { label: 'เสร็จ', data: byAdmin.map(a => a.resolved), backgroundColor: '#10B981' },
+                ]
+            },
+            options: { indexAxis: 'y', responsive: true, plugins: { legend: { position: 'top' } } }
+        });
+
+        // Top Issues (horizontal bar)
+        const topIssues = data.topIssues || [];
+        dashCharts.issues = new Chart(document.getElementById('chartIssues'), {
+            type: 'bar',
+            data: {
+                labels: topIssues.map(i => i.issue),
+                datasets: [{ label: 'จำนวน', data: topIssues.map(i => i.total), backgroundColor: colors }]
+            },
+            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // Top Symptoms
+        const topSx = data.topSymptoms || [];
+        dashCharts.symptoms = new Chart(document.getElementById('chartSymptoms'), {
+            type: 'bar',
+            data: {
+                labels: topSx.map(s => s.symptom),
+                datasets: [{ label: 'จำนวน', data: topSx.map(s => s.total), backgroundColor: colors }]
+            },
+            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // By Department
+        const byDept = (data.byDept || []).slice(0, 10);
+        dashCharts.dept = new Chart(document.getElementById('chartDept'), {
+            type: 'bar',
+            data: {
+                labels: byDept.map(d => (d.dept || '') + (d.section ? ' / ' + d.section : '')),
+                datasets: [{ label: 'จำนวน', data: byDept.map(d => d.total), backgroundColor: colors }]
+            },
+            options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        // Priority (doughnut)
+        const byPrio = data.byPriority || [];
+        const prioColors = { urgent: '#EF4444', high: '#F97316', medium: '#EAB308', low: '#22C55E' };
+        const prioLabels = { urgent: 'ด่วนมาก', high: 'สำคัญ', medium: 'ปกติ', low: 'ไม่เร่ง' };
+        dashCharts.priority = new Chart(document.getElementById('chartPriority'), {
+            type: 'doughnut',
+            data: {
+                labels: byPrio.map(p => prioLabels[p.priority] || p.priority),
+                datasets: [{ data: byPrio.map(p => p.total), backgroundColor: byPrio.map(p => prioColors[p.priority] || '#94A3B8') }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+
+    } catch (err) {
+        if (loading) loading.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:24px;"></i><br>${esc(err.message)}`;
+    }
+}
+
 (function init() {
     // Apply saved theme / accent / fontsize before anything renders
     loadUISettings();
