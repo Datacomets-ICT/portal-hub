@@ -1745,6 +1745,8 @@ function handleLogout() {
     document.body.classList.remove('app-active');
     document.body.classList.remove('has-ticket-chat');
     closeChatPanel();
+    unsubscribeGlobalChat();
+    unsubscribeFromTicketMessages();
     chatHistory = [];
     chatSessionId = '';
     showPage('pageLogin');
@@ -1774,12 +1776,14 @@ function enterApp() {
     // Notifications for all users
     loadNotifications();
     checkTicketChatsExist();
+    subscribeToGlobalChatUpdates();  // realtime badge updates
+    // Fallback polling every 60s (realtime handles the instant case)
     setInterval(() => {
         if (document.visibilityState === 'visible') {
             loadNotifications();
             checkTicketChatsExist();
         }
-    }, 30000);
+    }, 60000);
 
     if (currentUser.isAdmin) {
         loadAssignees();
@@ -2665,6 +2669,42 @@ function closeTicketChat() {
     document.getElementById('tchatPanel').classList.remove('show');
     stopTChatPolling();
     unsubscribeFromTicketMessages();
+}
+
+// Global realtime: listen for ANY new message → update badge instantly
+let globalChatSub = null;
+let _globalChatDebounce = null;
+
+function subscribeToGlobalChatUpdates() {
+    if (globalChatSub || !currentUser) return;
+    try {
+        globalChatSub = sb.channel('global_chat_badge')
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'ticket_messages',
+            }, (payload) => {
+                // Ignore messages from self
+                if (payload.new && payload.new.sender_id === currentUser.employeeId) return;
+                // Debounce: multiple rapid messages → one check
+                clearTimeout(_globalChatDebounce);
+                _globalChatDebounce = setTimeout(() => {
+                    checkTicketChatsExist();
+                    // If actively viewing a chat, also refresh that chat's messages
+                    if (activeTicketChat) loadTicketChatMessages(true);
+                }, 400);
+            })
+            .subscribe();
+    } catch (e) {
+        console.warn('Global chat subscription failed, fallback to polling:', e);
+    }
+}
+
+function unsubscribeGlobalChat() {
+    if (globalChatSub) {
+        try { sb.removeChannel(globalChatSub); } catch(_) {}
+        globalChatSub = null;
+    }
 }
 
 // Chat realtime subscription (single active ticket at a time)
