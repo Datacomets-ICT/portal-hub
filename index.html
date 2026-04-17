@@ -1145,8 +1145,8 @@
                 <div style="height:160px;"><canvas id="chartMonthly"></canvas></div>
             </div>
 
-            <!-- Row 3: 3 charts side by side (fixed height) -->
-            <div style="display:grid;grid-template-columns:1fr 2fr 1fr;gap:8px;margin-bottom:10px;">
+            <!-- Row 3: 2 charts side by side (fixed height) -->
+            <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-bottom:10px;">
                 <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
                     <h3 style="font-size:11px;margin-bottom:4px;">🏢 สังกัด</h3>
                     <div style="height:170px;"><canvas id="chartPlant"></canvas></div>
@@ -1154,10 +1154,6 @@
                 <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
                     <h3 style="font-size:11px;margin-bottom:4px;">👤 ผู้ดำเนินการ</h3>
                     <div style="height:170px;"><canvas id="chartAdmin"></canvas></div>
-                </div>
-                <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;height:200px;">
-                    <h3 style="font-size:11px;margin-bottom:4px;">⚡ Priority</h3>
-                    <div style="height:170px;"><canvas id="chartPriority"></canvas></div>
                 </div>
             </div>
 
@@ -5000,15 +4996,7 @@ async function loadDashboard() {
             options: { indexAxis: 'y', ...compact, scales: { y: { ticks: { font: { size: 10 } } } } }
         });
 
-        // Priority (doughnut)
-        const byPrio = data.byPriority || [];
-        const prioColors = { urgent: '#EF4444', high: '#F97316', medium: '#EAB308', low: '#22C55E' };
-        const prioLabels = { urgent: 'ด่วนมาก', high: 'สำคัญ', medium: 'ปกติ', low: 'ไม่เร่ง' };
-        dashCharts.priority = new Chart(document.getElementById('chartPriority'), {
-            type: 'doughnut',
-            data: { labels: byPrio.map(p => prioLabels[p.priority] || p.priority), datasets: [{ data: byPrio.map(p => p.total), backgroundColor: byPrio.map(p => prioColors[p.priority] || '#94A3B8') }] },
-            options: compactLegend('bottom')
-        });
+        // (Priority chart removed per user request)
 
     } catch (err) {
         if (loading) loading.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:24px;"></i><br>${esc(err.message)}`;
