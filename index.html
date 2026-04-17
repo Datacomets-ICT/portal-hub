@@ -4340,14 +4340,17 @@ async function loadNotifications() {
         const list = document.getElementById('notifList');
         let allItems = [];
 
-        // Admin: unassigned tickets
+        // Admin: unassigned tickets (track "last seen" so they don't reappear after marking read)
         if (currentUser.isAdmin) {
+            const lastSeenKey = 'adminLastSeenUnassigned_' + currentUser.employeeId;
+            const lastSeenAt = localStorage.getItem(lastSeenKey) || '1970-01-01T00:00:00Z';
             const { data } = await sb.rpc('get_unassigned_tickets', {
                 p_emp_id: currentUser.employeeId,
                 p_password: currentPwd,
             });
             (Array.isArray(data) ? data : []).forEach(t => allItems.push({
-                id: 'a-' + t.ticket_no, ticketNo: t.ticket_no, isRead: false,
+                id: 'a-' + t.ticket_no, ticketNo: t.ticket_no,
+                isRead: (t.created_at || '') <= lastSeenAt,  // only new tickets since last "mark all read" are unread
                 title: 'Ticket รอรับ: ' + t.ticket_no,
                 desc: (t.employee_name || '') + ' — ' + (t.request || t.symptom || '').slice(0, 40),
                 time: t.created_at,
@@ -4437,6 +4440,11 @@ async function markAllRead() {
     document.getElementById('notifBadge').style.display = 'none';
     if (currentUser) {
         try { await sb.rpc('mark_notifications_read', { p_emp_id: currentUser.employeeId }); } catch(_){}
+        // Also mark unassigned tickets as "seen" for admin
+        if (currentUser.isAdmin) {
+            localStorage.setItem('adminLastSeenUnassigned_' + currentUser.employeeId, new Date().toISOString());
+        }
+        lastNotifCount = 0;
     }
 }
 
