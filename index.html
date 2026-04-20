@@ -5045,14 +5045,15 @@ async function openDrillDown(filterKey, label) {
             return;
         }
         body.innerHTML = `
-            <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">พบ ${data.filtered_total} รายการ (แสดง ${tickets.length} ล่าสุด)</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">พบ ${data.filtered_total} รายการ (แสดง ${tickets.length} ล่าสุด) · คลิกแถวเพื่อดูรายละเอียดเต็ม</div>
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
                 <thead>
                     <tr style="background:var(--primary);color:#fff;">
                         <th style="padding:8px;text-align:left;border-radius:6px 0 0 0;">Ticket</th>
                         <th style="padding:8px;text-align:left;">วันที่</th>
                         <th style="padding:8px;text-align:left;">ผู้แจ้ง</th>
-                        <th style="padding:8px;text-align:left;">ประเภท</th>
+                        <th style="padding:8px;text-align:left;">อาการ</th>
+                        <th style="padding:8px;text-align:left;">รายละเอียด</th>
                         <th style="padding:8px;text-align:left;">Priority</th>
                         <th style="padding:8px;text-align:left;border-radius:0 6px 0 0;">สถานะ</th>
                     </tr>
@@ -5061,11 +5062,17 @@ async function openDrillDown(filterKey, label) {
                     ${tickets.map(t => {
                         const dt = t.created_at ? new Date(t.created_at).toLocaleString('sv-SE').slice(0, 16) : '';
                         const prio = (PRIO_LABEL[t.priority] || PRIO_LABEL.medium);
-                        return `<tr style="border-bottom:1px solid var(--border);">
+                        const req = t.request || '-';
+                        const reqShort = req.length > 60 ? req.slice(0, 60) + '…' : req;
+                        return `<tr style="border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;"
+                                onclick="openTicketFromDrill(${t.key})"
+                                onmouseover="this.style.background='var(--primary-light)'"
+                                onmouseout="this.style.background=''">
                             <td style="padding:6px 8px;"><strong style="color:var(--primary);">${esc(t.ticket_no || '')}</strong></td>
-                            <td style="padding:6px 8px;">${esc(dt)}</td>
+                            <td style="padding:6px 8px;white-space:nowrap;">${esc(dt)}</td>
                             <td style="padding:6px 8px;">${esc(t.employee_name || '-')}</td>
-                            <td style="padding:6px 8px;">${esc(t.issue_type || '-')}</td>
+                            <td style="padding:6px 8px;">${esc(t.symptom || '-')}</td>
+                            <td style="padding:6px 8px;max-width:280px;" title="${esc(req)}">${esc(reqShort)}</td>
                             <td style="padding:6px 8px;"><span class="prio ${prio.cls}">${prio.icon}</span></td>
                             <td style="padding:6px 8px;"><span class="badge ${statusBadge(t.status)}">${esc(t.status)}</span></td>
                         </tr>`;
@@ -5079,6 +5086,22 @@ async function openDrillDown(filterKey, label) {
 }
 function closeDrill() {
     document.getElementById('drillModal').classList.remove('show');
+}
+
+// Click a row in drill-down → close drill, switch to Ticket List, and open that ticket's detail
+async function openTicketFromDrill(ticketKey) {
+    closeDrill();
+    // Navigate to Ticket List and highlight the ticket
+    showTab('tabTicketList', document.querySelector('.nav-links button:nth-child(2)'));
+    // Wait for loadTickets to finish — it runs in showTab
+    await new Promise(r => setTimeout(r, 500));
+    // Find ticket in loaded list
+    const idx = tickets.findIndex(t => t.key === ticketKey);
+    if (idx >= 0) {
+        viewTicket(idx);
+    } else {
+        showToast('Ticket อาจอยู่นอกหน้าที่โหลด — ลองค้นหาเลขครับ', 'error');
+    }
 }
 
 // ===== Dashboard PDF Export =====
