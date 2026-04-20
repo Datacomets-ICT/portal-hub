@@ -192,8 +192,10 @@
         .filter-tabs button .count { display: inline-block; background: rgba(255,255,255,.3); padding: 1px 6px; border-radius: 4px; margin-left: 4px; font-size: 10px; font-weight: 700; }
         .filter-tabs button:not(.active) .count { background: var(--primary-light); color: var(--primary); }
 
-        .ticket-table { width: 100%; background: var(--card); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
-        .ticket-table table { width: 100%; border-collapse: collapse; }
+        .ticket-table { width: 100%; background: var(--card); border-radius: var(--radius); overflow-x: auto; border: 1px solid var(--border); }
+        .ticket-table table { width: 100%; min-width: 1250px; border-collapse: collapse; }
+        .ticket-table th, .ticket-table td { white-space: nowrap; }
+        .ticket-table td .wrap-cell { white-space: normal; word-break: break-word; }
         .ticket-table th { background: #F1F5F9; padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
         .ticket-table td { padding: 12px 16px; font-size: 13px; color: var(--text2); border-top: 1px solid var(--border); }
         .ticket-table tr { transition: all .15s; }
@@ -980,7 +982,7 @@
     </div>
 
     <!-- Tab: Ticket List -->
-    <div class="content tab-content" id="tabTicketList" style="display:none;">
+    <div class="content tab-content" id="tabTicketList" style="display:none;max-width:1600px;">
         <!-- Summary Cards -->
         <div class="summary-cards stagger" id="summaryCards">
             <div class="summary-card sc-total">
