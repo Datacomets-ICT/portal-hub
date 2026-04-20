@@ -192,9 +192,13 @@
         .filter-tabs button .count { display: inline-block; background: rgba(255,255,255,.3); padding: 1px 6px; border-radius: 4px; margin-left: 4px; font-size: 10px; font-weight: 700; }
         .filter-tabs button:not(.active) .count { background: var(--primary-light); color: var(--primary); }
 
-        .ticket-table { width: 100%; background: var(--card); border-radius: var(--radius); overflow-x: auto; border: 1px solid var(--border); }
-        .ticket-table table { width: 100%; min-width: 1250px; border-collapse: collapse; }
+        .ticket-table { width: 100%; background: var(--card); border-radius: var(--radius); overflow-x: auto; border: 1px solid var(--border); position: relative; }
+        .ticket-table table { width: 100%; min-width: 1400px; border-collapse: collapse; }
         .ticket-table th, .ticket-table td { white-space: nowrap; }
+        .ticket-table th:last-child, .ticket-table td:last-child { position: sticky; right: 0; background: var(--card); box-shadow: -2px 0 6px rgba(0,0,0,.06); z-index: 2; }
+        .ticket-table tr:hover td:last-child { background: var(--primary-light); }
+        .ticket-table th:last-child { background: #F1F5F9; }
+        [data-theme="dark"] .ticket-table th:last-child { background: #0F172A; }
         .ticket-table td .wrap-cell { white-space: normal; word-break: break-word; }
         .ticket-table th { background: #F1F5F9; padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
         .ticket-table td { padding: 12px 16px; font-size: 13px; color: var(--text2); border-top: 1px solid var(--border); }
@@ -982,7 +986,7 @@
     </div>
 
     <!-- Tab: Ticket List -->
-    <div class="content tab-content" id="tabTicketList" style="display:none;max-width:1600px;">
+    <div class="content tab-content" id="tabTicketList" style="display:none;max-width:none;">
         <!-- Summary Cards -->
         <div class="summary-cards stagger" id="summaryCards">
             <div class="summary-card sc-total">
@@ -2634,17 +2638,9 @@ function clearAdvFilters() {
 }
 // Populate filter dropdowns from loaded data
 function populateFilterDropdowns() {
-    // Plant dropdown
-    sb.rpc('get_plants_list').then(({ data }) => {
-        const sel = document.getElementById('filterPlant');
-        if (!sel) return;
-        const val = sel.value;
-        sel.innerHTML = '<option value="">ทั้งหมด</option>';
-        (data || []).filter(Boolean).forEach(p => {
-            sel.innerHTML += `<option value="${esc(p)}">${esc(p)}</option>`;
-        });
-        sel.value = val;
-    });
+    // Plant/Location dropdown uses hardcoded options in HTML (Comets HQ, Comets FAC, ICT, JA, บ้านแสง)
+    // — don't override with get_plants_list (that returns plant column values which are different)
+
     // Admin dropdown (use assignees list)
     if (currentUser && currentUser.isAdmin && assignees.length > 0) {
         const sel = document.getElementById('filterAdmin');
