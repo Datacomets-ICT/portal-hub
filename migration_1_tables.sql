@@ -93,7 +93,7 @@ returns json
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $body$
 declare
   emp employees%rowtype;
 begin
@@ -125,7 +125,7 @@ begin
     )
   );
 end;
-$$;
+$body$;
 
 revoke all on function login(text, text) from public;
 grant execute on function login(text, text) to anon, authenticated;
@@ -138,7 +138,7 @@ returns json
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $body$
 declare
   prefix         text;
   max_seq        int;
@@ -153,7 +153,7 @@ begin
   into max_seq
   from tickets
   where ticket_no like prefix || '%'
-    and substring(ticket_no from length(prefix) + 1) ~ '^[0-9]+$';
+    and substring(ticket_no from length(prefix) + 1) similar to '[0-9]+';
 
   new_seq := max_seq + 1;
   new_ticket_no := prefix || lpad(new_seq::text, 4, '0');
@@ -179,7 +179,7 @@ begin
 
   return json_build_object('success', true, 'ticketId', new_ticket_no);
 end;
-$$;
+$body$;
 
 revoke all on function create_ticket(json) from public;
 grant execute on function create_ticket(json) to anon, authenticated;

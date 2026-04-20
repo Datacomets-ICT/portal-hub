@@ -1,23 +1,18 @@
 -- ============================================================
 -- IT Ticket System — Full Migration SQL (v1.0 → v21)
 -- ============================================================
--- Generated: merge of schema.sql + schema_v2..v21.sql in order
--- Usage:
---   1) Create new Supabase project
---   2) Open SQL Editor → paste this entire file → Run
---   3) Dashboard > Extensions → enable "pg_cron" (for auto-close)
---   4) Dashboard > Database > Replication → add ticket_messages
---      to supabase_realtime publication (for chat realtime)
---   5) Dashboard > Storage → create bucket "ticket-attachments" (Public)
---
--- Note: Idempotent — safe to re-run. Uses "create or replace" and
--- "if not exists" throughout.
+-- Merged: schema.sql + schema_v2..v21.sql
+-- 
+-- Setup (after running this):
+--   1) Enable pg_cron extension (Database > Extensions)
+--   2) Add ticket_messages to supabase_realtime publication
+--   3) Create Storage bucket "ticket-attachments" (Public)
+-- ============================================================
+
 -- ============================================================
 
 
--- ============================================================
 -- === schema.sql ===
--- ============================================================
 -- ============================================================
 -- IT Ticket System — Supabase Schema
 -- Run this entire file in Supabase SQL Editor
@@ -101,7 +96,7 @@ returns json
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $body$
 declare
   emp employees%rowtype;
 begin
@@ -133,7 +128,7 @@ begin
     )
   );
 end;
-$$;
+$body$;
 
 revoke all on function login(text, text) from public;
 grant execute on function login(text, text) to anon, authenticated;
@@ -146,7 +141,7 @@ returns json
 language plpgsql
 security definer
 set search_path = public
-as $$
+as $body$
 declare
   prefix         text;
   max_seq        int;
@@ -161,7 +156,7 @@ begin
   into max_seq
   from tickets
   where ticket_no like prefix || '%'
-    and substring(ticket_no from length(prefix) + 1) ~ '^[0-9]+$';
+    and substring(ticket_no from length(prefix) + 1) similar to '[0-9]+';
 
   new_seq := max_seq + 1;
   new_ticket_no := prefix || lpad(new_seq::text, 4, '0');
@@ -187,14 +182,12 @@ begin
 
   return json_build_object('success', true, 'ticketId', new_ticket_no);
 end;
-$$;
+$body$;
 
 revoke all on function create_ticket(json) from public;
 grant execute on function create_ticket(json) to anon, authenticated;
 
--- ============================================================
 -- === schema_v2.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 2: Image attachments + Admin panel
 -- Run this entire file in Supabase SQL Editor
@@ -381,9 +374,7 @@ $body$;
 revoke all on function update_ticket(text, text, json) from public;
 grant execute on function update_ticket(text, text, json) to anon, authenticated;
 
--- ============================================================
 -- === schema_v3.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 3: Admin assignee dropdown + plant filter support
 -- Run this entire file in Supabase SQL Editor
@@ -423,9 +414,7 @@ $body$;
 revoke all on function get_assignees() from public;
 grant execute on function get_assignees() to anon, authenticated;
 
--- ============================================================
 -- === schema_v4.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 4: File attachments + Audit history
 -- Run this entire file in Supabase SQL Editor (safe to re-run)
@@ -640,9 +629,7 @@ $body$;
 revoke all on function create_ticket(json) from public;
 grant execute on function create_ticket(json) to anon, authenticated;
 
--- ============================================================
 -- === schema_v5.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 5: Knowledge Base for AI chatbot RAG
 -- Run this entire file in Supabase SQL Editor (safe to re-run)
@@ -712,9 +699,7 @@ $body$;
 revoke all on function search_knowledge(text, int) from public;
 grant execute on function search_knowledge(text, int) to anon, authenticated;
 
--- ============================================================
 -- === schema_v6.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 6: Chat usage tracking (daily quota counter)
 -- ============================================================
@@ -792,9 +777,7 @@ $body$;
 revoke all on function sync_chat_usage(int) from public;
 grant execute on function sync_chat_usage(int) to anon, authenticated;
 
--- ============================================================
 -- === schema_v7.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 7: Chat learning — save conversations + auto-learn from resolved tickets
 -- ============================================================
@@ -939,9 +922,7 @@ $body$;
 revoke all on function get_frequent_questions(int) from public;
 grant execute on function get_frequent_questions(int) to anon, authenticated;
 
--- ============================================================
 -- === schema_v8.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 8: Registration + Admin approval + active/resigned filter
 -- ============================================================
@@ -1136,9 +1117,7 @@ $body$;
 revoke all on function approve_registration(text,text,text,text) from public;
 grant execute on function approve_registration(text,text,text,text) to anon, authenticated;
 
--- ============================================================
 -- === schema_v9.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 9: User notifications + prevent AI hallucination
 -- ============================================================
@@ -1312,9 +1291,7 @@ $body$;
 revoke all on function update_ticket(text, text, json) from public;
 grant execute on function update_ticket(text, text, json) to anon, authenticated;
 
--- ============================================================
 -- === schema_v10.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 10: Ticket Chat (Admin <-> User conversation per ticket)
 -- ============================================================
@@ -1433,9 +1410,7 @@ $body$;
 revoke all on function get_ticket_messages(bigint) from public;
 grant execute on function get_ticket_messages(bigint) to anon, authenticated;
 
--- ============================================================
 -- === schema_v11.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 11: Mark ticket messages as read (per user)
 -- ============================================================
@@ -1567,9 +1542,7 @@ grant execute on function send_ticket_message(text, text, bigint, text) to anon,
 -- Delete old chat notifications (so they don't keep the bell showing)
 delete from notifications where title like 'ข้อความใหม่จากทีม IT%';
 
--- ============================================================
 -- === schema_v12.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 12: Quick Chat — auto-create blank ticket for direct IT contact
 -- ============================================================
@@ -1635,9 +1608,7 @@ $body$;
 revoke all on function create_quick_chat_ticket(text, text) from public;
 grant execute on function create_quick_chat_ticket(text, text) to anon, authenticated;
 
--- ============================================================
 -- === schema_v13.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 13: Chat file/image attachments
 -- ============================================================
@@ -1783,9 +1754,7 @@ $body$;
 
 grant execute on function get_unread_ticket_chats(text) to anon, authenticated;
 
--- ============================================================
 -- === schema_v14.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 14: User cancel ticket (owner only, and only if not yet in progress)
 -- ============================================================
@@ -1846,9 +1815,7 @@ $body$;
 revoke all on function cancel_my_ticket(text, text, bigint) from public;
 grant execute on function cancel_my_ticket(text, text, bigint) to anon, authenticated;
 
--- ============================================================
 -- === schema_v15.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 15: User Profile — Avatar, edit personal info, change password
 -- ============================================================
@@ -2024,9 +1991,7 @@ $body$;
 revoke all on function update_my_avatar(text, text, text) from public;
 grant execute on function update_my_avatar(text, text, text) to anon, authenticated;
 
--- ============================================================
 -- === schema_v16.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 16: Priority + SLA (business hours) + User confirm/reopen
 -- ============================================================
@@ -2457,9 +2422,7 @@ $body$;
 revoke all on function reopen_my_ticket(text, text, bigint, text) from public;
 grant execute on function reopen_my_ticket(text, text, bigint, text) to anon, authenticated;
 
--- ============================================================
 -- === schema_v17.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 17: Auto-close stale tickets (7 days after "ดำเนินการเรียบร้อย")
 -- ============================================================
@@ -2575,9 +2538,7 @@ begin
   end if;
 end $$;
 
--- ============================================================
 -- === schema_v18.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 18: Paginated ticket fetch + tighten RLS
 -- ============================================================
@@ -2779,9 +2740,7 @@ drop policy if exists "worklist_read"     on worklist;
 drop policy if exists "worklist_read_all" on worklist;
 create policy "worklist_read_all" on worklist for select to anon using (true);
 
--- ============================================================
 -- === schema_v19.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 19: Supabase Realtime for chat messages
 -- ============================================================
@@ -2817,9 +2776,7 @@ create policy "ticket_messages_realtime"
 -- The frontend subscribes with filter: ticket_key=eq.<specific_key>
 -- so clients only receive events for the ticket they're viewing.
 
--- ============================================================
 -- === schema_v20.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 20: Quick contact popup for chat list
 -- ============================================================
@@ -2905,9 +2862,7 @@ $body$;
 revoke all on function get_ticket_contacts(text, text, bigint) from public;
 grant execute on function get_ticket_contacts(text, text, bigint) to anon, authenticated;
 
--- ============================================================
 -- === schema_v21.sql ===
--- ============================================================
 -- ============================================================
 -- Phase 21: LINE ID + advanced ticket filters + admin photo upload + dashboard
 -- ============================================================
