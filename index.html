@@ -1128,7 +1128,10 @@
     <div class="content tab-content admin-only" id="tabDashboard" style="display:none;max-width:1400px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
             <h2 style="margin:0;font-size:16px;"><i class="fas fa-chart-bar"></i> Dashboard</h2>
-            <div style="display:flex;align-items:center;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <select id="dashAdmin" onchange="loadDashboard()" style="padding:5px 10px;font-size:12px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-family:inherit;min-width:140px;">
+                    <option value="">ทุก Admin</option>
+                </select>
                 <select id="dashYear" onchange="loadDashboard()" style="padding:5px 10px;font-size:12px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-family:inherit;"></select>
                 <select id="dashMonth" onchange="loadDashboard()" style="padding:5px 10px;font-size:12px;border:1.5px solid var(--border);border-radius:6px;background:var(--card);color:var(--text);font-family:inherit;">
                     <option value="">ทุกเดือน</option>
@@ -1513,6 +1516,18 @@
         <div class="actions">
             <button class="btn btn-outline btn-sm" onclick="closeAdminEdit()"><i class="fas fa-times"></i> ยกเลิก</button>
             <button class="btn btn-success btn-sm" onclick="saveAdminEdit()"><i class="fas fa-save"></i> บันทึก</button>
+        </div>
+    </div>
+</div>
+
+<!-- ========== DRILL-DOWN MODAL (Dashboard chart click) ========== -->
+<div class="modal-backdrop" id="drillModal">
+    <div class="modal" style="width:900px;max-width:95%;">
+        <h3 id="drillTitle"><i class="fas fa-list"></i> รายการ Ticket</h3>
+        <div id="drillSub" style="color:var(--muted);font-size:12px;margin-bottom:12px;"></div>
+        <div id="drillContent" style="max-height:60vh;overflow-y:auto;"></div>
+        <div class="actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+            <button class="btn btn-outline btn-sm" onclick="closeDrill()"><i class="fas fa-times"></i> ปิด</button>
         </div>
     </div>
 </div>
@@ -4954,6 +4969,118 @@ function renderAdminReplyPhotoPreviews() {
     ).join('');
 }
 
+// ===== Dashboard drill-down popup =====
+async function openDrillDown(filterKey, label) {
+    if (!label && label !== 0) return;
+    const modal = document.getElementById('drillModal');
+    const title = document.getElementById('drillTitle');
+    const sub   = document.getElementById('drillSub');
+    const body  = document.getElementById('drillContent');
+
+    const typeLabels = {
+        plant:   'สังกัด',
+        admin:   'ผู้ดำเนินการ',
+        issue:   'ประเภทปัญหา',
+        symptom: 'อาการ',
+        dept:    'แผนก',
+        month:   'เดือน',
+    };
+    title.innerHTML = `<i class="fas fa-list"></i> Ticket ที่เกี่ยวข้อง`;
+    sub.textContent = `${typeLabels[filterKey] || ''}: ${label}`;
+    body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</div>';
+    modal.classList.add('show');
+
+    // Apply same dashboard filters (year/month/admin)
+    const dashYear  = document.getElementById('dashYear')?.value || null;
+    const dashMonth = document.getElementById('dashMonth')?.value || null;
+    const dashAdmin = document.getElementById('dashAdmin')?.value || null;
+
+    // Build RPC params based on filter type
+    const params = {
+        p_emp_id:   currentUser.employeeId,
+        p_password: currentPwd,
+        p_limit:    200,
+        p_offset:   0,
+        p_status:   null,
+        p_search:   null,
+        p_plant:    null,
+        p_admin:    dashAdmin || null,
+        p_date_from: null,
+        p_date_to:   null,
+        p_issue_type: null,
+        p_symptom:    null,
+        p_priority:   null,
+        p_dept:       null,
+    };
+    // Year/Month applied
+    if (dashYear) {
+        if (dashMonth) {
+            params.p_date_from = `${dashYear}-${String(dashMonth).padStart(2,'0')}-01`;
+            params.p_date_to   = `${dashYear}-${String(dashMonth).padStart(2,'0')}-31`;
+        } else {
+            params.p_date_from = `${dashYear}-01-01`;
+            params.p_date_to   = `${dashYear}-12-31`;
+        }
+    }
+
+    // Drill-down filter
+    if (filterKey === 'plant')   params.p_plant = label;
+    if (filterKey === 'admin')   params.p_admin = label;
+    if (filterKey === 'issue')   params.p_issue_type = label;
+    if (filterKey === 'symptom') params.p_symptom = label;
+    if (filterKey === 'dept')    params.p_dept = label;
+    if (filterKey === 'month' && /^\d{4}-\d{2}$/.test(label)) {
+        const [y, m] = label.split('-');
+        params.p_date_from = `${y}-${m}-01`;
+        params.p_date_to   = `${y}-${m}-31`;
+    }
+
+    try {
+        const { data, error } = await sb.rpc('get_tickets_paginated', params);
+        if (error) throw error;
+        if (!data || !data.success) throw new Error(data?.message || 'โหลดไม่สำเร็จ');
+        const tickets = data.tickets || [];
+        if (tickets.length === 0) {
+            body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);">ไม่พบ Ticket ตามเงื่อนไขนี้</div>';
+            return;
+        }
+        body.innerHTML = `
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">พบ ${data.filtered_total} รายการ (แสดง ${tickets.length} ล่าสุด)</div>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:var(--primary);color:#fff;">
+                        <th style="padding:8px;text-align:left;border-radius:6px 0 0 0;">Ticket</th>
+                        <th style="padding:8px;text-align:left;">วันที่</th>
+                        <th style="padding:8px;text-align:left;">ผู้แจ้ง</th>
+                        <th style="padding:8px;text-align:left;">ประเภท</th>
+                        <th style="padding:8px;text-align:left;">Priority</th>
+                        <th style="padding:8px;text-align:left;border-radius:0 6px 0 0;">สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tickets.map(t => {
+                        const dt = t.created_at ? new Date(t.created_at).toLocaleString('sv-SE').slice(0, 16) : '';
+                        const prio = (PRIO_LABEL[t.priority] || PRIO_LABEL.medium);
+                        return `<tr style="border-bottom:1px solid var(--border);">
+                            <td style="padding:6px 8px;"><strong style="color:var(--primary);">${esc(t.ticket_no || '')}</strong></td>
+                            <td style="padding:6px 8px;">${esc(dt)}</td>
+                            <td style="padding:6px 8px;">${esc(t.employee_name || '-')}</td>
+                            <td style="padding:6px 8px;">${esc(t.issue_type || '-')}</td>
+                            <td style="padding:6px 8px;"><span class="prio ${prio.cls}">${prio.icon}</span></td>
+                            <td style="padding:6px 8px;"><span class="badge ${statusBadge(t.status)}">${esc(t.status)}</span></td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (err) {
+        body.innerHTML = `<div style="text-align:center;padding:30px;color:var(--danger);">${esc(err.message || 'เกิดข้อผิดพลาด')}</div>`;
+    }
+}
+function closeDrill() {
+    document.getElementById('drillModal').classList.remove('show');
+}
+
 // ===== Dashboard PDF Export =====
 async function exportDashboardPDF() {
     const content = document.getElementById('dashContent');
@@ -5095,6 +5222,19 @@ async function loadDashboard() {
         dashYearPopulated = true;
     }
 
+    // Populate admin dropdown from assignees
+    const adminSel = document.getElementById('dashAdmin');
+    if (adminSel && assignees && assignees.length > 0 && adminSel.options.length <= 1) {
+        const val = adminSel.value;
+        adminSel.innerHTML = '<option value="">ทุก Admin</option>';
+        assignees.forEach(a => {
+            const name = a.nickname || `${a.firstName} ${a.lastName}`.trim() || a.employeeId;
+            const label = `${a.employeeId}_${name}`;
+            adminSel.innerHTML += `<option value="${esc(label)}">${esc(label)}</option>`;
+        });
+        adminSel.value = val;
+    }
+
     const loading = document.getElementById('dashLoading');
     const content = document.getElementById('dashContent');
     if (loading) loading.style.display = 'block';
@@ -5102,6 +5242,7 @@ async function loadDashboard() {
 
     const dashYear  = document.getElementById('dashYear')?.value || null;
     const dashMonth = document.getElementById('dashMonth')?.value || null;
+    const dashAdmin = document.getElementById('dashAdmin')?.value || null;
 
     try {
         // Fetch status counts via get_tickets_paginated (limit 1 = fast, just for counts)
@@ -5110,7 +5251,7 @@ async function loadDashboard() {
         const { data: tpData } = await sb.rpc('get_tickets_paginated', {
             p_emp_id: currentUser.employeeId, p_password: currentPwd,
             p_limit: 1, p_offset: 0, p_status: null, p_search: null,
-            p_plant: null, p_admin: null, p_date_from: dateFrom, p_date_to: dateTo,
+            p_plant: null, p_admin: dashAdmin, p_date_from: dateFrom, p_date_to: dateTo,
         });
         const sc = tpData?.counts || {};
 
@@ -5119,6 +5260,7 @@ async function loadDashboard() {
             p_password: currentPwd,
             p_year:     dashYear ? parseInt(dashYear) : null,
             p_month:    dashMonth ? parseInt(dashMonth) : null,
+            p_admin:    dashAdmin || null,
         });
         if (error) throw error;
         if (!data || !data.success) throw new Error(data?.message || 'โหลดไม่สำเร็จ');
@@ -5149,7 +5291,15 @@ async function loadDashboard() {
         const compact = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } };
         const compactLegend = (pos) => ({ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: pos, labels: { font: { size: 10 }, boxWidth: 10, padding: 6 } } } });
 
-        // Monthly chart
+        // Helper: build onClick for a chart → open drill-down popup with appropriate filter
+        const makeClickHandler = (filterKey, labelsRef) => (evt, elements, chart) => {
+            if (!elements || elements.length === 0) return;
+            const idx = elements[0].index;
+            const label = labelsRef[idx];
+            openDrillDown(filterKey, label);
+        };
+
+        // Monthly chart (click → drill by year-month range)
         const monthly = data.monthly || [];
         dashCharts.monthly = new Chart(document.getElementById('chartMonthly'), {
             type: 'bar',
@@ -5161,7 +5311,16 @@ async function loadDashboard() {
                     { label: 'เปิด', data: monthly.map(m => m.open), backgroundColor: '#F59E0B' },
                 ]
             },
-            options: { ...compactLegend('top'), scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } } }
+            options: {
+                ...compactLegend('top'),
+                scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } },
+                onClick: (evt, elements) => {
+                    if (!elements || elements.length === 0) return;
+                    const idx = elements[0].index;
+                    const yyyymm = monthly[idx].month;  // "YYYY-MM"
+                    openDrillDown('month', yyyymm);
+                }
+            }
         });
 
         // By Plant (doughnut)
@@ -5169,7 +5328,7 @@ async function loadDashboard() {
         dashCharts.plant = new Chart(document.getElementById('chartPlant'), {
             type: 'doughnut',
             data: { labels: byPlant.map(p => p.plant), datasets: [{ data: byPlant.map(p => p.total), backgroundColor: colors }] },
-            options: compactLegend('bottom')
+            options: { ...compactLegend('bottom'), onClick: makeClickHandler('plant', byPlant.map(p => p.plant)) }
         });
 
         // By Admin (horizontal bar)
@@ -5183,31 +5342,51 @@ async function loadDashboard() {
                     { label: 'เสร็จ', data: byAdmin.map(a => a.resolved), backgroundColor: '#10B981' },
                 ]
             },
-            options: { indexAxis: 'y', ...compactLegend('top'), scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 10 } } } } }
+            options: {
+                indexAxis: 'y',
+                ...compactLegend('top'),
+                scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 10 } } } },
+                onClick: makeClickHandler('admin', byAdmin.map(a => a.admin))
+            }
         });
 
         // Top Issues
         const topIssues = (data.topIssues || []).slice(0, 7);
         dashCharts.issues = new Chart(document.getElementById('chartIssues'), {
             type: 'bar',
-            data: { labels: topIssues.map(i => i.issue?.slice(0, 20)), datasets: [{ data: topIssues.map(i => i.total), backgroundColor: colors }] },
-            options: { indexAxis: 'y', ...compact, scales: { y: { ticks: { font: { size: 10 } } } } }
+            data: { labels: topIssues.map(i => i.issue), datasets: [{ data: topIssues.map(i => i.total), backgroundColor: colors }] },
+            options: {
+                indexAxis: 'y',
+                ...compact,
+                scales: { y: { ticks: { font: { size: 10 } } } },
+                onClick: makeClickHandler('issue', topIssues.map(i => i.issue))
+            }
         });
 
         // Top Symptoms
         const topSx = (data.topSymptoms || []).slice(0, 7);
         dashCharts.symptoms = new Chart(document.getElementById('chartSymptoms'), {
             type: 'bar',
-            data: { labels: topSx.map(s => s.symptom?.slice(0, 20)), datasets: [{ data: topSx.map(s => s.total), backgroundColor: colors }] },
-            options: { indexAxis: 'y', ...compact, scales: { y: { ticks: { font: { size: 10 } } } } }
+            data: { labels: topSx.map(s => s.symptom), datasets: [{ data: topSx.map(s => s.total), backgroundColor: colors }] },
+            options: {
+                indexAxis: 'y',
+                ...compact,
+                scales: { y: { ticks: { font: { size: 10 } } } },
+                onClick: makeClickHandler('symptom', topSx.map(s => s.symptom))
+            }
         });
 
         // By Department
         const byDept = (data.byDept || []).slice(0, 7);
         dashCharts.dept = new Chart(document.getElementById('chartDept'), {
             type: 'bar',
-            data: { labels: byDept.map(d => (d.dept||'').slice(0,15)), datasets: [{ data: byDept.map(d => d.total), backgroundColor: colors }] },
-            options: { indexAxis: 'y', ...compact, scales: { y: { ticks: { font: { size: 10 } } } } }
+            data: { labels: byDept.map(d => d.dept), datasets: [{ data: byDept.map(d => d.total), backgroundColor: colors }] },
+            options: {
+                indexAxis: 'y',
+                ...compact,
+                scales: { y: { ticks: { font: { size: 10 } } } },
+                onClick: makeClickHandler('dept', byDept.map(d => d.dept))
+            }
         });
 
         // Performance table
@@ -5268,6 +5447,7 @@ async function loadDashboard() {
     document.getElementById('draftModal').addEventListener('click', function(e) { if (e.target === this) closeDraftModal(); });
     document.getElementById('profileModal').addEventListener('click', function(e) { if (e.target === this) closeProfile(); });
     document.getElementById('reopenModal').addEventListener('click', function(e) { if (e.target === this) closeReopenModal(); });
+    document.getElementById('drillModal').addEventListener('click', function(e) { if (e.target === this) closeDrill(); });
 
     // Auto-save ticket form draft to localStorage on every change
     const form = document.getElementById('ticketForm');
