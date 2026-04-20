@@ -4956,73 +4956,107 @@ async function exportDashboardPDF() {
     showToast('กำลังสร้าง PDF...');
     try {
         const { jsPDF } = window.jspdf;
-        const year  = document.getElementById('dashYear')?.value  || 'ทุกปี';
-        const month = document.getElementById('dashMonth')?.value || '';
-        const monthLabel = month ? ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][parseInt(month)] : 'ทุกเดือน';
-        const filterText = `${year} / ${monthLabel}`;
+        const yearVal  = document.getElementById('dashYear')?.value  || '';
+        const monthVal = document.getElementById('dashMonth')?.value || '';
+        const monthsEn = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const yearLabel  = yearVal || 'All years';
+        const monthLabel = monthVal ? monthsEn[parseInt(monthVal)] : 'All months';
+        const filterText = `${yearLabel} / ${monthLabel}`;
         const timestamp  = new Date().toLocaleString('sv-SE').slice(0, 16);
 
-        // Capture dashboard — force light theme + dark text for PDF quality
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        // Re-render charts with dark text + thicker bars for PDF quality BEFORE capture
+        const prevChartDefaults = {
+            color: Chart.defaults.color,
+            font: { ...Chart.defaults.font },
+            borderColor: Chart.defaults.borderColor,
+        };
+        Chart.defaults.color = '#111827';
+        Chart.defaults.font.size = 13;
+        Chart.defaults.font.weight = '600';
+        Chart.defaults.borderColor = '#9CA3AF';
+        Object.values(dashCharts).forEach(c => {
+            try {
+                if (c.options?.plugins?.legend?.labels) {
+                    c.options.plugins.legend.labels.color = '#111827';
+                    c.options.plugins.legend.labels.font = { size: 12, weight: '600' };
+                }
+                if (c.options?.scales) {
+                    for (const k of Object.keys(c.options.scales)) {
+                        c.options.scales[k].ticks = {
+                            ...(c.options.scales[k].ticks || {}),
+                            color: '#111827',
+                            font: { size: 11, weight: '600' }
+                        };
+                    }
+                }
+                c.update('none');
+            } catch (_) {}
+        });
+        await new Promise(r => setTimeout(r, 120));  // let charts repaint
+
         const canvas = await html2canvas(content, {
-            scale: 2.5,
+            scale: 3,
             backgroundColor: '#FFFFFF',
             logging: false,
             useCORS: true,
             letterRendering: true,
             onclone: (doc) => {
-                // Force light theme + darker text so PDF is readable
                 doc.documentElement.setAttribute('data-theme', 'light');
                 doc.documentElement.style.setProperty('--bg', '#FFFFFF');
                 doc.documentElement.style.setProperty('--card', '#FFFFFF');
                 doc.documentElement.style.setProperty('--text', '#000000');
-                doc.documentElement.style.setProperty('--text2', '#1F2937');
-                doc.documentElement.style.setProperty('--muted', '#4B5563');
-                // Force stronger text weights inside cloned dashboard
+                doc.documentElement.style.setProperty('--text2', '#000000');
+                doc.documentElement.style.setProperty('--muted', '#374151');
+                doc.documentElement.style.setProperty('--border', '#9CA3AF');
                 const style = doc.createElement('style');
                 style.textContent = `
-                    #dashContent, #dashContent * { color: #111827 !important; }
-                    #dashContent .summary-card .sc-count { color: #000 !important; font-weight: 800 !important; }
-                    #dashContent .summary-card .sc-label { color: #374151 !important; font-weight: 600 !important; }
-                    #dashContent h3 { color: #111827 !important; font-weight: 700 !important; }
-                    #dashContent #perfTable th { color: #FFFFFF !important; }
-                    #dashContent #perfTable td { color: #111827 !important; font-weight: 500 !important; }
+                    #dashContent, #dashContent * { color: #000 !important; }
+                    #dashContent { background: #fff !important; }
+                    #dashContent .summary-card { border: 1.5px solid #6B7280 !important; background: #fff !important; }
+                    #dashContent .summary-card .sc-count { color: #000 !important; font-weight: 900 !important; font-size: 28px !important; }
+                    #dashContent .summary-card .sc-label { color: #111827 !important; font-weight: 700 !important; font-size: 13px !important; }
+                    #dashContent h3 { color: #000 !important; font-weight: 800 !important; font-size: 15px !important; }
+                    #dashContent #perfTable { border: 1.5px solid #6B7280 !important; }
+                    #dashContent #perfTable th { color: #fff !important; background: #4338CA !important; font-weight: 800 !important; font-size: 13px !important; }
+                    #dashContent #perfTable td { color: #000 !important; font-weight: 600 !important; font-size: 13px !important; }
+                    #dashContent > div { border: 1.5px solid #6B7280 !important; background: #fff !important; }
                 `;
                 doc.head.appendChild(style);
             },
         });
 
-        const imgData = canvas.toDataURL('image/png');   // PNG — no JPEG compression washout
+        // Restore chart defaults
+        Chart.defaults.color = prevChartDefaults.color;
+        Chart.defaults.font = prevChartDefaults.font;
+        Chart.defaults.borderColor = prevChartDefaults.borderColor;
+        Object.values(dashCharts).forEach(c => { try { c.update('none'); } catch(_) {} });
+
+        const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
         const pdfW = pdf.internal.pageSize.getWidth();
         const pdfH = pdf.internal.pageSize.getHeight();
 
         // Header bar
-        pdf.setFillColor(79, 70, 229);
+        pdf.setFillColor(67, 56, 202);  // indigo-700
         pdf.rect(0, 0, pdfW, 14, 'F');
         pdf.setTextColor(255, 255, 255);
-        pdf.setFontSize(13);
+        pdf.setFontSize(14);
+        pdf.setFont(undefined, 'bold');
         pdf.text('IT Ticket System - Dashboard', 8, 9);
         pdf.setFontSize(9);
-        // Right-aligned: timestamp only (filter goes below)
-        pdf.text(timestamp, pdfW - 8, 9, { align: 'right' });
+        pdf.setFont(undefined, 'normal');
+        pdf.text(`Period: ${filterText}   |   Generated: ${timestamp}`, pdfW - 8, 9, { align: 'right' });
 
-        // Sub-header: filter info
-        pdf.setTextColor(60, 60, 60);
-        pdf.setFontSize(10);
-        pdf.text(`Period: ${filterText}`, 8, 20);
-
-        // Dashboard image
-        const topOffset = 24;
-        const imgW = pdfW - 16;
+        // Dashboard image fills remaining page
+        const topOffset = 16;
+        const imgW = pdfW - 8;
         const imgH = (canvas.height * imgW) / canvas.width;
         const availableH = pdfH - topOffset - 4;
         const finalH = Math.min(imgH, availableH);
         const finalW = (canvas.width * finalH) / canvas.height;
-        pdf.addImage(imgData, 'PNG', (pdfW - finalW) / 2, topOffset, finalW, finalH);
+        pdf.addImage(imgData, 'PNG', (pdfW - finalW) / 2, topOffset, finalW, finalH, undefined, 'FAST');
 
-        const safeMonth = monthLabel.replace(/[^\w]/g, '');
-        const filename = `dashboard_${year}_${safeMonth}_${new Date().toISOString().slice(0,10)}.pdf`;
+        const filename = `dashboard_${yearLabel}_${monthLabel}_${new Date().toISOString().slice(0,10)}.pdf`.replace(/\s/g, '');
         pdf.save(filename);
         showToast('Export PDF สำเร็จ');
     } catch (err) {
