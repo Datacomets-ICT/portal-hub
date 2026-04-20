@@ -15,6 +15,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <style>
         :root { --primary: #4F46E5; --primary-light: #EEF2FF; --primary-dark: #3730A3; --bg: #F8FAFC; --card: #fff; --text: #0F172A; --text2: #475569; --muted: #94A3B8; --border: #E2E8F0; --success: #10B981; --warning: #F59E0B; --danger: #EF4444; --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04); --shadow-md: 0 4px 12px rgba(0,0,0,.08); }
 
@@ -1128,6 +1130,7 @@
                     <option value="7">ก.ค.</option><option value="8">ส.ค.</option><option value="9">ก.ย.</option>
                     <option value="10">ต.ค.</option><option value="11">พ.ย.</option><option value="12">ธ.ค.</option>
                 </select>
+                <button class="btn btn-outline btn-sm" onclick="exportDashboardPDF()" style="height:30px;" title="Export Dashboard เป็น PDF"><i class="fas fa-file-pdf" style="color:#DC2626;"></i> PDF</button>
                 <button class="btn btn-outline btn-sm" onclick="loadDashboard()" style="height:30px;"><i class="fas fa-sync"></i></button>
             </div>
         </div>
@@ -1339,8 +1342,11 @@
         <button class="close-btn" onclick="toggleChat()"><i class="fas fa-times"></i></button>
     </div>
     <div class="chat-body" id="chatBody"></div>
+    <div id="aichatImagePreview" style="padding:0 12px;display:flex;flex-wrap:wrap;gap:6px;"></div>
     <div class="chat-input-area">
-        <textarea id="chatInput" rows="1" placeholder="พิมพ์ปัญหาที่พบ... (Shift+Enter ขึ้นบรรทัดใหม่)" autocomplete="off" autocorrect="off" spellcheck="false" oninput="autoGrowTextarea(this)" onkeydown="handleChatEnter(event, sendChat)"></textarea>
+        <input type="file" id="aichatFileInput" accept="image/*" multiple style="display:none;" onchange="onAIChatImagesSelected(event)">
+        <button onclick="document.getElementById('aichatFileInput').click()" title="แนบรูป" style="background:transparent;color:var(--muted);border:1px solid var(--border);width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;"><i class="fas fa-camera"></i></button>
+        <textarea id="chatInput" rows="1" placeholder="พิมพ์ปัญหาที่พบ..." autocomplete="off" autocorrect="off" spellcheck="false" oninput="autoGrowTextarea(this)" onkeydown="handleChatEnter(event, sendChat)"></textarea>
         <button id="chatSendBtn" onclick="sendChat()"><i class="fas fa-paper-plane"></i></button>
     </div>
 </div>
@@ -4086,19 +4092,52 @@ function removeTyping() {
     if (t) t.remove();
 }
 
+// AI chat attached images (passed to draft modal when CREATE_TICKET fires)
+let aichatPendingImages = [];
+function onAIChatImagesSelected(e) {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    for (const f of files) {
+        if (aichatPendingImages.length >= 5) { showToast('แนบได้สูงสุด 5 รูป', 'error'); break; }
+        if (!f.type.startsWith('image/')) continue;
+        if (f.size > 5 * 1024 * 1024) { showToast(f.name + ' ใหญ่เกิน 5MB', 'error'); continue; }
+        aichatPendingImages.push(f);
+    }
+    renderAIChatImagePreview();
+}
+function renderAIChatImagePreview() {
+    const wrap = document.getElementById('aichatImagePreview');
+    if (!wrap) return;
+    wrap.innerHTML = aichatPendingImages.map((f, i) =>
+        `<div style="position:relative;">
+            <img src="${URL.createObjectURL(f)}" style="width:50px;height:50px;object-fit:cover;border-radius:6px;border:1px solid var(--border);">
+            <button type="button" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:10px;cursor:pointer;" onclick="aichatPendingImages.splice(${i},1);renderAIChatImagePreview();">×</button>
+        </div>`
+    ).join('');
+}
+
 async function sendChat() {
     if (chatBusy) return;
     const input = document.getElementById('chatInput');
     const text = input.value.trim();
-    if (!text) return;
+    if (!text && aichatPendingImages.length === 0) return;
 
     input.value = '';
     input.style.height = 'auto';
     chatBusy = true;
     document.getElementById('chatSendBtn').disabled = true;
 
-    appendChatMsg('user', text);
-    chatHistory.push({ role: 'user', content: text });
+    // Display user message with image thumbnails if attached
+    let displayMsg = text || '(แนบรูป)';
+    if (aichatPendingImages.length > 0) {
+        displayMsg += ` 📎 ${aichatPendingImages.length} รูป`;
+    }
+    appendChatMsg('user', displayMsg);
+    // Add a hint to the AI that images were attached so it knows to include them in the ticket
+    const userMsg = text + (aichatPendingImages.length > 0
+        ? `\n\n[ผู้ใช้แนบรูปภาพ ${aichatPendingImages.length} รูปมาด้วย โปรดเปิด Ticket โดยไม่ต้องถามเพิ่มเรื่องรูปภาพ]`
+        : '');
+    chatHistory.push({ role: 'user', content: userMsg });
     appendTyping();
 
     try {
@@ -4215,6 +4254,14 @@ function openDraftModal() {
     }
     document.getElementById('draftPhone').value = currentUser.phone || '';
     document.getElementById('draftVnc').value = '';
+
+    // Auto-attach images from AI chat (if user uploaded any during conversation)
+    if (aichatPendingImages && aichatPendingImages.length > 0) {
+        draftPhotos = aichatPendingImages.slice();  // copy to draft
+        aichatPendingImages = [];                     // clear chat state
+        renderAIChatImagePreview();
+        renderDraftPhotoPreviews();
+    }
 
     // Populate plant dropdown — copy from main form (ticketPlant) which is always loaded
     const plantSel = document.getElementById('draftPlant');
@@ -4893,6 +4940,65 @@ function renderAdminReplyPhotoPreviews() {
     wrap.innerHTML = adminReplyPhotos.map((f, i) =>
         `<div style="position:relative;"><img src="${URL.createObjectURL(f)}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);"><button type="button" style="position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;width:18px;height:18px;border-radius:50%;font-size:10px;cursor:pointer;" onclick="adminReplyPhotos.splice(${i},1);renderAdminReplyPhotoPreviews();">×</button></div>`
     ).join('');
+}
+
+// ===== Dashboard PDF Export =====
+async function exportDashboardPDF() {
+    const content = document.getElementById('dashContent');
+    if (!content || content.style.display === 'none') {
+        showToast('ยังโหลด Dashboard ไม่เสร็จ', 'error');
+        return;
+    }
+    if (typeof html2canvas === 'undefined' || !window.jspdf) {
+        showToast('ไม่พบ PDF library', 'error');
+        return;
+    }
+    showToast('กำลังสร้าง PDF...');
+    try {
+        const { jsPDF } = window.jspdf;
+        const year  = document.getElementById('dashYear')?.value  || 'ทุกปี';
+        const month = document.getElementById('dashMonth')?.value || '';
+        const monthLabel = month ? ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][parseInt(month)] : 'ทุกเดือน';
+        const filterText = `${year} / ${monthLabel}`;
+
+        // Capture dashboard
+        const canvas = await html2canvas(content, {
+            scale: 2,
+            backgroundColor: document.documentElement.getAttribute('data-theme') === 'dark' ? '#0F172A' : '#FFFFFF',
+            logging: false,
+            useCORS: true,
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = pdf.internal.pageSize.getHeight();
+
+        // Header
+        pdf.setFillColor(79, 70, 229);
+        pdf.rect(0, 0, pdfW, 16, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.text('IT Ticket System - Dashboard', 10, 10);
+        pdf.setFontSize(10);
+        pdf.text(`Filter: ${filterText}`, pdfW - 60, 10);
+        pdf.text(new Date().toLocaleString('sv-SE').slice(0, 16), pdfW - 10, 10, { align: 'right' });
+
+        // Dashboard image
+        const imgW = pdfW - 20;
+        const imgH = (canvas.height * imgW) / canvas.width;
+        const availableH = pdfH - 25; // space below header
+        const finalH = Math.min(imgH, availableH);
+        const finalW = (canvas.width * finalH) / canvas.height;
+        pdf.addImage(imgData, 'JPEG', (pdfW - finalW) / 2, 20, finalW, finalH);
+
+        const filename = `dashboard_${year}_${monthLabel}_${new Date().toISOString().slice(0,10)}.pdf`;
+        pdf.save(filename);
+        showToast('Export PDF สำเร็จ');
+    } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Export PDF ล้มเหลว', 'error');
+    }
 }
 
 // ===== Dashboard =====
