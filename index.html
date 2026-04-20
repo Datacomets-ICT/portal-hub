@@ -1068,6 +1068,7 @@
                         <th>ประเภทงาน</th>
                         <th>ประเภทปัญหา</th>
                         <th>อาการ</th>
+                        <th>สถานที่</th>
                         <th>Priority</th>
                         <th>สถานะ</th>
                         <th>SLA</th>
@@ -2407,6 +2408,22 @@ function renderTickets() {
         const isMine   = t.employeeId === myId;
         const canCancel  = !isAdmin && isMine && t.status === 'เปิด Ticket';
         const canConfirm = !isAdmin && isMine && t.status === 'ดำเนินการเรียบร้อย';
+        // Location: split "Comets HQ — 3B2" into main + detail
+        let locMain = '', locDetail = '';
+        if (t.location) {
+            if (t.location.includes(' — ')) {
+                [locMain, locDetail] = t.location.split(' — ').map(s => s.trim());
+            } else {
+                locMain = t.location;
+            }
+        }
+        const locHtml = locMain
+            ? `<div style="font-weight:600;">${esc(locMain)}</div>${locDetail ? `<div style="font-size:11px;color:var(--muted);">${esc(locDetail)}</div>` : ''}`
+            : '<span style="color:var(--muted);">-</span>';
+
+        // Only show chat button for non-terminal statuses (chat makes no sense for closed/cancelled tickets)
+        const showChat = !['ยกเลิก'].includes(t.status);
+
         return `
         <tr style="animation-delay:${Math.min(i * 0.03, 0.5)}s">
             <td><span class="ticket-id">${esc(t.ticketNo)}</span></td>
@@ -2414,12 +2431,14 @@ function renderTickets() {
             <td>${esc(t.jobType)}</td>
             <td>${esc(t.issueType)}</td>
             <td>${esc(t.symptom)}</td>
+            <td>${locHtml}</td>
             <td>${renderPrioBadge(t.priority)}</td>
             <td><span class="badge ${statusBadge(t.status)}">${esc(t.status)}</span></td>
             <td>${renderSLABadge(t)}</td>
             <td>${esc(t.admin || '-')}</td>
             <td style="white-space:nowrap;">
                 <button class="btn btn-outline btn-sm" onclick="viewTicket(${i})" title="ดู"><i class="fas fa-eye"></i></button>
+                ${showChat ? `<button class="btn btn-sm" style="background:#10B981;color:#fff;border:none;" onclick="openTicketChat(${t.key}, '${esc(t.ticketNo)}')" title="เปิดแชทกับทีม IT"><i class="fas fa-comments"></i></button>` : ''}
                 ${isAdmin ? `<button class="btn btn-success btn-sm" onclick="openListEdit(${i})" title="แก้ไข"><i class="fas fa-edit"></i></button>` : ''}
                 ${canConfirm ? `<button class="btn btn-success btn-sm" onclick="confirmTicketClosed(${t.key}, '${esc(t.ticketNo)}')" title="${esc(confirmTooltip(t))}"><i class="fas fa-check"></i></button>` : ''}
                 ${canConfirm ? `<button class="btn btn-outline btn-sm" style="border-color:var(--warning);color:var(--warning);" onclick="openReopenModal(${t.key}, '${esc(t.ticketNo)}')" title="ยังไม่เสร็จ/เปิดใหม่"><i class="fas fa-undo"></i></button>` : ''}
@@ -2705,11 +2724,6 @@ function viewTicket(idx) {
         ${t.reply ? `<div class="detail-row"><div class="dlabel">ตอบกลับ</div><div class="dvalue">${esc(t.reply)}</div></div>` : ''}
         ${photosHtml}
         ${filesHtml}
-        <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border); text-align:center;">
-            <button class="btn btn-success btn-sm" onclick="openTicketChat(${t.key}, '${esc(t.ticketNo)}')">
-                <i class="fas fa-comments"></i> เปิดแชทกับทีม IT
-            </button>
-        </div>
     `;
     document.getElementById('ticketModal').classList.add('show');
 }
