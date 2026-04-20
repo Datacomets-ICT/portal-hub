@@ -4960,39 +4960,69 @@ async function exportDashboardPDF() {
         const month = document.getElementById('dashMonth')?.value || '';
         const monthLabel = month ? ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][parseInt(month)] : 'ทุกเดือน';
         const filterText = `${year} / ${monthLabel}`;
+        const timestamp  = new Date().toLocaleString('sv-SE').slice(0, 16);
 
-        // Capture dashboard
+        // Capture dashboard — force light theme + dark text for PDF quality
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
         const canvas = await html2canvas(content, {
-            scale: 2,
-            backgroundColor: document.documentElement.getAttribute('data-theme') === 'dark' ? '#0F172A' : '#FFFFFF',
+            scale: 2.5,
+            backgroundColor: '#FFFFFF',
             logging: false,
             useCORS: true,
+            letterRendering: true,
+            onclone: (doc) => {
+                // Force light theme + darker text so PDF is readable
+                doc.documentElement.setAttribute('data-theme', 'light');
+                doc.documentElement.style.setProperty('--bg', '#FFFFFF');
+                doc.documentElement.style.setProperty('--card', '#FFFFFF');
+                doc.documentElement.style.setProperty('--text', '#000000');
+                doc.documentElement.style.setProperty('--text2', '#1F2937');
+                doc.documentElement.style.setProperty('--muted', '#4B5563');
+                // Force stronger text weights inside cloned dashboard
+                const style = doc.createElement('style');
+                style.textContent = `
+                    #dashContent, #dashContent * { color: #111827 !important; }
+                    #dashContent .summary-card .sc-count { color: #000 !important; font-weight: 800 !important; }
+                    #dashContent .summary-card .sc-label { color: #374151 !important; font-weight: 600 !important; }
+                    #dashContent h3 { color: #111827 !important; font-weight: 700 !important; }
+                    #dashContent #perfTable th { color: #FFFFFF !important; }
+                    #dashContent #perfTable td { color: #111827 !important; font-weight: 500 !important; }
+                `;
+                doc.head.appendChild(style);
+            },
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
-        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        const imgData = canvas.toDataURL('image/png');   // PNG — no JPEG compression washout
+        const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
         const pdfW = pdf.internal.pageSize.getWidth();
         const pdfH = pdf.internal.pageSize.getHeight();
 
-        // Header
+        // Header bar
         pdf.setFillColor(79, 70, 229);
-        pdf.rect(0, 0, pdfW, 16, 'F');
+        pdf.rect(0, 0, pdfW, 14, 'F');
         pdf.setTextColor(255, 255, 255);
-        pdf.setFontSize(14);
-        pdf.text('IT Ticket System - Dashboard', 10, 10);
+        pdf.setFontSize(13);
+        pdf.text('IT Ticket System - Dashboard', 8, 9);
+        pdf.setFontSize(9);
+        // Right-aligned: timestamp only (filter goes below)
+        pdf.text(timestamp, pdfW - 8, 9, { align: 'right' });
+
+        // Sub-header: filter info
+        pdf.setTextColor(60, 60, 60);
         pdf.setFontSize(10);
-        pdf.text(`Filter: ${filterText}`, pdfW - 60, 10);
-        pdf.text(new Date().toLocaleString('sv-SE').slice(0, 16), pdfW - 10, 10, { align: 'right' });
+        pdf.text(`Period: ${filterText}`, 8, 20);
 
         // Dashboard image
-        const imgW = pdfW - 20;
+        const topOffset = 24;
+        const imgW = pdfW - 16;
         const imgH = (canvas.height * imgW) / canvas.width;
-        const availableH = pdfH - 25; // space below header
+        const availableH = pdfH - topOffset - 4;
         const finalH = Math.min(imgH, availableH);
         const finalW = (canvas.width * finalH) / canvas.height;
-        pdf.addImage(imgData, 'JPEG', (pdfW - finalW) / 2, 20, finalW, finalH);
+        pdf.addImage(imgData, 'PNG', (pdfW - finalW) / 2, topOffset, finalW, finalH);
 
-        const filename = `dashboard_${year}_${monthLabel}_${new Date().toISOString().slice(0,10)}.pdf`;
+        const safeMonth = monthLabel.replace(/[^\w]/g, '');
+        const filename = `dashboard_${year}_${safeMonth}_${new Date().toISOString().slice(0,10)}.pdf`;
         pdf.save(filename);
         showToast('Export PDF สำเร็จ');
     } catch (err) {
