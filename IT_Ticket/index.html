@@ -1221,14 +1221,14 @@
             </div>
             <div class="form-group" style="margin:0;min-width:160px;">
                 <label style="font-size:11px;margin-bottom:3px;">ประเภทปัญหา</label>
-                <select id="filterIssueType" onchange="onFilterIssueTypeChange()" style="padding:6px 10px;font-size:12px;">
-                    <option value="">ทั้งหมด</option>
+                <select id="filterIssueType" onchange="onFilterIssueTypeChange()" disabled title="เลือกประเภทงานก่อน" style="padding:6px 10px;font-size:12px;">
+                    <option value="">เลือกประเภทงานก่อน</option>
                 </select>
             </div>
             <div class="form-group" style="margin:0;min-width:160px;">
                 <label style="font-size:11px;margin-bottom:3px;">อาการ</label>
-                <select id="filterSymptom" onchange="loadTickets()" style="padding:6px 10px;font-size:12px;">
-                    <option value="">ทั้งหมด</option>
+                <select id="filterSymptom" onchange="loadTickets()" disabled title="เลือกประเภทปัญหาก่อน" style="padding:6px 10px;font-size:12px;">
+                    <option value="">เลือกประเภทปัญหาก่อน</option>
                 </select>
             </div>
             <div class="form-group" style="margin:0;">
@@ -2919,11 +2919,27 @@ function clearAdvFilters() {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
-    // Reset cascading dropdown options too
+    // Reset cascading dropdown options + disabled state
     populateFilterJobType();
-    document.getElementById('filterIssueType').innerHTML = '<option value="">ทั้งหมด</option>';
-    document.getElementById('filterSymptom').innerHTML  = '<option value="">ทั้งหมด</option>';
+    setIssueFilterEnabled(false);
+    setSymptomFilterEnabled(false);
     loadTickets();
+}
+
+function setIssueFilterEnabled(on) {
+    const sel = document.getElementById('filterIssueType');
+    if (!sel) return;
+    sel.disabled = !on;
+    sel.title = on ? '' : 'เลือกประเภทงานก่อน';
+    if (!on) sel.innerHTML = '<option value="">เลือกประเภทงานก่อน</option>';
+}
+
+function setSymptomFilterEnabled(on) {
+    const sel = document.getElementById('filterSymptom');
+    if (!sel) return;
+    sel.disabled = !on;
+    sel.title = on ? '' : 'เลือกประเภทปัญหาก่อน';
+    if (!on) sel.innerHTML = '<option value="">เลือกประเภทปัญหาก่อน</option>';
 }
 
 // ===== Worklist filter dropdowns (cascading: jobType → issueType → symptom) =====
@@ -2940,14 +2956,20 @@ function populateFilterJobType() {
 
 function onFilterJobTypeChange() {
     const jt = document.getElementById('filterJobType').value;
-    const issueSel   = document.getElementById('filterIssueType');
-    const symptomSel = document.getElementById('filterSymptom');
-    issueSel.innerHTML   = '<option value="">ทั้งหมด</option>';
-    symptomSel.innerHTML = '<option value="">ทั้งหมด</option>';
+    const issueSel = document.getElementById('filterIssueType');
     if (jt && worklist[jt]) {
+        // Enable + populate issueType, reset + disable symptom
+        issueSel.disabled = false;
+        issueSel.title = '';
+        issueSel.innerHTML = '<option value="">ทั้งหมด</option>';
         Object.keys(worklist[jt]).forEach(it => {
             issueSel.innerHTML += `<option value="${esc(it)}">${esc(it)}</option>`;
         });
+        setSymptomFilterEnabled(false);
+    } else {
+        // Cleared jobType — disable both children
+        setIssueFilterEnabled(false);
+        setSymptomFilterEnabled(false);
     }
     loadTickets();
 }
@@ -2956,11 +2978,15 @@ function onFilterIssueTypeChange() {
     const jt = document.getElementById('filterJobType').value;
     const it = document.getElementById('filterIssueType').value;
     const symptomSel = document.getElementById('filterSymptom');
-    symptomSel.innerHTML = '<option value="">ทั้งหมด</option>';
     if (jt && it && worklist[jt] && worklist[jt][it]) {
+        symptomSel.disabled = false;
+        symptomSel.title = '';
+        symptomSel.innerHTML = '<option value="">ทั้งหมด</option>';
         worklist[jt][it].forEach(s => {
             symptomSel.innerHTML += `<option value="${esc(s)}">${esc(s)}</option>`;
         });
+    } else {
+        setSymptomFilterEnabled(false);
     }
     loadTickets();
 }
