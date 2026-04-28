@@ -134,7 +134,7 @@ export default function HubPage() {
       <header className="shell-nav">
         <div className="brand">
           <div className="brand-mark">P</div>
-          <div className="brand-name">Portal</div>
+          <div className="brand-name">Workspace</div>
         </div>
         <div className="spacer" />
         <div className="nav-time">
@@ -345,7 +345,7 @@ export default function HubPage() {
         )}
 
         <div className="hub-footer">
-          Portal · Single sign-on สำหรับระบบภายในองค์กร
+          Workspace · Single sign-on สำหรับระบบภายในองค์กร
         </div>
       </main>
 

@@ -23,10 +23,10 @@
   a.id = '__portal-back';
   a.className = '__portal-back';
   a.href = '/hub';
-  a.title = 'กลับไปหน้า Portal';
+  a.title = 'กลับไปหน้า Workspace';
   a.innerHTML =
     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>' +
-    '<span class="__lbl">Portal</span>';
+    '<span class="__lbl">Workspace</span>';
 
   var mount = function () {
     if (document.body && !document.getElementById('__portal-back')) {
