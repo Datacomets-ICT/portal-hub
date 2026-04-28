@@ -1,10 +1,37 @@
 // Root app — begins at login; reveals main app after verify.
 const { useState: uSA } = React;
 
+// SSO from portal hub: if the user came in via /hub, sessionStorage.ticketUser
+// (set by portal's auth) carries their identity. Skip the local login and
+// inject them into EMPLOYEES so the rest of the mock app keeps working.
+const PORTAL_USER = (function () {
+  try {
+    var raw = sessionStorage.getItem('ticketUser') || localStorage.getItem('mr_user');
+    if (!raw) return null;
+    var u = JSON.parse(raw);
+    var empId = u.employeeId || u.code;
+    if (!empId) return null;
+    var fullName = u.firstName
+      ? [u.firstName, u.lastName].filter(Boolean).join(' ')
+      : (u.name || u.nickname || empId);
+    return {
+      id: String(empId),
+      name: fullName,
+      dept: u.department || u.dept || u.section || '-',
+      phone: u.phone || '',
+    };
+  } catch (_) {
+    return null;
+  }
+})();
+if (PORTAL_USER && !EMPLOYEES.find(function (e) { return e.id === PORTAL_USER.id; })) {
+  EMPLOYEES.unshift(PORTAL_USER);
+}
+
 function App() {
-  const [verified, setVerified] = uSA(false);
+  const [verified, setVerified] = uSA(!!PORTAL_USER);
   const [page, setPage] = uSA({name:"home"});
-  const [empId, setEmpId] = uSA("");
+  const [empId, setEmpId] = uSA(PORTAL_USER ? PORTAL_USER.id : "");
   const [bookings, setBookings] = uSA(SAMPLE_BOOKINGS);
 
   const onComplete = ({id, data, empId, pickup, dropoff}) => {
