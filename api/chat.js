@@ -2,12 +2,16 @@
 // Uses OpenAI-compatible API format
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// Available Groq models (free tier):
-// - llama-3.3-70b-versatile — capable but sometimes drops Thai chars
-// - llama-3.1-8b-instant — smaller, sometimes weaker Thai
-// - openai/gpt-oss-120b — best Thai quality
-// - openai/gpt-oss-20b — good balance
-const MODEL = 'openai/gpt-oss-120b';
+// Groq free-tier model selection — TPM (tokens/minute) matters because
+// we send the worklist as context with every turn:
+//   model                                  | TPM   | Thai quality
+//   meta-llama/llama-4-scout-17b-16e       | 30K   | good
+//   llama-3.3-70b-versatile                | 12K   | great (some drop)
+//   openai/gpt-oss-120b                    |  8K   | best (rate-limits us)
+//   openai/gpt-oss-20b                     |  8K   | good
+// Picked llama-4-scout for the headroom — 3-4× more requests/minute
+// before hitting "เอ๊ะ AI ติดขัด" rate limits.
+const MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 const SYSTEM_PROMPT = `คุณคือ "IT Support Assistant" — ผู้ช่วยเปิด Ticket สำหรับทีม IT
 
@@ -245,7 +249,7 @@ async function callGroq(apiKey, messages, systemPrompt = SYSTEM_PROMPT) {
       ...trimmed,
     ],
     temperature: 0.7,
-    max_tokens: 2048,
+    max_tokens: 1024,   // chat answers are short (2-4 lines) — cuts TPM in half
   };
 
   // Retry up to 2 times on rate-limit (429) or server error (5xx)
@@ -376,16 +380,28 @@ export default async function handler(req, res) {
       };
     }
 
-    // Worklist context — let the AI see ALL valid (issueType, [symptoms])
-    // pairs so it can ask "ตรงกับอันไหน?" with the actual options instead
-    // of guessing. Cheap to send (~3-5KB) and dramatically reduces
-    // wrong-symptom selections in the draft modal.
+    // Worklist context — compact format groups by jobType so we send half
+    // the bytes vs. one full row per issueType. AI still sees every
+    // (issueType, symptoms) pair it needs to ask "ตรงกับอันไหน?".
     let systemPrompt = SYSTEM_PROMPT;
     if (Array.isArray(worklist) && worklist.length > 0) {
-      const lines = worklist
-        .filter(r => r && r.jobType && r.issueType)
-        .map(r => `- ${r.jobType} / ${r.issueType} → [${r.symptom || ''}]`);
-      systemPrompt += '\n\n==========================================================\n📋 รายการอาการที่รองรับ (worklist) — ใช้เลือกอาการให้ user\n==========================================================\n' + lines.join('\n');
+      const byJob = {};
+      for (const r of worklist) {
+        if (!r || !r.jobType || !r.issueType) continue;
+        if (!byJob[r.jobType]) byJob[r.jobType] = [];
+        // Symptoms come pre-joined with " | " from the frontend; collapse
+        // whitespace and re-join with comma to save tokens.
+        const syms = String(r.symptom || '')
+          .split('|')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .join(', ');
+        byJob[r.jobType].push(`  ${r.issueType}: ${syms}`);
+      }
+      const blocks = Object.entries(byJob).map(([jt, lines]) =>
+        `[${jt}]\n${lines.join('\n')}`
+      );
+      systemPrompt += '\n\n=== รายการอาการที่รองรับ (worklist — เลือกได้เฉพาะรายการนี้) ===\n' + blocks.join('\n');
     }
 
     const reply = await callGroq(apiKey, safeMessages, systemPrompt);
