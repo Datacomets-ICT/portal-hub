@@ -233,54 +233,108 @@ function formatKnowledgeContext(results) {
   return `\n\n[ข้อมูลจากฐานความรู้]\n${blocks}`;
 }
 
-// ---- Call Groq API (with retry + history trimming) ----
+// ---- Call Groq API ----
 const MAX_HISTORY = 10; // keep last N messages to avoid token overflow
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_MODEL = 'gemini-1.5-flash-latest';
+// Groq fallback model (small + fast — different rate-limit pool than scout)
+const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
 
-async function callGroq(apiKey, messages, systemPrompt = SYSTEM_PROMPT) {
-  // Trim history to prevent token limit exceeded
-  const trimmed = messages.length > MAX_HISTORY
-    ? messages.slice(-MAX_HISTORY)
-    : messages;
+function trimHistory(messages) {
+  return messages.length > MAX_HISTORY ? messages.slice(-MAX_HISTORY) : messages;
+}
 
+// Single Groq call — no internal retry (the orchestrator decides when to
+// retry vs. fall over to a different provider).
+async function callGroqOnce(apiKey, model, messages, systemPrompt) {
   const body = {
-    model: MODEL,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...trimmed,
-    ],
+    model,
+    messages: [{ role: 'system', content: systemPrompt }, ...trimHistory(messages)],
     temperature: 0.7,
-    max_tokens: 1024,   // chat answers are short (2-4 lines) — cuts TPM in half
+    max_tokens: 1024,
   };
-
-  // Retry up to 2 times on rate-limit (429) or server error (5xx)
-  let lastErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) {
-      await new Promise(ok => setTimeout(ok, 1500 * attempt)); // backoff 1.5s, 3s
-    }
-
-    const r = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (r.ok) {
-      const data = await r.json();
-      return (data?.choices?.[0]?.message?.content || '').trim();
-    }
-
-    const errText = await r.text();
-    lastErr = `Groq API ${r.status}: ${errText.slice(0, 200)}`;
-
-    // Only retry on rate-limit or server errors
-    if (r.status !== 429 && r.status < 500) break;
+  const r = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+  });
+  if (r.ok) {
+    const data = await r.json();
+    return (data?.choices?.[0]?.message?.content || '').trim();
   }
+  const errText = await r.text();
+  const err = new Error(`Groq ${model} ${r.status}: ${errText.slice(0, 200)}`);
+  err.status = r.status;
+  throw err;
+}
 
-  throw new Error(lastErr || 'Groq API failed');
+// Single Gemini call — Google's REST API has a different shape than OpenAI.
+// Roles: 'user' / 'model' (no 'assistant' or 'system' role — system goes
+// in systemInstruction). Returns plain text.
+async function callGeminiOnce(apiKey, messages, systemPrompt) {
+  const trimmed = trimHistory(messages);
+  const contents = trimmed.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content || '' }],
+  }));
+  const body = {
+    contents,
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+  };
+  const url = `${GEMINI_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (r.ok) {
+    const data = await r.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    return text.trim();
+  }
+  const errText = await r.text();
+  const err = new Error(`Gemini ${r.status}: ${errText.slice(0, 200)}`);
+  err.status = r.status;
+  throw err;
+}
+
+// Fallback chain: scout (Groq) → Gemini Flash → llama-3.1-8b (Groq).
+// Skip a provider's retries when it returns a real rate-limit (429) or
+// 5xx — go straight to the next provider so the user doesn't wait.
+async function callLLM(messages, systemPrompt = SYSTEM_PROMPT) {
+  const groqKey = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  const providers = [];
+  if (groqKey) providers.push({ name: 'groq-scout',
+    fn: () => callGroqOnce(groqKey, MODEL, messages, systemPrompt) });
+  if (geminiKey) providers.push({ name: 'gemini-flash',
+    fn: () => callGeminiOnce(geminiKey, messages, systemPrompt) });
+  if (groqKey) providers.push({ name: 'groq-8b',
+    fn: () => callGroqOnce(groqKey, GROQ_FALLBACK_MODEL, messages, systemPrompt) });
+
+  if (providers.length === 0) throw new Error('No LLM provider configured (set GROQ_API_KEY or GEMINI_API_KEY)');
+
+  let lastErr = null;
+  for (const p of providers) {
+    try {
+      return await p.fn();
+    } catch (err) {
+      lastErr = err;
+      // Only fall through on transient/rate-limit errors. If the provider
+      // returned a 4xx that's not 429 (e.g. malformed request), retrying
+      // elsewhere with the same payload won't help — but we still try, in
+      // case it's a model-specific issue (token limit etc.).
+      console.warn(`[LLM] ${p.name} failed (${err.status || 'no status'}): ${err.message}`);
+    }
+  }
+  throw lastErr || new Error('All LLM providers failed');
+}
+
+// Backwards-compat wrapper — older code paths still call callGroq().
+async function callGroq(_apiKey, messages, systemPrompt = SYSTEM_PROMPT) {
+  return callLLM(messages, systemPrompt);
 }
 
 // ---- Draft prompt ----
@@ -338,8 +392,12 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // Require at least one provider to be configured. The chain (callLLM)
+  // walks Groq → Gemini → Groq-fallback and uses whichever keys are set.
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Missing GROQ_API_KEY' });
+  if (!apiKey && !process.env.GEMINI_API_KEY) {
+    return res.status(500).json({ error: 'Missing GROQ_API_KEY or GEMINI_API_KEY' });
+  }
 
   try {
     const { messages = [], action = 'chat', worklist = null } = req.body || {};
