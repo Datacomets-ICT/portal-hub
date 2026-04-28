@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd portal && npm install",
+  "buildCommand": "cd portal && npm run build",
+  "outputDirectory": "portal/dist",
+  "framework": null,
+  "rewrites": [
+    { "source": "/((?!it/|meeting/|driver/|assets/).*)", "destination": "/index.html" }
+  ]
+}

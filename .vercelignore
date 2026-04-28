@@ -1,0 +1,6 @@
+node_modules
+portal/node_modules
+portal/dist
+__pycache__
+.claude
+*.pyc

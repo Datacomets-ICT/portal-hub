@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Driver · ระบบจองรถ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --ink: #0b1f3a;
+    --ink-2: #334668;
+    --ink-3: #6b7a93;
+    --muted: #9aa7bd;
+    --line: #e3e8f0;
+    --line-2: #eef1f7;
+    --blue-50: #eef4ff;
+    --blue-100: #dce8ff;
+    --blue-200: #b9d2ff;
+    --blue-400: #4f7fe3;
+    --blue-500: #2b5fd0;
+    --blue-600: #1e4cbd;
+    --blue-700: #183e9f;
+    --blue-900: #0e2a6b;
+    --accent: #ffb020;
+    --ok: #118a5c;
+    --ok-bg: #e4f5ec;
+    --warn: #b5791f;
+    --warn-bg: #fff3dc;
+    --err: #b4302a;
+    --err-bg: #fde8e6;
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-lg: 20px;
+    --shadow-sm: 0 1px 2px rgba(16,36,78,.06), 0 1px 0 rgba(16,36,78,.02);
+    --shadow-md: 0 6px 18px -6px rgba(16,36,78,.14), 0 2px 6px rgba(16,36,78,.06);
+    --shadow-lg: 0 30px 60px -30px rgba(16,36,78,.35), 0 10px 20px -10px rgba(16,36,78,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family: "IBM Plex Sans Thai","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  code, .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+  button{font-family:inherit}
+  input, select, textarea{font-family:inherit}
+
+  /* Subtle grid bg */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      radial-gradient(circle at 20% -10%, rgba(43,95,208,.08), transparent 50%),
+      radial-gradient(circle at 120% 20%, rgba(43,95,208,.06), transparent 50%);
+    pointer-events:none;
+    z-index:0;
+  }
+  #app{ position:relative; z-index:1; }
+
+  /* Animations */
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes fadeUp { from{opacity:0; transform: translateY(10px)} to{opacity:1; transform: translateY(0)} }
+  @keyframes slideInLeft { from{opacity:0; transform: translateX(-14px)} to{opacity:1; transform: translateX(0)} }
+  @keyframes scaleIn { from{opacity:0; transform: scale(.96)} to{opacity:1; transform: scale(1)} }
+  @keyframes floatY { 0%,100%{transform: translateY(0)} 50%{transform: translateY(-6px)} }
+  @keyframes pulseRing {
+    0%{box-shadow: 0 0 0 0 rgba(43,95,208,.35)}
+    70%{box-shadow: 0 0 0 16px rgba(43,95,208,0)}
+    100%{box-shadow: 0 0 0 0 rgba(43,95,208,0)}
+  }
+  @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+  @keyframes checkPop { 0%{transform:scale(.2); opacity:0} 60%{transform:scale(1.15)} 100%{transform:scale(1); opacity:1} }
+  @keyframes drawLine { from{stroke-dashoffset: 100} to{stroke-dashoffset: 0} }
+
+  .anim-fade { animation: fadeIn .35s ease both; }
+  .anim-fade-up { animation: fadeUp .45s cubic-bezier(.2,.7,.2,1) both; }
+  .anim-slide-in { animation: slideInLeft .4s cubic-bezier(.2,.7,.2,1) both; }
+  .anim-scale-in { animation: scaleIn .4s cubic-bezier(.2,.7,.2,1) both; }
+  .anim-float { animation: floatY 3.6s ease-in-out infinite; }
+  .anim-pulse { animation: pulseRing 2s infinite; }
+  .anim-check { animation: checkPop .5s cubic-bezier(.2,1.4,.4,1) both; }
+
+  .stagger > * { animation: fadeUp .5s cubic-bezier(.2,.7,.2,1) both; }
+  .stagger > *:nth-child(1){animation-delay:.02s}
+  .stagger > *:nth-child(2){animation-delay:.09s}
+  .stagger > *:nth-child(3){animation-delay:.16s}
+  .stagger > *:nth-child(4){animation-delay:.23s}
+  .stagger > *:nth-child(5){animation-delay:.30s}
+  .stagger > *:nth-child(6){animation-delay:.37s}
+
+  /* Hover lift for action cards */
+  .lift { transition: transform .2s cubic-bezier(.2,.7,.2,1), box-shadow .2s; }
+  .lift:hover { transform: translateY(-4px); }
+
+  /* Button press */
+  button:active:not(:disabled) { transform: scale(.98); }
+  button { transition: transform .08s; }
+</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="src/icons.jsx"></script>
+  <script type="text/babel" src="src/data.jsx"></script>
+  <script type="text/babel" src="src/ui.jsx"></script>
+  <script type="text/babel" src="src/screens-home.jsx"></script>
+  <script type="text/babel" src="src/screens-booking.jsx"></script>
+  <script type="text/babel" src="src/screens-track.jsx"></script>
+  <script type="text/babel" src="src/app.jsx"></script>
+</body>
+</html>

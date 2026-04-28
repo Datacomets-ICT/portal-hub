@@ -1,0 +1,187 @@
+import { useState } from 'react';
+import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useAuth } from '../lib/auth.jsx';
+import { supabase } from '../lib/supabase.js';
+
+function ForgotModal({ initialEmpId, onClose }) {
+  const [empId, setEmpId] = useState(initialEmpId || '');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null); // { kind: 'error'|'success', text }
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!empId.trim()) {
+      setMsg({ kind: 'error', text: 'กรุณากรอกรหัสพนักงาน' });
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      const { data, error } = await supabase.rpc('request_password_reset', {
+        p_emp_id: empId.trim(),
+        p_note: note.trim() || null,
+      });
+      if (error) throw error;
+      if (!data || !data.success) throw new Error(data?.message || 'ส่งคำขอไม่สำเร็จ');
+      setMsg({ kind: 'success', text: data.message || 'ส่งคำขอรีเซ็ตรหัสผ่านแล้ว เจ้าหน้าที่จะติดต่อกลับ' });
+    } catch (err) {
+      setMsg({ kind: 'error', text: err.message || 'เกิดข้อผิดพลาด' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>🔑 ขอรีเซ็ตรหัสผ่าน</h3>
+        <p className="modal-desc">กรอกรหัสพนักงาน เจ้าหน้าที่ System จะติดต่อกลับเพื่อตั้งรหัสใหม่</p>
+        {msg && <div className={msg.kind === 'error' ? 'error' : 'success'}>{msg.text}</div>}
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>รหัสพนักงาน *</label>
+            <input
+              type="text"
+              value={empId}
+              onChange={(e) => setEmpId(e.target.value)}
+              autoFocus
+              required
+              disabled={busy}
+            />
+          </div>
+          <div className="field">
+            <label>เหตุผล (ถ้ามี)</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="เช่น จำไม่ได้ / เพิ่งเปลี่ยนเครื่อง…"
+              rows={3}
+              disabled={busy}
+            />
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-outline" onClick={onClose} disabled={busy}>
+              ปิด
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              {busy ? 'กำลังส่ง…' : 'ส่งคำขอ'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
+  const [empId, setEmpId] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+
+  if (user) return <Navigate to="/hub" replace />;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      await login(empId.trim(), password.trim());
+      navigate('/hub', { replace: true });
+    } catch (err) {
+      setError(err.message || 'เข้าสู่ระบบไม่สำเร็จ');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="login-wrap">
+      <aside className="login-hero">
+        <div className="brand-mark">P</div>
+        <h1>
+          ศูนย์รวมระบบภายใน
+          <br />
+          องค์กร
+        </h1>
+        <p className="lede">
+          เข้าสู่ระบบครั้งเดียว ใช้ได้ทั้ง IT Ticket · Driver Booking · Meeting Rooms
+          ไม่ต้องจำหลายบัญชี ไม่ต้องล็อกอินซ้ำ
+        </p>
+        <ul className="feature-list">
+          <li>
+            <span className="dot">✓</span> Single sign-on ด้วยรหัสพนักงานเดียว
+          </li>
+          <li>
+            <span className="dot">✓</span> เลือกแอปจากหน้าเดียว
+          </li>
+          <li>
+            <span className="dot">✓</span> รองรับมือถือและเดสก์ท็อป
+          </li>
+        </ul>
+      </aside>
+
+      <div className="login-card-wrap">
+        <form className="login-card" onSubmit={submit}>
+          <h2 className="login-title">เข้าสู่ระบบ</h2>
+          <p className="login-sub">ใช้รหัสพนักงานและรหัสผ่านของคุณ</p>
+          {error && (
+            <div className="error">
+              <span>⚠</span>
+              <span>{error}</span>
+            </div>
+          )}
+          <div className="field">
+            <label>รหัสพนักงาน</label>
+            <input
+              type="text"
+              value={empId}
+              onChange={(e) => setEmpId(e.target.value)}
+              placeholder="เช่น 11295"
+              autoFocus
+              required
+            />
+          </div>
+          <div className="field">
+            <label>รหัสผ่าน</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+            />
+          </div>
+          <button
+            className="btn btn-primary"
+            style={{ width: '100%', padding: '12px 16px', justifyContent: 'center' }}
+            disabled={busy}
+          >
+            {busy ? 'กำลังเข้าสู่ระบบ…' : 'เข้าสู่ระบบ'}
+          </button>
+
+          <div className="login-aux">
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => setForgotOpen(true)}
+            >
+              ลืมรหัสผ่าน?
+            </button>
+            <div className="login-aux-sep">
+              ยังไม่มีบัญชี? <Link to="/register">ลงทะเบียนที่นี่</Link>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {forgotOpen && (
+        <ForgotModal initialEmpId={empId} onClose={() => setForgotOpen(false)} />
+      )}
+    </div>
+  );
+}
