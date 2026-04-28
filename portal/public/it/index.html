@@ -4553,6 +4553,19 @@ async function sendChat() {
     chatHistory.push({ role: 'user', content: userMsg });
     appendTyping();
 
+    // Build compact worklist (one row per issueType, all symptoms joined)
+    // so the AI can ask "ตรงกับอาการไหน?" with real options.
+    const chatWorklist = [];
+    for (const jt of Object.keys(worklist || {})) {
+        for (const it of Object.keys(worklist[jt] || {})) {
+            chatWorklist.push({
+                jobType: jt,
+                issueType: it,
+                symptom: (worklist[jt][it] || []).join(' | '),
+            });
+        }
+    }
+
     // Retry fetch up to 2 times on error (Groq rate limit ฯลฯ)
     async function tryChat(attempt = 0) {
         const res = await fetch('/api/chat', {
@@ -4562,6 +4575,7 @@ async function sendChat() {
                 messages: chatHistory,
                 sessionId: chatSessionId,
                 employeeId: currentUser ? currentUser.employeeId : '',
+                worklist: chatWorklist,
             }),
         });
         if (!res.ok && attempt < 2) {
@@ -4807,13 +4821,22 @@ async function offerTicketDraft() {
                 merged[k] = heur[k];
             }
         }
-        // Heuristic taxonomy override — only when our rule matched something
+        // Heuristic only over-rides the BROAD categories (jobType/issueType).
+        // For symptom we trust the AI — by now the user has clarified the
+        // exact symptom in chat (the AI is instructed to ask), so the AI's
+        // pick reflects user intent better than a regex.
         if (heur.jobType && heur.issueType
             && worklist[heur.jobType] && worklist[heur.jobType][heur.issueType]) {
             merged.jobType = heur.jobType;
             merged.issueType = heur.issueType;
-            if (heur.symptom && worklist[heur.jobType][heur.issueType].includes(heur.symptom)) {
-                merged.symptom = heur.symptom;
+            // If AI's symptom doesn't fit this issueType, fall back to heuristic
+            if (!merged.symptom
+                || !worklist[heur.jobType][heur.issueType].includes(merged.symptom)) {
+                if (heur.symptom && worklist[heur.jobType][heur.issueType].includes(heur.symptom)) {
+                    merged.symptom = heur.symptom;
+                } else {
+                    merged.symptom = '';   // let user pick from dropdown
+                }
             }
         }
         data.draft = merged;
