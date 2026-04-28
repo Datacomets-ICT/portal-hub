@@ -4657,14 +4657,21 @@ function guessIssueFromText(text) {
 
     // Order matters — most specific first
     const RULES = [
-        // Email
-        { kw: /อีเมล|อีเมล|email|outlook|รหัสอีเมล|ส่งเมล|รับเมล/i,
+        // Email — order matters: most specific keyword first
+        { kw: /อีเมล|email|outlook|ส่งเมล|รับเมล/i,
           jt: 'ปัญหาโปรแกรม', it: 'Email', symKw: [
-              [/ล็อกอิน|login|รหัส|เข้าไม่ได้/i, 'อื่นๆ (โปรดระบุ)'],
-              [/เต็ม|full/i, 'อีเมลเต็ม (แบ็คอัพอีเมล)'],
-              [/ส่ง|รับ|ไม่ออก|ไม่ได้/i, 'ไม่สามารถรับ / ส่งอีเมลได้'],
-              [/เปิดไม่ได้|เปิดโปรแกรม/i, 'เปิดโปรแกรมไม่ได้'],
-              [/ภาษา|เพี้ยน/i, 'ภาษาเพี้ยน'],
+              // ภาษาเพี้ยน — very specific
+              [/ภาษา.*เพี้ยน|font|encode|garbled/i, 'ภาษาเพี้ยน'],
+              // อีเมลเต็ม — needs explicit "เต็ม"
+              [/เต็ม|full|พื้นที่.*หมด|backup|แบ็?คอัพ/i, 'อีเมลเต็ม (แบ็คอัพอีเมล)'],
+              // ยกเลิก / เปิดใช้
+              [/ยกเลิก/i, 'ยกเลิกอีเมล'],
+              [/เปิดใช้|เปิดใหม่|setup|new account/i, 'เปิดใช้งานอีเมล'],
+              // login / can't open / can't access — treat as "เปิดโปรแกรมไม่ได้"
+              // (the worklist has no explicit "ล็อกอินไม่ได้" for Email)
+              [/login|ล็อกอิน|เข้า.*ไม่ได้|รหัสผ่าน|password|เปิดไม่ได้|เปิดโปรแกรม/i, 'เปิดโปรแกรมไม่ได้'],
+              // can't send / receive
+              [/ส่ง.*ไม่|รับ.*ไม่|ส่งไม่ออก|รับไม่|sync|ค้าง/i, 'ไม่สามารถรับ / ส่งอีเมลได้'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
         // Office
         { kw: /word|excel|powerpoint|power\s*point|office|microsoft\s*office/i,
@@ -4788,13 +4795,26 @@ async function offerTicketDraft() {
             data = { draft: {} };
         }
 
-        // Heuristic — เติมช่องว่างจาก regex บทสนทนา (AI winner ถ้ามีค่าจริง)
+        // Merge AI + heuristic. AI wins for free-text (request, location,
+        // priority etc.) — but our keyword-based rules win for the worklist
+        // taxonomy (jobType / issueType / symptom), since the AI keeps picking
+        // wrong sibling symptoms (e.g. "ไม่สามารถส่งเมล" for a login issue).
         const heur = heuristicExtract(chatHistory);
         const ai = data.draft || {};
-        const merged = { ...heur };
-        for (const k of Object.keys(ai)) {
-            const v = ai[k];
-            if (v !== null && v !== undefined && v !== '') merged[k] = v;
+        const merged = { ...ai };
+        for (const k of Object.keys(heur)) {
+            if (merged[k] === undefined || merged[k] === null || merged[k] === '') {
+                merged[k] = heur[k];
+            }
+        }
+        // Heuristic taxonomy override — only when our rule matched something
+        if (heur.jobType && heur.issueType
+            && worklist[heur.jobType] && worklist[heur.jobType][heur.issueType]) {
+            merged.jobType = heur.jobType;
+            merged.issueType = heur.issueType;
+            if (heur.symptom && worklist[heur.jobType][heur.issueType].includes(heur.symptom)) {
+                merged.symptom = heur.symptom;
+            }
         }
         data.draft = merged;
         removeTyping();
