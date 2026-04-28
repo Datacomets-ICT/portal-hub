@@ -1533,7 +1533,14 @@
                 </div>
                 <div class="form-group">
                     <label>อาการ <span style="color:var(--danger)">*</span></label>
-                    <select id="draftSymptom" required></select>
+                    <select id="draftSymptom" required onchange="onDraftSymptomChange()"></select>
+                </div>
+            </div>
+            <div id="draftPermBanner" style="display:none; margin-bottom:14px; padding:12px 16px; background:#FEF3C7; border:1px solid #F59E0B; border-radius:10px; color:#92400E; font-size:13px; align-items:flex-start; gap:10px;">
+                <i class="fas fa-file-signature" style="color:#D97706; font-size:16px; margin-top:2px;"></i>
+                <div>
+                    <div style="font-weight:600; margin-bottom:2px;">ปัญหานี้ต้องทำใบขอสิทธิ์</div>
+                    <div style="font-size:12px; opacity:0.9;">ส่ง Ticket ได้ปกติ ทีม IT จะแนบใบขอสิทธิ์ในระบบให้ภายหลัง</div>
                 </div>
             </div>
             <div class="form-row">
@@ -4633,21 +4640,139 @@ function heuristicExtract(history) {
     // เอาแค่ข้อความแรก (ปัญหาหลัก) — ไม่รวม context หลัง
     const request = userMsgs[0] || '';
 
-    return { request, priority, location, locationDetail, vncNumber, jobType: '', issueType: '', symptom: '' };
+    // Keyword-based fallback: scan request + history for common issue clues
+    // so we still pre-fill jobType/issueType/symptom even if Groq fails.
+    const haystack = (request + ' ' + all).toLowerCase();
+    const guess = guessIssueFromText(haystack);
+
+    return { request, priority, location, locationDetail, vncNumber, ...guess };
+}
+
+// Map common Thai/English keywords → exact (jobType, issueType, symptom)
+// triplets that exist in the worklist. First match wins; symptom is the most
+// common one for that issueType. The user can still change in the modal.
+function guessIssueFromText(text) {
+    const empty = { jobType: '', issueType: '', symptom: '' };
+    if (!text) return empty;
+
+    // Order matters — most specific first
+    const RULES = [
+        // Email
+        { kw: /อีเมล|อีเมล|email|outlook|รหัสอีเมล|ส่งเมล|รับเมล/i,
+          jt: 'ปัญหาโปรแกรม', it: 'Email', symKw: [
+              [/ล็อกอิน|login|รหัส|เข้าไม่ได้/i, 'อื่นๆ (โปรดระบุ)'],
+              [/เต็ม|full/i, 'อีเมลเต็ม (แบ็คอัพอีเมล)'],
+              [/ส่ง|รับ|ไม่ออก|ไม่ได้/i, 'ไม่สามารถรับ / ส่งอีเมลได้'],
+              [/เปิดไม่ได้|เปิดโปรแกรม/i, 'เปิดโปรแกรมไม่ได้'],
+              [/ภาษา|เพี้ยน/i, 'ภาษาเพี้ยน'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Office
+        { kw: /word|excel|powerpoint|power\s*point|office|microsoft\s*office/i,
+          jt: 'ปัญหาโปรแกรม', it: 'Microsoft Office\n(Word, Excel, Power Point)', symKw: [
+              [/save|บันทึก/i, 'Save ไฟล์ไม่ได้'],
+              [/เสียหาย|พัง|corrupt/i, 'ไฟล์งานเสียหาย'],
+              [/เปิดไม่ได้/i, 'เปิดโปรแกรมไม่ได้'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // SAP / Express
+        { kw: /\bsap\b/i, jt: 'ปัญหาโปรแกรม', it: 'SAP', symKw: [
+              [/หมดอายุ|expired/i, 'รหัสหมดอายุ'],
+              [/เปลี่ยน.*รหัส/i, 'เปลี่ยนรหัสผ่าน'],
+              [/ล็อกอิน|login|เข้าไม่ได้/i, 'ล็อกอินไม่ได้'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /express/i, jt: 'ปัญหาโปรแกรม', it: 'Express', symKw: [
+              [/ปริ้น/i, 'ปริ้นไม่ออก'],
+              [/หมดอายุ/i, 'รหัสหมดอายุ'],
+              [/ล็อกอิน|login|เข้าไม่ได้/i, 'ล็อกอินไม่ได้'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // VPN
+        { kw: /\bvpn\b/i, jt: 'ปัญหาโปรแกรม', it: 'VPN', symKw: [
+              [/รหัส|password/i, 'ขอรหัสผ่าน'],
+          ], defaultSym: 'ใช้งานไม่ได้' },
+        // Internet / Driveshare
+        { kw: /อินเทอร์เน็ต|internet|wifi|net ช้า|เน็ต/i,
+          jt: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', it: 'อินเทอร์เน็ต', symKw: [],
+          defaultSym: 'เข้าเว็บไซต์ไม่ได้' },
+        { kw: /driveshare|ไฟล์กลาง|drive\s*share/i,
+          jt: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', it: 'Driveshare (ไฟล์กลาง)', symKw: [
+              [/หาย|missing/i, 'ไดรฟ์ไฟล์กลางหาย'],
+              [/กู้|recover/i, 'กู้ข้อมูล'],
+          ], defaultSym: 'เข้าไฟล์กลางไม่ได้' },
+        // Computer hardware
+        { kw: /notebook|โน้ตบุ๊ก|โน้ตบุ๊ค|laptop/i,
+          jt: 'คอมพิวเตอร์', it: 'Notebook', symKw: [
+              [/หน้าจอฟ้า|blue screen/i, 'หน้าจอฟ้า'],
+              [/เปิดไม่ติด|บูตไม่/i, 'เครื่องเปิดไม่ติด'],
+              [/ช้า/i, 'เครื่องช้า'],
+              [/ชาร์จ/i, 'ชาร์จไฟไม่เข้า'],
+              [/ไม่เก็บไฟ/i, 'Notebook ไม่เก็บไฟ'],
+              [/ล็อกอิน|login/i, 'ล็อกอินไม่ได้'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /macbook|แมค/i, jt: 'คอมพิวเตอร์', it: 'Macbook', symKw: [
+              [/เปิดไม่ติด/i, 'เครื่องเปิดไม่ติด'],
+              [/ช้า/i, 'เครื่องช้า'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /imac/i, jt: 'คอมพิวเตอร์', it: 'iMac', symKw: [], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /\bpc\b|พีซี|คอมพิวเตอร์ตั้งโต๊ะ/i, jt: 'คอมพิวเตอร์', it: 'PC', symKw: [
+              [/หน้าจอฟ้า|blue screen/i, 'หน้าจอฟ้า'],
+              [/เปิดไม่ติด/i, 'เครื่องเปิดไม่ติด'],
+              [/ช้า/i, 'เครื่องช้า'],
+              [/ล็อกอิน|login/i, 'ล็อกอินไม่ได้'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Printers
+        { kw: /ปริ้นเตอร์|printer|ปริ้น|พริ้นต์/i,
+          jt: 'ปริ้นเตอร์', it: 'Printer แผนก', symKw: [
+              [/หมึก|toner|ink/i, 'หมึกหมด'],
+          ], defaultSym: 'หมึกหมด' },
+        // IT equipment
+        { kw: /คีย์บอร์ด|keyboard/i, jt: 'อุปกรณ์ไอที', it: 'คีย์บอร์ด', symKw: [
+              [/พิมพ์ไม่/i, 'พิมพ์ไม่ติด'],
+              [/อักษร|ตัวอักษร/i, 'พิมพ์แล้วอักษรไม่ตรง'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /เมาส์|mouse/i, jt: 'อุปกรณ์ไอที', it: 'เมาส์', symKw: [
+              [/คลิ๊กซ้าย|click left/i, 'เมาส์กดคลิ๊กซ้ายไม่ได้'],
+              [/คลิ๊กขวา|click right/i, 'เมาส์กดคลิ๊กขวาไม่ได้'],
+              [/ช้า/i, 'ลากเมาส์แล้วช้า'],
+              [/ไม่ติด|ไม่ทำงาน/i, 'เมาส์ไม่ติด'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /สายชาร์จ|charger|adapter/i, jt: 'อุปกรณ์ไอที', it: 'สายชาร์จ', symKw: [
+              [/ยืม/i, 'ยืมสายชาร์จ'],
+              [/เปลี่ยน/i, 'เปลี่ยนสายชาร์จใหม่'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /จอ|monitor|หน้าจอ/i, jt: 'อุปกรณ์ไอที', it: 'จอคอมพิวเตอร์', symKw: [
+              [/เปิดไม่ติด/i, 'หน้าจอเปิดไม่ติด'],
+          ], defaultSym: 'หน้าจอมีปัญหา' },
+    ];
+
+    for (const r of RULES) {
+        if (!r.kw.test(text)) continue;
+        // Only return if the worklist actually has this jobType/issueType
+        if (!worklist[r.jt] || !worklist[r.jt][r.it]) continue;
+        let symptom = '';
+        for (const [skw, sval] of (r.symKw || [])) {
+            if (skw.test(text) && worklist[r.jt][r.it].includes(sval)) {
+                symptom = sval; break;
+            }
+        }
+        if (!symptom && r.defaultSym && worklist[r.jt][r.it].includes(r.defaultSym)) {
+            symptom = r.defaultSym;
+        }
+        if (!symptom) symptom = (worklist[r.jt][r.it][0] || '');
+        return { jobType: r.jt, issueType: r.it, symptom };
+    }
+    return empty;
 }
 
 async function offerTicketDraft() {
     appendTyping();
     try {
-        // Send compact worklist (jobType > issueType only, max 50 entries)
+        // Send full worklist (every issueType + every symptom) so the AI can
+        // always find a match. Total ~50 issueTypes × ~7 symptoms ≈ small JSON.
         const worklistRows = [];
         for (const jt of Object.keys(worklist || {})) {
             for (const it of Object.keys(worklist[jt] || {})) {
-                const symptoms = (worklist[jt][it] || []).slice(0, 3); // max 3 symptoms each
-                worklistRows.push({ jobType: jt, issueType: it, symptom: symptoms.join(', ') });
-                if (worklistRows.length >= 50) break;
+                const symptoms = worklist[jt][it] || [];
+                worklistRows.push({ jobType: jt, issueType: it, symptom: symptoms.join(' | ') });
             }
-            if (worklistRows.length >= 50) break;
         }
 
         let data;
@@ -4768,6 +4893,7 @@ function openDraftModal() {
         document.getElementById('draftSymptom').innerHTML = '<option value="">-- เลือกอาการ --</option>';
     }
 
+    onDraftSymptomChange();
     m.classList.add('show');
 }
 
@@ -4793,6 +4919,17 @@ function onDraftIssueTypeChange() {
             sel.innerHTML += `<option value="${esc(s)}">${esc(s)}</option>`;
         });
     }
+    onDraftSymptomChange();
+}
+
+function onDraftSymptomChange() {
+    const banner = document.getElementById('draftPermBanner');
+    if (!banner) return;
+    const jt = document.getElementById('draftJobType').value;
+    const it = document.getElementById('draftIssueType').value;
+    const sy = document.getElementById('draftSymptom').value;
+    const needs = !!(worklistPerm[jt] && worklistPerm[jt][it] && worklistPerm[jt][it][sy || '']);
+    banner.style.display = needs ? 'flex' : 'none';
 }
 
 let draftPhotos = [];
