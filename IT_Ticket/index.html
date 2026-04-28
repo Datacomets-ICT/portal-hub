@@ -1213,6 +1213,24 @@
                     <option value="">ทั้งหมด</option>
                 </select>
             </div>
+            <div class="form-group" style="margin:0;min-width:140px;">
+                <label style="font-size:11px;margin-bottom:3px;">ประเภทงาน</label>
+                <select id="filterJobType" onchange="onFilterJobTypeChange()" style="padding:6px 10px;font-size:12px;">
+                    <option value="">ทั้งหมด</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;min-width:160px;">
+                <label style="font-size:11px;margin-bottom:3px;">ประเภทปัญหา</label>
+                <select id="filterIssueType" onchange="onFilterIssueTypeChange()" style="padding:6px 10px;font-size:12px;">
+                    <option value="">ทั้งหมด</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;min-width:160px;">
+                <label style="font-size:11px;margin-bottom:3px;">อาการ</label>
+                <select id="filterSymptom" onchange="loadTickets()" style="padding:6px 10px;font-size:12px;">
+                    <option value="">ทั้งหมด</option>
+                </select>
+            </div>
             <div class="form-group" style="margin:0;">
                 <label style="font-size:11px;margin-bottom:3px;">จากวันที่</label>
                 <input type="date" id="filterDateFrom" onchange="loadTickets()" style="padding:5px 8px;font-size:12px;">
@@ -2216,6 +2234,8 @@ async function loadWorklist() {
         Object.keys(worklist).forEach(jt => {
             sel.innerHTML += `<option value="${esc(jt)}">${esc(jt)}</option>`;
         });
+        // Populate the ticket-list filter dropdowns from the same worklist
+        try { populateFilterJobType(); } catch(_) {}
         // Try to restore saved draft (if any) — after jobType options are ready
         try { restoreTicketDraft(); } catch(_) {}
     } catch (err) {
@@ -2604,6 +2624,9 @@ async function loadTickets(opts) {
             p_admin:     document.getElementById('filterAdmin')?.value || null,
             p_date_from: document.getElementById('filterDateFrom')?.value || null,
             p_date_to:   document.getElementById('filterDateTo')?.value || null,
+            p_job_type:  document.getElementById('filterJobType')?.value || null,
+            p_issue_type: document.getElementById('filterIssueType')?.value || null,
+            p_symptom:    document.getElementById('filterSymptom')?.value || null,
         });
         if (error) throw error;
         if (!data || !data.success) throw new Error((data && data.message) || 'โหลด Ticket ไม่สำเร็จ');
@@ -2892,10 +2915,53 @@ function debouncedSearchTickets() {
     _searchTimer = setTimeout(() => loadTickets(), 350);
 }
 function clearAdvFilters() {
-    ['filterPlant','filterAdmin','filterDateFrom','filterDateTo'].forEach(id => {
+    ['filterPlant','filterAdmin','filterDateFrom','filterDateTo','filterJobType','filterIssueType','filterSymptom'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
+    // Reset cascading dropdown options too
+    populateFilterJobType();
+    document.getElementById('filterIssueType').innerHTML = '<option value="">ทั้งหมด</option>';
+    document.getElementById('filterSymptom').innerHTML  = '<option value="">ทั้งหมด</option>';
+    loadTickets();
+}
+
+// ===== Worklist filter dropdowns (cascading: jobType → issueType → symptom) =====
+function populateFilterJobType() {
+    const sel = document.getElementById('filterJobType');
+    if (!sel) return;
+    const val = sel.value;
+    sel.innerHTML = '<option value="">ทั้งหมด</option>';
+    Object.keys(worklist || {}).forEach(jt => {
+        sel.innerHTML += `<option value="${esc(jt)}">${esc(jt)}</option>`;
+    });
+    sel.value = val;
+}
+
+function onFilterJobTypeChange() {
+    const jt = document.getElementById('filterJobType').value;
+    const issueSel   = document.getElementById('filterIssueType');
+    const symptomSel = document.getElementById('filterSymptom');
+    issueSel.innerHTML   = '<option value="">ทั้งหมด</option>';
+    symptomSel.innerHTML = '<option value="">ทั้งหมด</option>';
+    if (jt && worklist[jt]) {
+        Object.keys(worklist[jt]).forEach(it => {
+            issueSel.innerHTML += `<option value="${esc(it)}">${esc(it)}</option>`;
+        });
+    }
+    loadTickets();
+}
+
+function onFilterIssueTypeChange() {
+    const jt = document.getElementById('filterJobType').value;
+    const it = document.getElementById('filterIssueType').value;
+    const symptomSel = document.getElementById('filterSymptom');
+    symptomSel.innerHTML = '<option value="">ทั้งหมด</option>';
+    if (jt && it && worklist[jt] && worklist[jt][it]) {
+        worklist[jt][it].forEach(s => {
+            symptomSel.innerHTML += `<option value="${esc(s)}">${esc(s)}</option>`;
+        });
+    }
     loadTickets();
 }
 // Populate filter dropdowns from loaded data
