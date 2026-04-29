@@ -228,23 +228,43 @@ const BookingDetail = ({ b, back, empId, password, onReload }) => {
           </div>
         </Card>
 
-        {b.car ? (
+        {b.car || b.driver ? (
           <Card style={{padding:20, background:"var(--blue-50)", borderColor:"var(--blue-100)"}}>
             <h3 style={{margin:"0 0 14px", fontSize:14, color:"var(--blue-700)", fontWeight:600, letterSpacing:.4, textTransform:"uppercase"}}>รถและคนขับที่จัดสรร</h3>
-            <div style={{marginBottom:14}}>
-              <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
-                <Ico.Car style={{color:"var(--blue-700)"}}/>
-                <b>{b.car.model}</b>
+            {b.car ? (
+              <div style={{marginBottom: b.driver ? 14 : 0}}>
+                <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
+                  <Ico.Car style={{color:"var(--blue-700)"}}/>
+                  <b>{b.car.model || '-'}</b>
+                </div>
+                <div style={{fontSize:13, color:"var(--ink-2)"}}>
+                  ทะเบียน <b className="mono">{b.car.plate}</b>
+                  {b.car.seats ? ` · ${b.car.seats} ที่นั่ง` : ''}
+                  {b.car.color ? ` · สี${b.car.color}` : ''}
+                </div>
               </div>
-              <div style={{fontSize:13, color:"var(--ink-2)"}}>ทะเบียน <b className="mono">{b.car.plate}</b> · {b.car.seats} ที่นั่ง · สี{b.car.color}</div>
-            </div>
-            <div style={{paddingTop:14, borderTop:"1px solid var(--blue-100)"}}>
-              <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
-                <Ico.User style={{color:"var(--blue-700)"}}/>
-                <b>{b.driver.name}</b>
+            ) : null}
+            {b.driver ? (
+              <div style={{paddingTop: b.car ? 14 : 0, borderTop: b.car ? "1px solid var(--blue-100)" : "none"}}>
+                <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
+                  <Ico.User style={{color:"var(--blue-700)"}}/>
+                  <b>{b.driver.name}</b>
+                </div>
+                {b.driver.phone ? (
+                  <div className="mono" style={{fontSize:12, color:"var(--ink-2)"}}>{b.driver.phone}</div>
+                ) : null}
               </div>
-              <div className="mono" style={{fontSize:12, color:"var(--ink-2)"}}>{b.driver.phone}</div>
-            </div>
+            ) : null}
+            {b.car && !b.driver ? (
+              <div style={{marginTop:10, paddingTop:10, borderTop:"1px solid var(--blue-100)", fontSize:12, color:"var(--warn)"}}>
+                ⚠️ ยังไม่ได้กำหนดคนขับ
+              </div>
+            ) : null}
+            {!b.car && b.driver ? (
+              <div style={{marginTop:10, fontSize:12, color:"var(--warn)"}}>
+                ⚠️ ยังไม่ได้กำหนดรถ
+              </div>
+            ) : null}
           </Card>
         ) : (
           <Card style={{padding:20, background:"var(--warn-bg)", borderColor:"#f5dca0"}}>
