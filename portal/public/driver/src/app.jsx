@@ -14,11 +14,15 @@ const PORTAL_USER = (function () {
     var fullName = u.firstName
       ? [u.firstName, u.lastName].filter(Boolean).join(' ')
       : (u.name || u.nickname || empId);
+    var role = (u.role || 'user').toLowerCase();
+    var isAdmin = !!u.isAdmin || ['manager','senior_manager','officer','system'].indexOf(role) !== -1;
     return {
       id: String(empId),
       name: fullName,
       dept: u.department || u.dept || u.section || '-',
       phone: u.phone || '',
+      role: role,
+      isAdmin: isAdmin,
     };
   } catch (_) {
     return null;
@@ -38,6 +42,7 @@ function App() {
   const [bookings, setBookings] = uSA([]);
   const [dataReady, setDataReady] = uSA(false);
   const password = PORTAL_PWD;
+  const isAdmin = !!(PORTAL_USER && PORTAL_USER.isAdmin);
 
   // Load master data (places / cars / drivers) once
   uEA(() => {
@@ -63,12 +68,13 @@ function App() {
   }
 
   return (
-    <Shell page={page} setPage={setPage} empId={empId} onLogout={logout}>
+    <Shell page={page} setPage={setPage} empId={empId} isAdmin={isAdmin} onLogout={logout}>
       {page.name === "home" && <HomeScreen key="home" setPage={setPage} empId={empId} bookings={bookings}/>}
       {page.name === "booking" && (
         <BookingFlow setPage={setPage} empId={empId} password={password} onComplete={onComplete}/>
       )}
       {page.name === "track" && <TrackScreen key={"tr"+(page.id||"list")} setPage={setPage} empId={empId} password={password} bookings={bookings} detailId={page.id} onReload={reloadBookings}/>}
+      {page.name === "admin" && isAdmin && <AdminScreen setPage={setPage} empId={empId} password={password}/>}
     </Shell>
   );
 }

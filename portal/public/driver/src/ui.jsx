@@ -1,9 +1,9 @@
 // Shared UI building blocks
 const { useState, useEffect, useRef, useMemo } = React;
 
-const Shell = ({ children, page, setPage, empId, onLogout }) => (
+const Shell = ({ children, page, setPage, empId, isAdmin, onLogout }) => (
   <div style={{minHeight:"100vh", display:"flex", flexDirection:"column"}}>
-    <TopBar page={page} setPage={setPage} empId={empId} onLogout={onLogout} />
+    <TopBar page={page} setPage={setPage} empId={empId} isAdmin={isAdmin} onLogout={onLogout} />
     <main style={{flex:1, width:"100%", maxWidth:1120, margin:"0 auto", padding:"28px 24px 64px"}}>
       {children}
     </main>
@@ -11,7 +11,7 @@ const Shell = ({ children, page, setPage, empId, onLogout }) => (
   </div>
 );
 
-const TopBar = ({ page, setPage, empId, onLogout }) => {
+const TopBar = ({ page, setPage, empId, isAdmin, onLogout }) => {
   const emp = EMPLOYEES.find(e => e.id === empId);
   return (
     <header style={{
@@ -36,6 +36,9 @@ const TopBar = ({ page, setPage, empId, onLogout }) => {
           <NavBtn active={page.name==="home"} onClick={()=>setPage({name:"home"})}><Ico.Home/> หน้าแรก</NavBtn>
           <NavBtn active={page.name==="booking"} onClick={()=>setPage({name:"booking", step:0})}><Ico.Car/> จองรถ</NavBtn>
           <NavBtn active={page.name==="track"} onClick={()=>setPage({name:"track"})}><Ico.Route/> ติดตามการจอง</NavBtn>
+          {isAdmin ? (
+            <NavBtn active={page.name==="admin"} onClick={()=>setPage({name:"admin"})}><Ico.Check/> จัดการคำขอ</NavBtn>
+          ) : null}
         </nav>
 
         <div style={{marginLeft:"auto", display:"flex", alignItems:"center", gap:10}}>
@@ -180,7 +183,7 @@ const Stepper = ({ steps, current }) => (
   </div>
 );
 
-// Map placeholder
+// Map placeholder (used while origin/destination still empty)
 const MapStub = ({ label="แผนที่" }) => (
   <div style={{
     height:140, borderRadius:10, border:"1px solid var(--line)",
@@ -196,4 +199,56 @@ const MapStub = ({ label="แผนที่" }) => (
   </div>
 );
 
-Object.assign(window, { Shell, Btn, Card, Field, Input, Textarea, StatusBadge, Stepper, MapStub, NavBtn });
+// Extract "lat,lng" pair from any of the map URL formats we save:
+//   https://maps.google.com/?q=13.7563,100.5018
+//   https://www.google.com/maps?q=13.6900,100.7501
+//   https://maps.google.com/maps?ll=...&q=...
+// Returns null if no usable coordinate found.
+function extractMapCoords(url) {
+  if (!url) return null;
+  const m = String(url).match(/[?&]q=(-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?)/);
+  if (m) return m[1];
+  const ll = String(url).match(/(-?\d+\.\d+),(-?\d+\.\d+)/);
+  return ll ? ll[1] + ',' + ll[2] : null;
+}
+
+// Real Google Maps iframe — directions if both ends supplied, single point otherwise.
+// No API key needed (uses the public maps.google.com embed).
+const RouteMap = ({ origin, destination, height=200, label }) => {
+  const a = extractMapCoords(origin);
+  const b = extractMapCoords(destination);
+  if (!a && !b) return <MapStub label={label || "แผนที่"}/>;
+
+  const src = (a && b)
+    ? `https://maps.google.com/maps?saddr=${encodeURIComponent(a)}&daddr=${encodeURIComponent(b)}&output=embed`
+    : `https://maps.google.com/maps?q=${encodeURIComponent(a || b)}&z=15&output=embed`;
+
+  const openHref = (a && b)
+    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(a)}&destination=${encodeURIComponent(b)}&travelmode=driving`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a || b)}`;
+
+  return (
+    <div style={{borderRadius:10, border:"1px solid var(--line)", overflow:"hidden", position:"relative"}}>
+      <iframe
+        src={src}
+        width="100%"
+        height={height}
+        style={{border:0, display:"block"}}
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        title="route map"
+      />
+      <a href={openHref} target="_blank" rel="noopener" style={{
+        position:"absolute", top:8, right:8,
+        background:"#fff", color:"var(--blue-700)", textDecoration:"none",
+        padding:"6px 12px", borderRadius:999, boxShadow:"var(--shadow-sm)",
+        fontSize:12, fontWeight:600, display:"inline-flex", alignItems:"center", gap:6,
+        border:"1px solid var(--line)",
+      }}>
+        <Ico.Link/> เปิด Google Maps
+      </a>
+    </div>
+  );
+};
+
+Object.assign(window, { Shell, Btn, Card, Field, Input, Textarea, StatusBadge, Stepper, MapStub, RouteMap, NavBtn });

@@ -182,7 +182,7 @@ const BookingDetail = ({ b, back, empId, password, onReload }) => {
               </div>
             </div>
           </div>
-          <div style={{marginTop:16}}><MapStub label="เส้นทาง"/></div>
+          <div style={{marginTop:16}}><RouteMap origin={b.pickup.map} destination={b.dropoff.map} label="เส้นทาง"/></div>
         </Card>
 
         {/* Purpose */}

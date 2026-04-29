@@ -154,5 +154,5 @@ function buildTimeline(r) {
 
 Object.assign(window, {
   EMPLOYEES, PICKUP_PLACES, DROPOFF_PLACES, JOB_TYPES, PURPOSES, CARS, DRIVERS, SAMPLE_BOOKINGS,
-  loadDriverData, fetchMyBookings,
+  loadDriverData, fetchMyBookings, rowToBooking,
 });

@@ -241,7 +241,7 @@ const PlacePicker = ({ title, sub, places, mode, setMode, selected, setSelected,
               <Textarea value={custom.detail} onChange={e=>setCustom({...custom, detail:e.target.value})} placeholder="ระบุรายละเอียด..."/>
             </Field>
           </div>
-          <div style={{gridColumn:"1 / -1"}}><MapStub label={custom.name || "แสดงตัวอย่างแผนที่"}/></div>
+          <div style={{gridColumn:"1 / -1"}}><RouteMap origin={custom.map} label={custom.name || "แสดงตัวอย่างแผนที่"}/></div>
         </div>
       )}
     </Card>
