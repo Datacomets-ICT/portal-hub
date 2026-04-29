@@ -148,6 +148,7 @@ const AdminDetail = ({ b, empId, password, back, onChanged }) => {
   const [reason, setReason]   = uSAd("");
   const [busy, setBusy]       = uSAd(false);
   const [err, setErr]         = uSAd("");
+  const [chatOpen, setChatOpen] = uSAd(false);
 
   const call = async (patch) => {
     setBusy(true);
@@ -190,8 +191,19 @@ const AdminDetail = ({ b, empId, password, back, onChanged }) => {
             ผู้จอง: <b>{b.employee?.name}</b> ({b.employee?.id}) · {b.employee?.dept || '-'} · ส่งเมื่อ {b.createdAt}
           </div>
         </div>
-        <StatusBadge s={b.status}/>
+        <div style={{display:"flex", gap:10, alignItems:"center"}}>
+          <StatusBadge s={b.status}/>
+          <button onClick={()=>setChatOpen(true)}
+            style={{padding:"8px 14px", border:"1px solid var(--blue-600)", background:"var(--blue-50)", color:"var(--blue-700)",
+                    borderRadius:8, fontSize:13, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
+                    display:"inline-flex", alignItems:"center", gap:6}}>
+            💬 แชทกับผู้แจ้ง
+          </button>
+        </div>
       </div>
+      {chatOpen ? (
+        <BookingChat bookingKey={b.key} bookingNo={b.id} empId={empId} password={password} isAdmin={true} onClose={()=>setChatOpen(false)}/>
+      ) : null}
 
       {err ? (
         <div style={{marginBottom:14, padding:"12px 16px", borderRadius:10, background:"#FEE2E2", border:"1px solid #FCA5A5", color:"#991B1B", fontSize:13, fontWeight:500}}>

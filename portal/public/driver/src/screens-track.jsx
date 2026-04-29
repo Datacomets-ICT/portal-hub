@@ -87,6 +87,7 @@ const BookingCard = ({ b, onClick }) => (
 
 const BookingDetail = ({ b, back, empId, password, onReload }) => {
   const [cancelling, setCancelling] = uST(false);
+  const [chatOpen, setChatOpen]     = uST(false);
   const cancel = async () => {
     const reason = window.prompt('เหตุผลในการยกเลิก (ไม่บังคับ):', '');
     if (reason === null) return;
@@ -120,6 +121,12 @@ const BookingDetail = ({ b, back, empId, password, onReload }) => {
       </div>
       <div style={{display:"flex", gap:10, alignItems:"center"}}>
         <StatusBadge s={b.status}/>
+        <button onClick={()=>setChatOpen(true)}
+          style={{padding:"8px 14px", border:"1px solid var(--blue-600)", background:"var(--blue-50)", color:"var(--blue-700)",
+                  borderRadius:8, fontSize:13, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
+                  display:"inline-flex", alignItems:"center", gap:6}}>
+          💬 แชทกับ Admin
+        </button>
         {b.status === 'pending' ? (
           <button onClick={cancel} disabled={cancelling}
             style={{padding:"8px 14px", border:"1px solid var(--err)", background:"#fff", color:"var(--err)",
@@ -129,6 +136,9 @@ const BookingDetail = ({ b, back, empId, password, onReload }) => {
         ) : null}
       </div>
     </div>
+    {chatOpen ? (
+      <BookingChat bookingKey={b.key} bookingNo={b.id} empId={empId} password={password} isAdmin={false} onClose={()=>setChatOpen(false)}/>
+    ) : null}
 
     <div style={{display:"grid", gridTemplateColumns:"1fr 360px", gap:20}}>
       {/* Left */}

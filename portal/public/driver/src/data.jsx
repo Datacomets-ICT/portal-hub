@@ -146,9 +146,13 @@ function buildTimeline(r) {
     { at: fmt(r.created_at), label: 'ส่งคำขอจอง', done: true },
   ];
   if (r.status === 'rejected') {
-    items.push({ at: fmt(r.approved_at), label: 'หัวหน้าไม่อนุมัติ' + (r.rejected_reason ? ` (${r.rejected_reason})` : ''), done: true });
+    items.push({ at: fmt(r.approved_at), label: 'Admin ไม่อนุมัติ' + (r.rejected_reason ? ` (${r.rejected_reason})` : ''), done: true });
   } else {
-    items.push({ at: r.approved_at ? fmt(r.approved_at) : '—', label: 'หัวหน้าอนุมัติ', done: !!r.approved_at });
+    items.push({
+      at: r.approved_at ? fmt(r.approved_at) : '—',
+      label: r.approved_at ? 'Admin อนุมัติแล้ว' : 'รอ Admin อนุมัติ',
+      done: !!r.approved_at,
+    });
     items.push({ at: r.assigned_at ? fmt(r.assigned_at) : '—', label: 'จัดสรรรถและคนขับ', done: !!r.assigned_at });
   }
   if (r.status === 'completed') {

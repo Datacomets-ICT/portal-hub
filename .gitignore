@@ -19,3 +19,9 @@ Thumbs.db
 # Python
 __pycache__/
 *.pyc
+
+.vercel
+
+# Driver — uploads + sensitive HR rosters (Drivers.xlsx is the seed source so keep)
+Driver/uploads/
+Driver/รายชื่อพนักงาน.xlsx
