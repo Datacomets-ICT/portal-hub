@@ -2,7 +2,7 @@
 const { useState: uST } = React;
 
 const TrackScreen = ({ setPage, empId, bookings, detailId }) => {
-  const mine = bookings.filter(b => b.employee.id === empId);
+  const mine = bookings.filter(b => b.employee && b.employee.id === empId);
   if (detailId) {
     const b = bookings.find(x => x.id === detailId);
     if (b) return <BookingDetail b={b} back={()=>setPage({name:"track"})}/>;

@@ -63,7 +63,7 @@ function App() {
     <Shell page={page} setPage={setPage} empId={empId} onLogout={logout}>
       {page.name === "home" && <HomeScreen key="home" setPage={setPage} empId={empId}/>}
       {page.name === "booking" && (
-        <BookingFlow key={"bk"+page.step} setPage={setPage} step={page.step ?? 0} empId={empId} onComplete={onComplete}/>
+        <BookingFlow setPage={setPage} empId={empId} onComplete={onComplete}/>
       )}
       {page.name === "track" && <TrackScreen key={"tr"+(page.id||"list")} setPage={setPage} empId={empId} bookings={bookings} detailId={page.id}/>}
     </Shell>

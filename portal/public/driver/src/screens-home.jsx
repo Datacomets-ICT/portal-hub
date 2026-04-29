@@ -1,6 +1,6 @@
 // Home: 2 big action buttons + quick stats
 const HomeScreen = ({ setPage, empId }) => {
-  const mine = SAMPLE_BOOKINGS.filter(b => b.employee.id === empId);
+  const mine = SAMPLE_BOOKINGS.filter(b => b.employee && b.employee.id === empId);
   const upcoming = mine.filter(b => b.status !== "completed").length;
   const done = mine.filter(b => b.status === "completed").length;
   const pending = mine.filter(b => b.status === "pending").length;
