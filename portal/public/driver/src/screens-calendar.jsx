@@ -1,20 +1,24 @@
-// Admin calendar / timeline — one row per car, time bars per booking.
-// Loads bookings via drv_get_all_bookings (admin-only).
-// Click a bar → opens the same admin detail panel as the list view.
+// Admin calendar — looks like a real wall calendar (month grid).
+// Clicking a day drills into a day-timeline (cars × hours).
+// Loads bookings via drv_get_all_bookings.
 
 const { useState: uSCal, useEffect: uECal } = React;
 
-// Default visible window — extends automatically if any booking on the
-// selected day starts earlier or ends later than this.
 const HOUR_START_DEFAULT = 6;
 const HOUR_END_DEFAULT   = 21;
+
+const STATUS_COLORS = {
+  pending:   { bg:"#FEF3C7", bd:"#F59E0B", fg:"#92400E", label:"รออนุมัติ" },
+  approved:  { bg:"#DBEAFE", bd:"#2563EB", fg:"#1E3A8A", label:"อนุมัติแล้ว" },
+  completed: { bg:"#DCFCE7", bd:"#16A34A", fg:"#14532D", label:"เสร็จสิ้น" },
+};
 
 const CalendarScreen = ({ setPage, empId, password }) => {
   const [bookings, setBookings] = uSCal([]);
   const [loading, setLoading]   = uSCal(true);
   const [error, setError]       = uSCal('');
+  const [view, setView]         = uSCal('month');                                 // month | day
   const [day, setDay]           = uSCal(() => new Date().toISOString().slice(0, 10));
-  const [scope, setScope]       = uSCal('all');   // all | unassigned | assigned
 
   const reload = React.useCallback(async () => {
     setLoading(true); setError('');
@@ -29,33 +33,27 @@ const CalendarScreen = ({ setPage, empId, password }) => {
       setError(e.message || 'เกิดข้อผิดพลาด');
     } finally { setLoading(false); }
   }, [empId, password]);
-
   uECal(() => { reload(); }, [reload]);
 
-  const ofDay = bookings.filter(b => b.date === day && b.status !== 'cancelled' && b.status !== 'rejected');
-  const carRows = (window.CARS || []).slice();    // copy
-  // sort cars by booking count today, busiest first
-  const countByCar = {};
-  ofDay.forEach(b => {
-    const cid = b.car ? findCarIdByPlateLocal(b.car.plate) : null;
-    if (cid) countByCar[cid] = (countByCar[cid] || 0) + 1;
-  });
-  carRows.sort((a, b) => (countByCar[b.id] || 0) - (countByCar[a.id] || 0));
-
-  const unassigned = ofDay.filter(b => !b.car);
-
-  const filtered = scope === 'unassigned' ? [] : carRows;
-  const showUnassigned = scope !== 'assigned' && unassigned.length > 0;
-
+  const today = () => setDay(new Date().toISOString().slice(0, 10));
+  const shiftMonth = (delta) => {
+    const d = parseISOLocal(day);
+    d.setDate(1);
+    d.setMonth(d.getMonth() + delta);
+    setDay(d.toISOString().slice(0, 10));
+  };
   const shiftDay = (delta) => {
-    const d = new Date(day + 'T00:00');
+    const d = parseISOLocal(day);
     d.setDate(d.getDate() + delta);
     setDay(d.toISOString().slice(0, 10));
   };
-  const today = () => setDay(new Date().toISOString().slice(0, 10));
 
+  const monthLabel = (() => {
+    const d = parseISOLocal(day);
+    return d.toLocaleDateString('th-TH', { month:'long', year:'numeric' });
+  })();
   const dayLabel = (() => {
-    const d = new Date(day + 'T00:00');
+    const d = parseISOLocal(day);
     return d.toLocaleDateString('th-TH', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   })();
 
@@ -64,43 +62,43 @@ const CalendarScreen = ({ setPage, empId, password }) => {
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:16, marginBottom:18}}>
         <div>
           <h1 style={{margin:0, fontSize:26, letterSpacing:"-.01em"}}>ปฏิทินการใช้รถ</h1>
-          <p style={{margin:"4px 0 0", color:"var(--ink-3)", fontSize:14}}>เห็นภาพรวมว่ารถคันไหนถูกใช้ช่วงไหน คันไหนว่าง</p>
+          <p style={{margin:"4px 0 0", color:"var(--ink-3)", fontSize:14}}>คลิกที่วันใดก็ได้เพื่อดูรายละเอียด — เห็นภาพรวมการใช้รถทั้งเดือน</p>
         </div>
         <div style={{display:"flex", gap:8, alignItems:"center", flexWrap:"wrap"}}>
-          <button onClick={()=>shiftDay(-1)} style={navBtnStyle}>‹ ก่อนหน้า</button>
-          <button onClick={today} style={{...navBtnStyle, background:"var(--blue-50)", color:"var(--blue-700)", borderColor:"var(--blue-200)"}}>วันนี้</button>
-          <button onClick={()=>shiftDay(1)} style={navBtnStyle}>ถัดไป ›</button>
+          {view === "month" ? (
+            <>
+              <button onClick={()=>shiftMonth(-1)} style={navBtnStyle}>‹ เดือนก่อน</button>
+              <button onClick={today} style={{...navBtnStyle, background:"var(--blue-50)", color:"var(--blue-700)", borderColor:"var(--blue-200)"}}>วันนี้</button>
+              <button onClick={()=>shiftMonth(1)} style={navBtnStyle}>เดือนถัดไป ›</button>
+            </>
+          ) : (
+            <>
+              <button onClick={()=>shiftDay(-1)} style={navBtnStyle}>‹ ก่อนหน้า</button>
+              <button onClick={today} style={{...navBtnStyle, background:"var(--blue-50)", color:"var(--blue-700)", borderColor:"var(--blue-200)"}}>วันนี้</button>
+              <button onClick={()=>shiftDay(1)} style={navBtnStyle}>ถัดไป ›</button>
+            </>
+          )}
           <input type="date" value={day} onChange={e=>setDay(e.target.value)}
             style={{padding:"7px 10px", border:"1px solid var(--line)", borderRadius:8, fontFamily:"inherit", fontSize:13}}/>
           <Btn variant="ghost" onClick={reload} icon={<Ico.Plus/>}>รีเฟรช</Btn>
         </div>
       </div>
 
-      <div style={{
-        display:"flex", gap:6, padding:4, background:"#fff", border:"1px solid var(--line)",
-        borderRadius:12, marginBottom:14, width:"fit-content",
-      }}>
+      <div style={{display:"flex", gap:6, padding:4, background:"#fff", border:"1px solid var(--line)", borderRadius:12, marginBottom:14, width:"fit-content"}}>
         {[
-          ['all',         'ทุกอย่าง',         ofDay.length],
-          ['assigned',    'ที่จัดสรรแล้ว',     ofDay.filter(b => b.car).length],
-          ['unassigned',  'ยังไม่จัดสรร',      unassigned.length],
-        ].map(([k,l,n]) => (
-          <button key={k} onClick={()=>setScope(k)} style={{
-            padding:"6px 12px", border:"none", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"inherit",
-            background: scope===k?"var(--blue-600)":"transparent", color: scope===k?"#fff":"var(--ink-2)",
-            display:"inline-flex", alignItems:"center", gap:6,
-          }}>
-            {l}
-            <span style={{
-              background: scope===k?"rgba(255,255,255,.25)":"var(--line-2)",
-              color: scope===k?"#fff":"var(--ink-3)",
-              fontSize:11, padding:"1px 7px", borderRadius:999, fontWeight:700,
-            }}>{n}</span>
-          </button>
+          ['month', '📅 เดือน'],
+          ['day',   '🕐 ตารางรถรายวัน'],
+        ].map(([k,l]) => (
+          <button key={k} onClick={()=>setView(k)} style={{
+            padding:"6px 14px", border:"none", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"inherit",
+            background: view===k?"var(--blue-600)":"transparent", color: view===k?"#fff":"var(--ink-2)",
+          }}>{l}</button>
         ))}
       </div>
 
-      <div style={{fontSize:13, color:"var(--ink-3)", marginBottom:10}}>{dayLabel}</div>
+      <div style={{fontSize:13, color:"var(--ink-3)", marginBottom:10}}>
+        {view === "month" ? monthLabel : dayLabel}
+      </div>
 
       {error ? (
         <div style={{padding:"12px 16px", borderRadius:10, background:"#FEE2E2", border:"1px solid #FCA5A5", color:"#991B1B", fontSize:13, fontWeight:500, marginBottom:14}}>
@@ -110,65 +108,155 @@ const CalendarScreen = ({ setPage, empId, password }) => {
 
       {loading ? (
         <Card style={{padding:40, textAlign:"center", color:"var(--ink-3)"}}>กำลังโหลด…</Card>
+      ) : view === "month" ? (
+        <MonthGrid day={day} bookings={bookings} onPickDay={(d)=>{ setDay(d); setView("day"); }}/>
       ) : (
-        <Card style={{padding:0, overflow:"hidden"}}>
-          <TimelineGrid carRows={filtered} ofDay={ofDay}
-            onClickBooking={(b) => setPage({name:"admin", openBookingKey: b.key})}/>
-          {showUnassigned ? (
-            <UnassignedSection items={unassigned}
-              onClick={(b) => setPage({name:"admin", openBookingKey: b.key})}/>
-          ) : null}
-          {filtered.length === 0 && !showUnassigned ? (
-            <div style={{padding:60, textAlign:"center", color:"var(--ink-3)"}}>
-              <div style={{fontSize:32, marginBottom:8}}>📅</div>
-              ไม่มีการจองในวันนี้
-            </div>
-          ) : null}
-        </Card>
+        <DayTimeline day={day} bookings={bookings}
+          onClickBooking={(b) => setPage({name:"admin", openBookingKey: b.key})}/>
       )}
 
       <div style={{marginTop:14, display:"flex", gap:14, fontSize:12, color:"var(--ink-3)", flexWrap:"wrap"}}>
-        <LegendDot color="#FEF3C7" border="#F59E0B" label="รออนุมัติ"/>
-        <LegendDot color="#DBEAFE" border="#2563EB" label="อนุมัติแล้ว"/>
-        <LegendDot color="#DCFCE7" border="#16A34A" label="เสร็จสิ้น"/>
+        <LegendDot color={STATUS_COLORS.pending.bg}   border={STATUS_COLORS.pending.bd}   label="รออนุมัติ"/>
+        <LegendDot color={STATUS_COLORS.approved.bg}  border={STATUS_COLORS.approved.bd}  label="อนุมัติแล้ว"/>
+        <LegendDot color={STATUS_COLORS.completed.bg} border={STATUS_COLORS.completed.bd} label="เสร็จสิ้น"/>
       </div>
     </div>
   );
 };
 
-const navBtnStyle = {
-  padding:"7px 12px", border:"1px solid var(--line)", background:"#fff", color:"var(--ink-2)",
-  borderRadius:8, fontSize:13, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
+// ============================================================
+// Month grid (the "real calendar")
+// ============================================================
+const MonthGrid = ({ day, bookings, onPickDay }) => {
+  const cur = parseISOLocal(day);
+  const year = cur.getFullYear();
+  const month = cur.getMonth();
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Build a 6-row × 7-col grid that always starts on Sunday and covers
+  // the whole selected month + spillover.
+  const firstOfMonth = new Date(year, month, 1);
+  const startSunday  = new Date(firstOfMonth);
+  startSunday.setDate(1 - firstOfMonth.getDay());
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(startSunday);
+    d.setDate(startSunday.getDate() + i);
+    cells.push(d);
+  }
+
+  // Index bookings by date string for fast lookup
+  const byDate = {};
+  bookings.forEach(b => {
+    if (b.status === 'cancelled' || b.status === 'rejected') return;
+    if (!b.date) return;
+    if (!byDate[b.date]) byDate[b.date] = [];
+    byDate[b.date].push(b);
+  });
+
+  const dayHeaders = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+
+  return (
+    <Card style={{padding:0, overflow:"hidden"}}>
+      <div style={{display:"grid", gridTemplateColumns:"repeat(7, 1fr)", borderBottom:"1px solid var(--line)", background:"var(--surface-2)"}}>
+        {dayHeaders.map((h, i) => (
+          <div key={i} style={{
+            padding:"10px 12px", fontSize:12, fontWeight:700, color:"var(--ink-3)",
+            textAlign:"center", letterSpacing:.5,
+            borderLeft: i === 0 ? "none" : "1px solid var(--line-2)",
+          }}>{h}</div>
+        ))}
+      </div>
+
+      <div style={{display:"grid", gridTemplateColumns:"repeat(7, 1fr)"}}>
+        {cells.map((d, idx) => {
+          const ds = d.toISOString().slice(0, 10);
+          const items = byDate[ds] || [];
+          const isOtherMonth = d.getMonth() !== month;
+          const isToday = ds === todayStr;
+          return (
+            <button key={idx} onClick={() => onPickDay(ds)} style={{
+              minHeight:120, padding:"8px 8px 6px",
+              borderLeft: idx % 7 === 0 ? "none" : "1px solid var(--line-2)",
+              borderTop:  idx < 7 ? "none" : "1px solid var(--line-2)",
+              background: isOtherMonth ? "var(--surface-2)" : "#fff",
+              opacity: isOtherMonth ? 0.55 : 1,
+              cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+              display:"flex", flexDirection:"column", gap:4,
+              transition:"background .12s",
+            }}
+            onMouseEnter={e=>{e.currentTarget.style.background = isOtherMonth ? "var(--surface-2)" : "var(--blue-50)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background = isOtherMonth ? "var(--surface-2)" : "#fff";}}>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+                <span style={{
+                  display:"inline-grid", placeItems:"center",
+                  width:isToday ? 26 : "auto", height:isToday ? 26 : "auto",
+                  minWidth:24, padding: isToday ? 0 : "0 4px",
+                  borderRadius: isToday ? "50%" : 4,
+                  background: isToday ? "var(--blue-600)" : "transparent",
+                  color: isToday ? "#fff" : (isOtherMonth ? "var(--muted)" : "var(--ink)"),
+                  fontWeight:700, fontSize:13,
+                }}>{d.getDate()}</span>
+                {items.length > 0 ? (
+                  <span style={{fontSize:11, color:"var(--ink-3)", fontWeight:600}}>{items.length} คำขอ</span>
+                ) : null}
+              </div>
+              <div style={{display:"flex", flexDirection:"column", gap:3, marginTop:2}}>
+                {items.slice(0, 3).map(b => {
+                  const c = STATUS_COLORS[b.status] || STATUS_COLORS.pending;
+                  return (
+                    <div key={b.key} title={`${b.id} · ${b.timeOut}-${b.timeBack} · ${b.employee?.name || ''}`} style={{
+                      background: c.bg, color: c.fg, borderLeft: `3px solid ${c.bd}`,
+                      borderRadius:4, padding:"2px 6px",
+                      fontSize:11, fontWeight:600, lineHeight:1.3,
+                      whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+                    }}>
+                      <span className="mono">{b.timeOut}</span> · {b.employee?.name || b.employee?.id || '-'}
+                    </div>
+                  );
+                })}
+                {items.length > 3 ? (
+                  <div style={{fontSize:11, color:"var(--blue-700)", fontWeight:600, padding:"0 6px"}}>+{items.length - 3} เพิ่มเติม</div>
+                ) : null}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </Card>
+  );
 };
 
-const LegendDot = ({ color, border, label }) => (
-  <span style={{display:"inline-flex", alignItems:"center", gap:6}}>
-    <span style={{width:14, height:14, borderRadius:3, background:color, border:`1px solid ${border}`}}/>
-    {label}
-  </span>
-);
-
-// Cars × hours grid. Each car row has hour columns; bookings are
-// absolutely positioned bars within the row. Window auto-stretches to
-// cover any booking that starts earlier than 06:00 or ends later than
-// 22:00 so nothing gets clipped at the edge.
-const TimelineGrid = ({ carRows, ofDay, onClickBooking }) => {
+// ============================================================
+// Day timeline (cars × hours) — shown when user clicks a day
+// ============================================================
+const DayTimeline = ({ day, bookings, onClickBooking }) => {
+  const ofDay = bookings.filter(b =>
+    b.date === day && b.status !== 'cancelled' && b.status !== 'rejected'
+  );
   let hStart = HOUR_START_DEFAULT;
   let hEnd   = HOUR_END_DEFAULT;
   ofDay.forEach(b => {
     const s = parseHourFraction(b.timeOut);
     const e = parseHourFraction(b.timeBack);
     if (s < hStart) hStart = Math.floor(s);
-    if (e > hEnd + 1) hEnd = Math.ceil(e) - 1;        // hEnd is the LABEL of the last col; column covers hEnd → hEnd+1
+    if (e > hEnd + 1) hEnd = Math.ceil(e) - 1;
   });
   hStart = Math.max(0, hStart);
   hEnd   = Math.min(23, hEnd);
 
+  const carRows = (window.CARS || []).slice();
+  const countByCar = {};
+  ofDay.forEach(b => {
+    const cid = b.car ? findCarIdByPlateLocal(b.car.plate) : null;
+    if (cid) countByCar[cid] = (countByCar[cid] || 0) + 1;
+  });
+  carRows.sort((a, b) => (countByCar[b.id] || 0) - (countByCar[a.id] || 0));
+  const unassigned = ofDay.filter(b => !b.car);
+
   const hours = [];
   for (let h = hStart; h <= hEnd; h++) hours.push(h);
   const colCount = hours.length;
-  const HOUR_START = hStart;
-  const HOUR_END   = hEnd;
 
   const assignedByCar = {};
   ofDay.forEach(b => {
@@ -180,41 +268,62 @@ const TimelineGrid = ({ carRows, ofDay, onClickBooking }) => {
   });
 
   return (
-    <div style={{overflowX:"auto"}}>
-      <div style={{minWidth: colCount * 56 + 180}}>
-        {/* Header row */}
-        <div style={{display:"grid", gridTemplateColumns: `180px repeat(${colCount}, 1fr)`, borderBottom:"1px solid var(--line)", background:"var(--surface-2)"}}>
-          <div style={{padding:"10px 14px", fontSize:11, fontWeight:700, color:"var(--ink-3)", textTransform:"uppercase", letterSpacing:.5}}>รถ</div>
-          {hours.map(h => (
-            <div key={h} className="mono" style={{padding:"10px 0", fontSize:11, color:"var(--ink-3)", textAlign:"center", borderLeft:"1px solid var(--line-2)"}}>
-              {String(h).padStart(2,'0')}
-            </div>
-          ))}
+    <Card style={{padding:0, overflow:"hidden"}}>
+      <div style={{overflowX:"auto"}}>
+        <div style={{minWidth: colCount * 56 + 180}}>
+          <div style={{display:"grid", gridTemplateColumns: `180px repeat(${colCount}, 1fr)`, borderBottom:"1px solid var(--line)", background:"var(--surface-2)"}}>
+            <div style={{padding:"10px 14px", fontSize:11, fontWeight:700, color:"var(--ink-3)", textTransform:"uppercase", letterSpacing:.5}}>รถ</div>
+            {hours.map(h => (
+              <div key={h} className="mono" style={{padding:"10px 0", fontSize:11, color:"var(--ink-3)", textAlign:"center", borderLeft:"1px solid var(--line-2)"}}>
+                {String(h).padStart(2,'0')}
+              </div>
+            ))}
+          </div>
+          {carRows.map(c => {
+            const items = assignedByCar[c.id] || [];
+            return (
+              <div key={c.id} style={{display:"grid", gridTemplateColumns: `180px repeat(${colCount}, 1fr)`, borderBottom:"1px solid var(--line-2)", position:"relative", minHeight:54}}>
+                <div style={{padding:"10px 14px", borderRight:"1px solid var(--line-2)", display:"flex", flexDirection:"column", justifyContent:"center"}}>
+                  <div className="mono" style={{fontWeight:700, fontSize:13}}>{c.plate}</div>
+                  <div style={{fontSize:11, color:"var(--ink-3)"}}>{c.model || ''} · {c.seats || '?'} ที่นั่ง</div>
+                </div>
+                {hours.map((h, i) => <div key={i} style={{borderLeft:"1px solid var(--line-2)"}}/>)}
+                <div style={{position:"absolute", top:7, bottom:7, left:180, right:0}}>
+                  {items.map(b => (
+                    <Bar key={b.key} b={b} onClick={() => onClickBooking(b)} hStart={hStart} hEnd={hEnd}/>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
-
-        {carRows.map(c => {
-          const items = assignedByCar[c.id] || [];
-          return (
-            <div key={c.id} style={{display:"grid", gridTemplateColumns: `180px repeat(${colCount}, 1fr)`, borderBottom:"1px solid var(--line-2)", position:"relative", minHeight:54}}>
-              <div style={{padding:"10px 14px", borderRight:"1px solid var(--line-2)", display:"flex", flexDirection:"column", justifyContent:"center"}}>
-                <div className="mono" style={{fontWeight:700, fontSize:13}}>{c.plate}</div>
-                <div style={{fontSize:11, color:"var(--ink-3)"}}>{c.model || ''} · {c.seats || '?'} ที่นั่ง</div>
-              </div>
-              {hours.map((h, i) => (
-                <div key={i} style={{borderLeft:"1px solid var(--line-2)"}}/>
-              ))}
-              {/* Booking bars positioned absolutely within the row */}
-              <div style={{position:"absolute", top:7, bottom:7, left:180, right:0}}>
-                {items.map(b => (
-                  <Bar key={b.key} b={b} onClick={() => onClickBooking(b)}
-                    hStart={HOUR_START} hEnd={HOUR_END}/>
-                ))}
-              </div>
-            </div>
-          );
-        })}
       </div>
-    </div>
+      {unassigned.length > 0 ? (
+        <div style={{padding:"14px 18px", background:"var(--warn-bg)", borderTop:"1px solid #f5dca0"}}>
+          <div style={{fontSize:12, fontWeight:700, color:"var(--warn)", textTransform:"uppercase", letterSpacing:.5, marginBottom:8}}>
+            ⚠️ ยังไม่จัดสรรรถ ({unassigned.length})
+          </div>
+          <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+            {unassigned.map(b => (
+              <button key={b.key} onClick={() => onClickBooking(b)} style={{
+                background:"#fff", border:"1px solid #f5dca0", borderRadius:8, padding:"8px 12px",
+                fontSize:12, cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+              }}>
+                <div className="mono" style={{fontWeight:700, color:"var(--warn)"}}>{b.id}</div>
+                <div>{b.timeOut}-{b.timeBack} · {b.employee?.name || b.employee?.id}</div>
+                <div style={{color:"var(--ink-3)"}}>{b.pickup?.name} → {b.dropoff?.name}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {ofDay.length === 0 ? (
+        <div style={{padding:60, textAlign:"center", color:"var(--ink-3)"}}>
+          <div style={{fontSize:32, marginBottom:8}}>📅</div>
+          ไม่มีการจองในวันนี้
+        </div>
+      ) : null}
+    </Card>
   );
 };
 
@@ -229,8 +338,7 @@ const Bar = ({ b, onClick, hStart, hEnd }) => {
   return (
     <button onClick={onClick} title={`${b.id} · ${b.timeOut}-${b.timeBack} · ${b.employee?.name || ''} · ${b.purpose || ''}`}
       style={{
-        position:"absolute", top:0, bottom:0,
-        left: `${left}%`, width: `${widthPct}%`,
+        position:"absolute", top:0, bottom:0, left: `${left}%`, width: `${widthPct}%`,
         background: colors.bg, border:`1px solid ${colors.bd}`, borderLeft:`4px solid ${colors.bd}`,
         borderRadius:6, padding:"4px 8px", overflow:"hidden",
         cursor:"pointer", textAlign:"left", fontFamily:"inherit",
@@ -248,31 +356,27 @@ const Bar = ({ b, onClick, hStart, hEnd }) => {
   );
 };
 
-const STATUS_COLORS = {
-  pending:   { bg:"#FEF3C7", bd:"#F59E0B", fg:"#92400E" },
-  approved:  { bg:"#DBEAFE", bd:"#2563EB", fg:"#1E3A8A" },
-  completed: { bg:"#DCFCE7", bd:"#16A34A", fg:"#14532D" },
+// ============================================================
+// Helpers
+// ============================================================
+const navBtnStyle = {
+  padding:"7px 12px", border:"1px solid var(--line)", background:"#fff", color:"var(--ink-2)",
+  borderRadius:8, fontSize:13, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
 };
 
-const UnassignedSection = ({ items, onClick }) => (
-  <div style={{padding:"14px 18px", background:"var(--warn-bg)", borderTop:"1px solid #f5dca0"}}>
-    <div style={{fontSize:12, fontWeight:700, color:"var(--warn)", textTransform:"uppercase", letterSpacing:.5, marginBottom:8}}>
-      ⚠️ ยังไม่จัดสรรรถ ({items.length})
-    </div>
-    <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
-      {items.map(b => (
-        <button key={b.key} onClick={() => onClick(b)} style={{
-          background:"#fff", border:"1px solid #f5dca0", borderRadius:8, padding:"8px 12px",
-          fontSize:12, cursor:"pointer", fontFamily:"inherit", textAlign:"left",
-        }}>
-          <div className="mono" style={{fontWeight:700, color:"var(--warn)"}}>{b.id}</div>
-          <div>{b.timeOut}-{b.timeBack} · {b.employee?.name || b.employee?.id}</div>
-          <div style={{color:"var(--ink-3)"}}>{b.pickup?.name} → {b.dropoff?.name}</div>
-        </button>
-      ))}
-    </div>
-  </div>
+const LegendDot = ({ color, border, label }) => (
+  <span style={{display:"inline-flex", alignItems:"center", gap:6}}>
+    <span style={{width:14, height:14, borderRadius:3, background:color, border:`1px solid ${border}`}}/>
+    {label}
+  </span>
 );
+
+// "YYYY-MM-DD" → local Date (avoid timezone shifts from new Date(str))
+function parseISOLocal(s) {
+  if (!s) return new Date();
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
 
 function parseHourFraction(t) {
   if (!t) return 0;
