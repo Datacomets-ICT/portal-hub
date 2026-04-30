@@ -4,8 +4,10 @@
 
 const { useState: uSCal, useEffect: uECal } = React;
 
-const HOUR_START = 6;     // first hour shown (06:00)
-const HOUR_END   = 21;    // last hour shown (21:00) → 15-hour grid
+// Default visible window — extends automatically if any booking on the
+// selected day starts earlier or ends later than this.
+const HOUR_START_DEFAULT = 6;
+const HOUR_END_DEFAULT   = 21;
 
 const CalendarScreen = ({ setPage, empId, password }) => {
   const [bookings, setBookings] = uSCal([]);
@@ -146,12 +148,27 @@ const LegendDot = ({ color, border, label }) => (
   </span>
 );
 
-// Cars × hours grid. Each car row has hour columns 06–21; bookings are
-// absolutely positioned bars within the row.
+// Cars × hours grid. Each car row has hour columns; bookings are
+// absolutely positioned bars within the row. Window auto-stretches to
+// cover any booking that starts earlier than 06:00 or ends later than
+// 22:00 so nothing gets clipped at the edge.
 const TimelineGrid = ({ carRows, ofDay, onClickBooking }) => {
+  let hStart = HOUR_START_DEFAULT;
+  let hEnd   = HOUR_END_DEFAULT;
+  ofDay.forEach(b => {
+    const s = parseHourFraction(b.timeOut);
+    const e = parseHourFraction(b.timeBack);
+    if (s < hStart) hStart = Math.floor(s);
+    if (e > hEnd + 1) hEnd = Math.ceil(e) - 1;        // hEnd is the LABEL of the last col; column covers hEnd → hEnd+1
+  });
+  hStart = Math.max(0, hStart);
+  hEnd   = Math.min(23, hEnd);
+
   const hours = [];
-  for (let h = HOUR_START; h <= HOUR_END; h++) hours.push(h);
-  const colCount = hours.length;   // 16 columns
+  for (let h = hStart; h <= hEnd; h++) hours.push(h);
+  const colCount = hours.length;
+  const HOUR_START = hStart;
+  const HOUR_END   = hEnd;
 
   const assignedByCar = {};
   ofDay.forEach(b => {
@@ -188,7 +205,10 @@ const TimelineGrid = ({ carRows, ofDay, onClickBooking }) => {
               ))}
               {/* Booking bars positioned absolutely within the row */}
               <div style={{position:"absolute", top:7, bottom:7, left:180, right:0}}>
-                {items.map(b => <Bar key={b.key} b={b} onClick={() => onClickBooking(b)}/>)}
+                {items.map(b => (
+                  <Bar key={b.key} b={b} onClick={() => onClickBooking(b)}
+                    hStart={HOUR_START} hEnd={HOUR_END}/>
+                ))}
               </div>
             </div>
           );
@@ -198,12 +218,12 @@ const TimelineGrid = ({ carRows, ofDay, onClickBooking }) => {
   );
 };
 
-const Bar = ({ b, onClick }) => {
+const Bar = ({ b, onClick, hStart, hEnd }) => {
   const start = parseHourFraction(b.timeOut);
   const end   = parseHourFraction(b.timeBack);
-  const span  = HOUR_END - HOUR_START + 1;     // 16 hours visible
-  const left  = Math.max(0, (start - HOUR_START) / span * 100);
-  const widthPct = Math.max(0, (Math.min(end, HOUR_END + 1) - Math.max(start, HOUR_START)) / span * 100);
+  const span  = hEnd - hStart + 1;
+  const left  = Math.max(0, (start - hStart) / span * 100);
+  const widthPct = Math.max(0, (Math.min(end, hEnd + 1) - Math.max(start, hStart)) / span * 100);
   if (widthPct <= 0) return null;
   const colors = STATUS_COLORS[b.status] || STATUS_COLORS.pending;
   return (
