@@ -136,8 +136,41 @@ function rowToBooking(r) {
     createdAt: r.created_at ? new Date(r.created_at).toLocaleString('sv-SE').slice(0, 16) : '',
     rejectedReason: r.rejected_reason,
     cancelReason: r.cancel_reason,
+    messagesCount: Number(r.messages_count) || 0,
+    lastMessageAt: r.last_message_at || null,
+    lastMessageRole: r.last_message_role || null,
     timeline: buildTimeline(r),
   };
+}
+
+// Track which message timestamp the user has already seen on each booking
+// — drives the "unread" badge + "is this a new message" toast trigger.
+const SEEN_KEY = 'drv_chat_seen_v1';
+function loadSeenMap() {
+  try { return JSON.parse(localStorage.getItem(SEEN_KEY) || '{}'); } catch { return {}; }
+}
+function saveSeenMap(m) {
+  try { localStorage.setItem(SEEN_KEY, JSON.stringify(m)); } catch {}
+}
+function markBookingSeen(bookingKey, isoTs) {
+  if (!bookingKey) return;
+  const m = loadSeenMap();
+  const ts = isoTs || new Date().toISOString();
+  if (!m[bookingKey] || m[bookingKey] < ts) {
+    m[bookingKey] = ts;
+    saveSeenMap(m);
+  }
+}
+function getBookingSeenAt(bookingKey) {
+  return loadSeenMap()[bookingKey] || null;
+}
+function bookingUnreadCount(b, viewerRole) {
+  // Don't count messages the viewer themselves wrote
+  if (!b || !b.messagesCount) return 0;
+  if (b.lastMessageRole === viewerRole) return 0;   // last msg was mine
+  const seenAt = getBookingSeenAt(b.key);
+  if (!seenAt) return b.messagesCount;
+  return (b.lastMessageAt && b.lastMessageAt > seenAt) ? 1 : 0;
 }
 
 function buildTimeline(r) {
@@ -167,4 +200,5 @@ function buildTimeline(r) {
 Object.assign(window, {
   EMPLOYEES, PICKUP_PLACES, DROPOFF_PLACES, JOB_TYPES, PURPOSES, CARS, DRIVERS, SAMPLE_BOOKINGS,
   loadDriverData, fetchMyBookings, rowToBooking,
+  markBookingSeen, getBookingSeenAt, bookingUnreadCount,
 });

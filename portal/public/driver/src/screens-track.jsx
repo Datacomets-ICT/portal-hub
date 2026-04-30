@@ -1,11 +1,11 @@
 // Track bookings list + detail
 const { useState: uST } = React;
 
-const TrackScreen = ({ setPage, empId, password, bookings, detailId, onReload }) => {
+const TrackScreen = ({ setPage, empId, password, bookings, detailId, onReload, openChat }) => {
   const mine = bookings.filter(b => b.employee && b.employee.id === empId);
   if (detailId) {
     const b = bookings.find(x => x.id === detailId);
-    if (b) return <BookingDetail b={b} empId={empId} password={password} onReload={onReload} back={()=>setPage({name:"track"})}/>;
+    if (b) return <BookingDetail b={b} empId={empId} password={password} onReload={onReload} openChatInitial={!!openChat} back={()=>setPage({name:"track"})}/>;
   }
 
   const [filter, setFilter] = uST("all");
@@ -60,16 +60,18 @@ const TrackScreen = ({ setPage, empId, password, bookings, detailId, onReload })
   );
 };
 
-const BookingCard = ({ b, onClick }) => (
-  <Card onClick={onClick} style={{padding:0, cursor:"pointer", overflow:"hidden", transition:"box-shadow .15s, border-color .15s"}}
+const BookingCard = ({ b, onClick }) => {
+  const unread = bookingUnreadCount(b, 'user');
+  return (
+  <Card onClick={onClick} style={{padding:0, cursor:"pointer", overflow:"hidden", transition:"box-shadow .15s, border-color .15s", position:"relative"}}
     onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue-200)"; e.currentTarget.style.boxShadow="var(--shadow-md)";}}
     onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--line)"; e.currentTarget.style.boxShadow="var(--shadow-sm)";}}>
-    <div style={{padding:"18px 22px", display:"grid", gridTemplateColumns:"auto 1fr auto", gap:18, alignItems:"center"}}>
+    <div style={{padding:"18px 22px", display:"grid", gridTemplateColumns:"auto 1fr auto auto", gap:18, alignItems:"center"}}>
       <div style={{width:52, height:52, borderRadius:12, background:"var(--blue-50)", display:"grid", placeItems:"center", fontSize:24}}>
         {b.job.icon}
       </div>
       <div style={{minWidth:0}}>
-        <div style={{display:"flex", gap:10, alignItems:"center", marginBottom:4}}>
+        <div style={{display:"flex", gap:10, alignItems:"center", marginBottom:4, flexWrap:"wrap"}}>
           <b className="mono" style={{fontSize:12, color:"var(--ink-3)"}}>{b.id}</b>
           <StatusBadge s={b.status}/>
         </div>
@@ -80,14 +82,38 @@ const BookingCard = ({ b, onClick }) => (
           <span>· {b.purpose}</span>
         </div>
       </div>
+      <ChatPill messagesCount={b.messagesCount} unread={unread}/>
       <div style={{color:"var(--muted)", fontSize:20}}><Ico.ArrowRight/></div>
     </div>
   </Card>
-);
+  );
+};
 
-const BookingDetail = ({ b, back, empId, password, onReload }) => {
+// Small chat indicator that appears on each booking card.
+//   - If there are messages and any are unread → red 💬+N pill
+//   - If there are messages but none unread → grey 💬 N pill
+//   - No messages → nothing
+const ChatPill = ({ messagesCount, unread }) => {
+  if (!messagesCount) return <span/>;
+  const hot = unread > 0;
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center", gap:5,
+      padding:"4px 10px", borderRadius:999,
+      background: hot ? "#fee2e2" : "var(--surface-2)",
+      color:    hot ? "#b91c1c" : "var(--ink-3)",
+      border:   hot ? "1px solid #fecaca" : "1px solid var(--line)",
+      fontSize:12, fontWeight:600,
+      animation: hot ? "pulseRing 2.4s infinite" : "none",
+    }}>
+      💬 {hot ? `+${unread}` : messagesCount}
+    </span>
+  );
+};
+
+const BookingDetail = ({ b, back, empId, password, onReload, openChatInitial }) => {
   const [cancelling, setCancelling] = uST(false);
-  const [chatOpen, setChatOpen]     = uST(false);
+  const [chatOpen, setChatOpen]     = uST(!!openChatInitial);
   const cancel = async () => {
     const reason = window.prompt('เหตุผลในการยกเลิก (ไม่บังคับ):', '');
     if (reason === null) return;

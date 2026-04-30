@@ -61,8 +61,54 @@ function App() {
 
   uEA(() => { reloadBookings(); }, [reloadBookings]);
 
-  // Admin: poll every 15s for pending bookings — drives the nav badge
-  // and surfaces a toast for any booking_no we haven't seen before.
+  // User: poll every 15s for new chat messages on MY bookings.
+  // (Admin gets the same chat-toast via the new-booking poll below since
+  //  drv_get_all_bookings now returns last_message_at too.)
+  const userMsgSeenRef = React.useRef(null);
+  uEA(() => {
+    if (!empId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const list = await fetchMyBookings(empId, password);
+        if (cancelled) return;
+        // first poll → seed, no toast
+        if (userMsgSeenRef.current === null) {
+          userMsgSeenRef.current = new Map(list.map(b => [b.key, b.lastMessageAt || '']));
+          setBookings(list);
+          return;
+        }
+        const seen = userMsgSeenRef.current;
+        const fresh = list.filter(b => {
+          if (!b.lastMessageAt) return false;
+          if (b.lastMessageRole === 'user') return false;          // I sent it
+          const prev = seen.get(b.key) || '';
+          return b.lastMessageAt > prev;
+        });
+        fresh.forEach(b => {
+          const id = 'msg_' + b.id + '_' + Date.now();
+          setToasts(t => [...t, {
+            id, bookingNo: b.id,
+            kind: 'msg',
+            name: 'Admin',
+            route: `${b.pickup.name} → ${b.dropoff.name}`,
+            bookingKey: b.key,
+          }]);
+          setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 8000);
+        });
+        // refresh seen map
+        list.forEach(b => seen.set(b.key, b.lastMessageAt || ''));
+        setBookings(list);
+      } catch (_) { /* ignore */ }
+    };
+    poll();
+    const t = setInterval(poll, 15000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [empId, password]);
+
+  // Admin: poll every 15s for new bookings AND new user→admin chat
+  // messages on any booking. Drives the nav badge + top-right toasts.
+  const adminMsgSeenRef = React.useRef(null);
   uEA(() => {
     if (!isAdmin || !empId) return;
     let cancelled = false;
@@ -80,8 +126,11 @@ function App() {
         // First poll → just record what's already there, don't toast
         if (seenRef.current === null) {
           seenRef.current = new Set(all.map(b => b.booking_no));
+          adminMsgSeenRef.current = new Map(all.map(b => [b.key, b.last_message_at || '']));
           return;
         }
+
+        // ---- new bookings ----
         const seen = seenRef.current;
         const fresh = all.filter(b => !seen.has(b.booking_no));
         fresh.forEach(b => {
@@ -89,14 +138,31 @@ function App() {
           const route = `${b.pickup_name || '-'} → ${b.dropoff_name || '-'}`;
           const id = b.booking_no + '_' + Date.now();
           setToasts(t => [...t, {
-            id, bookingNo: b.booking_no,
+            id, bookingNo: b.booking_no, kind: 'booking',
             name: b.employee_name || b.employee_id || 'พนักงาน',
             route,
           }]);
-          // Auto-dismiss after 7s
-          setTimeout(() => {
-            setToasts(t => t.filter(x => x.id !== id));
-          }, 7000);
+          setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 7000);
+        });
+
+        // ---- new user→admin chat messages ----
+        const msgSeen = adminMsgSeenRef.current;
+        all.forEach(b => {
+          if (!b.last_message_at) return;
+          if (b.last_message_role !== 'user') return;   // only highlight user msgs
+          const prev = msgSeen.get(b.key) || '';
+          if (b.last_message_at > prev && prev !== '') {  // skip first-poll seed
+            const id = 'msg_' + b.booking_no + '_' + Date.now();
+            const route = `${b.pickup_name || '-'} → ${b.dropoff_name || '-'}`;
+            setToasts(t => [...t, {
+              id, bookingNo: b.booking_no, kind: 'msg',
+              name: b.employee_name || b.employee_id || 'ผู้แจ้ง',
+              route,
+              bookingKey: b.key,
+            }]);
+            setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 8000);
+          }
+          msgSeen.set(b.key, b.last_message_at || '');
         });
       } catch (_) { /* swallow — next poll will retry */ }
     };
@@ -122,36 +188,64 @@ function App() {
       {page.name === "booking" && (
         <BookingFlow setPage={setPage} empId={empId} password={password} onComplete={onComplete}/>
       )}
-      {page.name === "track" && <TrackScreen key={"tr"+(page.id||"list")} setPage={setPage} empId={empId} password={password} bookings={bookings} detailId={page.id} onReload={reloadBookings}/>}
-      {page.name === "admin" && isAdmin && <AdminScreen setPage={setPage} empId={empId} password={password}/>}
-      <ToastStack toasts={toasts} dismiss={dismissToast} onClick={()=>setPage({name:"admin"})}/>
+      {page.name === "track" && <TrackScreen key={"tr"+(page.id||"list")} setPage={setPage} empId={empId} password={password} bookings={bookings} detailId={page.id} onReload={reloadBookings} openChat={!!page.openChat}/>}
+      {page.name === "admin" && isAdmin && <AdminScreen setPage={setPage} empId={empId} password={password} openBookingKey={page.openBookingKey} openChat={!!page.openChat}/>}
+      <ToastStack toasts={toasts} dismiss={dismissToast}
+        onClick={(t) => {
+          if (t.kind === 'msg') {
+            // Admin → admin tab, click into the booking. User → track detail.
+            if (isAdmin) {
+              setPage({name:"admin", openBookingKey: t.bookingKey, openChat: true});
+            } else {
+              setPage({name:"track", id: t.bookingNo, openChat: true});
+            }
+          } else {
+            setPage({name:"admin"});
+          }
+        }}/>
     </Shell>
   );
 }
 
-// Stack of new-booking toasts in the top-right (admin only).
+// Stack of toasts in the top-right.
+//   kind = 'booking' (admin: someone made a new booking)
+//   kind = 'msg'     (user/admin: someone sent a chat message)
 const ToastStack = ({ toasts, dismiss, onClick }) => {
   if (!toasts || toasts.length === 0) return null;
   return (
     <div style={{position:"fixed", top:16, right:16, display:"flex", flexDirection:"column", gap:10, zIndex:80, maxWidth:360}}>
-      {toasts.map(t => (
+      {toasts.map(t => {
+        const isMsg = t.kind === 'msg';
+        return (
         <div key={t.id} style={{
-          background:"#fff", border:"1px solid var(--blue-200)", borderLeft:"4px solid var(--blue-600)",
+          background:"#fff",
+          border: "1px solid " + (isMsg ? "#fecaca" : "var(--blue-200)"),
+          borderLeft: "4px solid " + (isMsg ? "#dc2626" : "var(--blue-600)"),
           borderRadius:12, padding:"12px 14px", boxShadow:"var(--shadow-lg)",
           display:"flex", alignItems:"flex-start", gap:10,
           animation:"fadeUp .25s ease",
         }}>
-          <div style={{width:36, height:36, borderRadius:10, background:"var(--blue-50)", color:"var(--blue-700)", display:"grid", placeItems:"center", flexShrink:0, fontSize:18}}>🚗</div>
-          <button onClick={() => { onClick && onClick(); dismiss(t.id); }}
+          <div style={{
+            width:36, height:36, borderRadius:10,
+            background: isMsg ? "#fee2e2" : "var(--blue-50)",
+            color:    isMsg ? "#b91c1c" : "var(--blue-700)",
+            display:"grid", placeItems:"center", flexShrink:0, fontSize:18,
+          }}>{isMsg ? "💬" : "🚗"}</div>
+          <button onClick={() => { onClick && onClick(t); dismiss(t.id); }}
             style={{flex:1, textAlign:"left", background:"none", border:"none", padding:0, cursor:"pointer", fontFamily:"inherit"}}>
-            <div style={{fontSize:13, fontWeight:600, color:"var(--ink)", marginBottom:2}}>คำขอใหม่ · {t.bookingNo}</div>
+            <div style={{fontSize:13, fontWeight:600, color:"var(--ink)", marginBottom:2}}>
+              {isMsg ? `ข้อความใหม่ · ${t.bookingNo}` : `คำขอใหม่ · ${t.bookingNo}`}
+            </div>
             <div style={{fontSize:12, color:"var(--ink-2)"}}><b>{t.name}</b> · {t.route}</div>
-            <div style={{fontSize:11, color:"var(--blue-600)", marginTop:4, fontWeight:600}}>คลิกเพื่อจัดการ →</div>
+            <div style={{fontSize:11, color: isMsg ? "#b91c1c" : "var(--blue-600)", marginTop:4, fontWeight:600}}>
+              {isMsg ? "คลิกเพื่อตอบ →" : "คลิกเพื่อจัดการ →"}
+            </div>
           </button>
           <button onClick={() => dismiss(t.id)}
             style={{background:"none", border:"none", cursor:"pointer", color:"var(--muted)", fontSize:18, lineHeight:1, padding:"0 4px"}}>×</button>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

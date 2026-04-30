@@ -4,12 +4,13 @@
 
 const { useState: uSAd, useEffect: uEAd } = React;
 
-const AdminScreen = ({ setPage, empId, password }) => {
+const AdminScreen = ({ setPage, empId, password, openBookingKey, openChat }) => {
   const [bookings, setBookings] = uSAd([]);
   const [loading, setLoading]   = uSAd(true);
   const [filter, setFilter]     = uSAd("pending");
   const [error, setError]       = uSAd("");
   const [detail, setDetail]     = uSAd(null);  // booking row open for action
+  const [autoOpenChat, setAutoOpenChat] = uSAd(false);
 
   const reload = React.useCallback(async () => {
     setLoading(true);
@@ -30,6 +31,13 @@ const AdminScreen = ({ setPage, empId, password }) => {
 
   uEAd(() => { reload(); }, [reload]);
 
+  // If parent told us to auto-open a specific booking (from a toast click)
+  uEAd(() => {
+    if (!openBookingKey || bookings.length === 0) return;
+    const found = bookings.find(b => b.key === openBookingKey);
+    if (found) { setDetail(found); setAutoOpenChat(!!openChat); }
+  }, [openBookingKey, openChat, bookings]);
+
   const counts = {
     all:       bookings.length,
     pending:   bookings.filter(b => b.status === 'pending').length,
@@ -42,7 +50,8 @@ const AdminScreen = ({ setPage, empId, password }) => {
 
   if (detail) {
     return <AdminDetail b={detail} empId={empId} password={password}
-      back={() => { setDetail(null); reload(); }}
+      openChatInitial={autoOpenChat}
+      back={() => { setDetail(null); setAutoOpenChat(false); reload(); }}
       onChanged={() => reload()} />;
   }
 
@@ -109,11 +118,13 @@ const AdminScreen = ({ setPage, empId, password }) => {
   );
 };
 
-const AdminCard = ({ b, onClick }) => (
+const AdminCard = ({ b, onClick }) => {
+  const unread = bookingUnreadCount(b, 'admin');
+  return (
   <Card onClick={onClick} style={{padding:0, cursor:"pointer", overflow:"hidden", transition:"box-shadow .15s, border-color .15s"}}
     onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue-200)"; e.currentTarget.style.boxShadow="var(--shadow-md)";}}
     onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--line)"; e.currentTarget.style.boxShadow="var(--shadow-sm)";}}>
-    <div style={{padding:"16px 22px", display:"grid", gridTemplateColumns:"auto 1fr auto auto", gap:18, alignItems:"center"}}>
+    <div style={{padding:"16px 22px", display:"grid", gridTemplateColumns:"auto 1fr auto auto auto", gap:14, alignItems:"center"}}>
       <div style={{width:46, height:46, borderRadius:12, background:"var(--blue-50)", display:"grid", placeItems:"center", fontSize:22}}>
         {b.job?.icon || '•'}
       </div>
@@ -129,6 +140,7 @@ const AdminCard = ({ b, onClick }) => (
           <span><Ico.Clock style={{marginRight:3, verticalAlign:"-2px"}}/> {b.timeOut}–{b.timeBack}</span>
         </div>
       </div>
+      <ChatPillAdm messagesCount={b.messagesCount} unread={unread}/>
       <div style={{textAlign:"right", fontSize:12, color:"var(--ink-3)"}}>
         {b.car ? (
           <div>
@@ -140,15 +152,34 @@ const AdminCard = ({ b, onClick }) => (
       <div style={{color:"var(--muted)", fontSize:18}}><Ico.ArrowRight/></div>
     </div>
   </Card>
-);
+  );
+};
 
-const AdminDetail = ({ b, empId, password, back, onChanged }) => {
+const ChatPillAdm = ({ messagesCount, unread }) => {
+  if (!messagesCount) return <span/>;
+  const hot = unread > 0;
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center", gap:5,
+      padding:"4px 10px", borderRadius:999,
+      background: hot ? "#fee2e2" : "var(--surface-2)",
+      color:    hot ? "#b91c1c" : "var(--ink-3)",
+      border:   hot ? "1px solid #fecaca" : "1px solid var(--line)",
+      fontSize:12, fontWeight:600,
+      animation: hot ? "pulseRing 2.4s infinite" : "none",
+    }}>
+      💬 {hot ? `+${unread}` : messagesCount}
+    </span>
+  );
+};
+
+const AdminDetail = ({ b, empId, password, back, onChanged, openChatInitial }) => {
   const [carId, setCarId]     = uSAd(b.car ? findCarIdByPlate(b.car.plate) : "");
   const [drvId, setDrvId]     = uSAd(b.driver ? findDriverIdByNo(b.driver.id) : "");
   const [reason, setReason]   = uSAd("");
   const [busy, setBusy]       = uSAd(false);
   const [err, setErr]         = uSAd("");
-  const [chatOpen, setChatOpen] = uSAd(false);
+  const [chatOpen, setChatOpen] = uSAd(!!openChatInitial);
 
   const call = async (patch) => {
     setBusy(true);

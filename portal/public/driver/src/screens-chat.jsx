@@ -21,8 +21,12 @@ const BookingChat = ({ bookingKey, bookingNo, empId, password, isAdmin, onClose 
       });
       if (err) throw err;
       if (!data || !data.success) throw new Error(data?.message || 'โหลดไม่สำเร็จ');
-      setMsgs(data.messages || []);
+      const list = data.messages || [];
+      setMsgs(list);
       setError('');
+      // Mark this booking's chat as "seen up to" the latest message
+      const latest = list.length ? list[list.length - 1].created_at : null;
+      if (latest) markBookingSeen(bookingKey, latest);
     } catch (e) {
       setError(e.message || 'เกิดข้อผิดพลาด');
     } finally {
