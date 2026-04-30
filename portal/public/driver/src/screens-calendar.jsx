@@ -17,7 +17,7 @@ const CalendarScreen = ({ setPage, empId, password }) => {
   const [bookings, setBookings] = uSCal([]);
   const [loading, setLoading]   = uSCal(true);
   const [error, setError]       = uSCal('');
-  const [view, setView]         = uSCal('month');                                 // month | day
+  const [view, setView]         = uSCal('month');                                 // month | list | timeline
   const [day, setDay]           = uSCal(() => new Date().toISOString().slice(0, 10));
 
   const reload = React.useCallback(async () => {
@@ -86,8 +86,9 @@ const CalendarScreen = ({ setPage, empId, password }) => {
 
       <div style={{display:"flex", gap:6, padding:4, background:"#fff", border:"1px solid var(--line)", borderRadius:12, marginBottom:14, width:"fit-content"}}>
         {[
-          ['month', '📅 เดือน'],
-          ['day',   '🕐 ตารางรถรายวัน'],
+          ['month',    '📅 เดือน'],
+          ['list',     '📋 รายการรายวัน'],
+          ['timeline', '🕐 ตารางรถ'],
         ].map(([k,l]) => (
           <button key={k} onClick={()=>setView(k)} style={{
             padding:"6px 14px", border:"none", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"inherit",
@@ -109,9 +110,12 @@ const CalendarScreen = ({ setPage, empId, password }) => {
       {loading ? (
         <Card style={{padding:40, textAlign:"center", color:"var(--ink-3)"}}>กำลังโหลด…</Card>
       ) : view === "month" ? (
-        <MonthGrid day={day} bookings={bookings} onPickDay={(d)=>{ setDay(d); setView("day"); }}/>
-      ) : (
+        <MonthGrid day={day} bookings={bookings} onPickDay={(d)=>{ setDay(d); setView("list"); }}/>
+      ) : view === "timeline" ? (
         <DayTimeline day={day} bookings={bookings}
+          onClickBooking={(b) => setPage({name:"admin", openBookingKey: b.key})}/>
+      ) : (
+        <DayList day={day} bookings={bookings}
           onClickBooking={(b) => setPage({name:"admin", openBookingKey: b.key})}/>
       )}
 
@@ -226,6 +230,86 @@ const MonthGrid = ({ day, bookings, onPickDay }) => {
     </Card>
   );
 };
+
+// ============================================================
+// Day list — flat list of every booking on the selected day.
+// This is the default drill-down when a user clicks a day cell.
+// ============================================================
+const DayList = ({ day, bookings, onClickBooking }) => {
+  const ofDay = bookings
+    .filter(b => b.date === day)
+    .sort((a, b) => (a.timeOut || '').localeCompare(b.timeOut || ''));
+
+  if (ofDay.length === 0) {
+    return (
+      <Card style={{padding:60, textAlign:"center", color:"var(--ink-3)"}}>
+        <div style={{fontSize:32, marginBottom:8}}>📅</div>
+        ไม่มีการจองในวันนี้
+      </Card>
+    );
+  }
+
+  // Tiny status pip used at the start of each row
+  const pip = (status) => {
+    const c = STATUS_COLORS[status] || { bd: '#9ca3af', label: 'อื่น ๆ' };
+    const labelMap = { pending:'รออนุมัติ', approved:'อนุมัติแล้ว', completed:'เสร็จสิ้น', rejected:'ไม่อนุมัติ', cancelled:'ยกเลิก' };
+    return { color: c.bd || '#9ca3af', label: labelMap[status] || status };
+  };
+
+  return (
+    <div style={{display:"grid", gap:10}}>
+      {ofDay.map(b => {
+        const p = pip(b.status);
+        return (
+          <Card key={b.key} onClick={() => onClickBooking(b)}
+            style={{padding:0, cursor:"pointer", overflow:"hidden", transition:"box-shadow .15s, border-color .15s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--blue-200)"; e.currentTarget.style.boxShadow="var(--shadow-md)";}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--line)"; e.currentTarget.style.boxShadow="var(--shadow-sm)";}}>
+            <div style={{display:"grid", gridTemplateColumns:"6px 86px 1fr auto auto", alignItems:"center", gap:14, padding:"14px 18px"}}>
+              <div style={{alignSelf:"stretch", background: p.color, borderRadius:3}}/>
+              <div style={{textAlign:"center"}}>
+                <div className="mono" style={{fontSize:18, fontWeight:700, lineHeight:1.1}}>{b.timeOut}</div>
+                <div className="mono" style={{fontSize:11, color:"var(--ink-3)"}}>กลับ {b.timeBack}</div>
+              </div>
+              <div style={{minWidth:0}}>
+                <div style={{display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:4}}>
+                  <b className="mono" style={{fontSize:12, color:"var(--ink-3)"}}>{b.id}</b>
+                  <StatusBadge s={b.status}/>
+                  {b.messagesCount ? <ChatChip count={b.messagesCount}/> : null}
+                </div>
+                <div style={{fontWeight:600, fontSize:14}}>{b.pickup?.name} → {b.dropoff?.name}</div>
+                <div style={{fontSize:12, color:"var(--ink-3)", marginTop:3, display:"flex", gap:10, flexWrap:"wrap"}}>
+                  <span><Ico.User style={{marginRight:3, verticalAlign:"-2px"}}/> {b.employee?.name} ({b.employee?.id})</span>
+                  {b.purpose ? <span>· {b.purpose}</span> : null}
+                </div>
+              </div>
+              <div style={{textAlign:"right", fontSize:12}}>
+                {b.car ? (
+                  <div>
+                    <div className="mono" style={{fontWeight:700, color:"var(--ink-2)"}}>{b.car.plate}</div>
+                    <div style={{color:"var(--ink-3)"}}>{b.driver?.name || '— ไม่มีคนขับ —'}</div>
+                  </div>
+                ) : (
+                  <div style={{color:"var(--warn)", fontWeight:600}}>ยังไม่จัดสรร</div>
+                )}
+              </div>
+              <div style={{color:"var(--muted)", fontSize:18}}><Ico.ArrowRight/></div>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+};
+
+const ChatChip = ({ count }) => (
+  <span style={{
+    display:"inline-flex", alignItems:"center", gap:4,
+    padding:"2px 7px", borderRadius:999,
+    background:"var(--surface-2)", color:"var(--ink-3)",
+    border:"1px solid var(--line)", fontSize:11, fontWeight:600,
+  }}>💬 {count}</span>
+);
 
 // ============================================================
 // Day timeline (cars × hours) — shown when user clicks a day
