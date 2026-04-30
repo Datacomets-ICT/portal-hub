@@ -4,14 +4,18 @@
 // step change → white-screen on submit) is gone.
 const { useState: uS } = React;
 
-const BookingFlow = ({ setPage, empId, password, onComplete }) => {
-  const [data, setData] = uS({
+const BookingFlow = ({ setPage, empId, password, onComplete, editKey, editFrom }) => {
+  // If we're in edit mode (editKey + editFrom passed), seed the form with
+  // the existing booking; otherwise start blank.
+  const seed = editFrom ? bookingToFormData(editFrom) : {
     date: "", timeOut: "", timeArrive: "", timeBack: "",
     job: null,
     pickupMode: "list", pickup: null, pickupCustom: {name:"", map:"", detail:""},
     dropoffMode: "list", dropoff: null, dropoffCustom: {name:"", map:"", detail:""},
     purpose: "", purposeDetail: "",
-  });
+  };
+  const [data, setData] = uS(seed);
+  const isEdit = !!editKey;
   const update = (patch) => setData(d => ({...d, ...patch}));
 
   const back = () => setPage({name:"home"});
@@ -57,13 +61,13 @@ const BookingFlow = ({ setPage, empId, password, onComplete }) => {
         dropoffDetail: dropoff?.detail || "",
         dropoffMap:    dropoff?.map    || "",
       };
-      const { data: res, error: err } = await window.sb.rpc('drv_create_booking', {
-        p_emp_id:   empId,
-        p_password: password,
-        payload,
-      });
+      const rpcName = isEdit ? 'drv_update_my_booking' : 'drv_create_booking';
+      const args = isEdit
+        ? { p_emp_id: empId, p_password: password, p_booking_key: editKey, payload }
+        : { p_emp_id: empId, p_password: password, payload };
+      const { data: res, error: err } = await window.sb.rpc(rpcName, args);
       if (err) throw err;
-      if (!res || !res.success) throw new Error(res?.message || 'จองไม่สำเร็จ');
+      if (!res || !res.success) throw new Error(res?.message || (isEdit ? 'บันทึกไม่สำเร็จ' : 'จองไม่สำเร็จ'));
       setBookingNo(res.bookingNo);
       setSubmitted(true);
       onComplete && onComplete();
@@ -81,10 +85,10 @@ const BookingFlow = ({ setPage, empId, password, onComplete }) => {
         <div style={{width:72, height:72, borderRadius:"50%", background:"var(--ok-bg)", color:"var(--ok)", display:"grid", placeItems:"center", fontSize:32, margin:"0 auto 16px"}}>
           <Ico.Check/>
         </div>
-        <h2 style={{margin:"0 0 6px", fontSize:22}}>ส่งคำขอจองเรียบร้อย</h2>
-        <p style={{margin:"0 0 6px", color:"var(--ink-3)", fontSize:14}}>รหัสการจองของคุณคือ</p>
+        <h2 style={{margin:"0 0 6px", fontSize:22}}>{isEdit ? 'บันทึกการแก้ไขเรียบร้อย' : 'ส่งคำขอจองเรียบร้อย'}</h2>
+        <p style={{margin:"0 0 6px", color:"var(--ink-3)", fontSize:14}}>รหัสการจอง</p>
         <div className="mono" style={{fontSize:22, fontWeight:700, color:"var(--blue-700)", margin:"0 0 20px", letterSpacing:1}}>{bookingNo}</div>
-        <p style={{margin:"0 0 24px", color:"var(--ink-3)", fontSize:13}}>ระบบจะส่งการแจ้งเตือนเมื่อหัวหน้างานอนุมัติและจัดสรรรถ</p>
+        <p style={{margin:"0 0 24px", color:"var(--ink-3)", fontSize:13}}>{isEdit ? 'รายการของคุณยังอยู่ในสถานะ "รอ Admin อนุมัติ"' : 'ระบบจะส่งการแจ้งเตือนเมื่อหัวหน้างานอนุมัติและจัดสรรรถ'}</p>
         <div style={{display:"flex", gap:10, justifyContent:"center"}}>
           <Btn variant="ghost" onClick={()=>setPage({name:"track"})}>ดูสถานะการจอง</Btn>
           <Btn onClick={()=>setPage({name:"home"})}>กลับหน้าแรก</Btn>
@@ -102,8 +106,8 @@ const BookingFlow = ({ setPage, empId, password, onComplete }) => {
           <button onClick={back} style={{background:"none", border:"none", cursor:"pointer", color:"var(--ink-3)", fontSize:13, display:"inline-flex", alignItems:"center", gap:4, padding:0, marginBottom:8}}>
             <Ico.ArrowLeft/> ย้อนกลับ
           </button>
-          <h1 style={{margin:0, fontSize:26, letterSpacing:"-.01em"}}>จองรถ</h1>
-          <p style={{margin:"4px 0 0", color:"var(--ink-3)", fontSize:14}}>กรอกข้อมูลทั้งหมด แล้วกด <b>ยืนยันส่งคำขอ</b> ด้านล่าง</p>
+          <h1 style={{margin:0, fontSize:26, letterSpacing:"-.01em"}}>{isEdit ? 'แก้ไขการจอง' : 'จองรถ'}</h1>
+          <p style={{margin:"4px 0 0", color:"var(--ink-3)", fontSize:14}}>{isEdit ? 'แก้ไขรายละเอียดได้ก่อน Admin อนุมัติเท่านั้น' : 'กรอกข้อมูลทั้งหมด แล้วกด '}<b>{isEdit ? '' : 'ยืนยันส่งคำขอ'}</b>{!isEdit && ' ด้านล่าง'}</p>
         </div>
       </div>
 
@@ -136,7 +140,7 @@ const BookingFlow = ({ setPage, empId, password, onComplete }) => {
              disabled={submitting}
              title={why || "ส่งคำขอจองรถ"}
              style={{opacity: (why || submitting) ? 0.55 : 1}}>
-          {submitting ? 'กำลังบันทึก…' : 'ยืนยันส่งคำขอ'}
+          {submitting ? 'กำลังบันทึก…' : (isEdit ? 'บันทึกการแก้ไข' : 'ยืนยันส่งคำขอ')}
         </Btn>
       </div>
     </div>
@@ -300,4 +304,29 @@ const StepPurpose = ({ data, update }) => (
   </Card>
 );
 
-Object.assign(window, { BookingFlow });
+// Convert a booking row (from drv_get_my_bookings → rowToBooking) back into
+// the shape BookingFlow's internal `data` state expects.
+function bookingToFormData(b) {
+  const matchPickup  = (window.PICKUP_PLACES || []).find(p => p.name === b.pickup?.name);
+  const matchDropoff = (window.DROPOFF_PLACES || []).find(p => p.name === b.dropoff?.name);
+  const matchJob     = (window.JOB_TYPES || []).find(j => j.id === b.job?.id);
+  return {
+    date:        b.date || '',
+    timeOut:     b.timeOut || '',
+    timeArrive:  b.timeArrive || '',
+    timeBack:    b.timeBack || '',
+    job:         matchJob || b.job || null,
+    pickupMode:  matchPickup ? 'list' : 'custom',
+    pickup:      matchPickup || null,
+    pickupCustom: matchPickup ? {name:'', map:'', detail:''}
+                              : { name: b.pickup?.name || '', map: b.pickup?.map || '', detail: b.pickup?.detail || '' },
+    dropoffMode: matchDropoff ? 'list' : 'custom',
+    dropoff:     matchDropoff || null,
+    dropoffCustom: matchDropoff ? {name:'', map:'', detail:''}
+                                : { name: b.dropoff?.name || '', map: b.dropoff?.map || '', detail: b.dropoff?.detail || '' },
+    purpose:       b.purpose || '',
+    purposeDetail: b.purposeDetail || '',
+  };
+}
+
+Object.assign(window, { BookingFlow, bookingToFormData });

@@ -3,9 +3,10 @@ const { useState: uST } = React;
 
 const TrackScreen = ({ setPage, empId, password, bookings, detailId, onReload, openChat }) => {
   const mine = bookings.filter(b => b.employee && b.employee.id === empId);
+  const onEdit = (b) => setPage({name:"booking", editKey: b.key, editFrom: b});
   if (detailId) {
     const b = bookings.find(x => x.id === detailId);
-    if (b) return <BookingDetail b={b} empId={empId} password={password} onReload={onReload} openChatInitial={!!openChat} back={()=>setPage({name:"track"})}/>;
+    if (b) return <BookingDetail b={b} empId={empId} password={password} onReload={onReload} openChatInitial={!!openChat} onEdit={onEdit} back={()=>setPage({name:"track"})}/>;
   }
 
   const [filter, setFilter] = uST("all");
@@ -111,7 +112,7 @@ const ChatPill = ({ messagesCount, unread }) => {
   );
 };
 
-const BookingDetail = ({ b, back, empId, password, onReload, openChatInitial }) => {
+const BookingDetail = ({ b, back, empId, password, onReload, openChatInitial, onEdit }) => {
   const [cancelling, setCancelling] = uST(false);
   const [chatOpen, setChatOpen]     = uST(!!openChatInitial);
   const cancel = async () => {
@@ -145,7 +146,7 @@ const BookingDetail = ({ b, back, empId, password, onReload, openChatInitial }) 
         <h1 style={{margin:0, fontSize:24, letterSpacing:"-.01em"}}>{b.pickup.name} → {b.dropoff.name}</h1>
         <div style={{color:"var(--ink-3)", fontSize:14, marginTop:4}}>ส่งคำขอเมื่อ {b.createdAt}</div>
       </div>
-      <div style={{display:"flex", gap:10, alignItems:"center"}}>
+      <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
         <StatusBadge s={b.status}/>
         <button onClick={()=>setChatOpen(true)}
           style={{padding:"8px 14px", border:"1px solid var(--blue-600)", background:"var(--blue-50)", color:"var(--blue-700)",
@@ -153,6 +154,14 @@ const BookingDetail = ({ b, back, empId, password, onReload, openChatInitial }) 
                   display:"inline-flex", alignItems:"center", gap:6}}>
           💬 แชทกับ Admin
         </button>
+        {b.status === 'pending' ? (
+          <button onClick={()=>onEdit && onEdit(b)}
+            style={{padding:"8px 14px", border:"1px solid var(--blue-600)", background:"#fff", color:"var(--blue-700)",
+                    borderRadius:8, fontSize:13, fontWeight:600, fontFamily:"inherit", cursor:"pointer",
+                    display:"inline-flex", alignItems:"center", gap:6}}>
+            ✏️ แก้ไข
+          </button>
+        ) : null}
         {b.status === 'pending' ? (
           <button onClick={cancel} disabled={cancelling}
             style={{padding:"8px 14px", border:"1px solid var(--err)", background:"#fff", color:"var(--err)",

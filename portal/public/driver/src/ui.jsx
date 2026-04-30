@@ -49,6 +49,9 @@ const TopBar = ({ page, setPage, empId, isAdmin, pendingCount, onLogout }) => {
               ) : null}
             </NavBtn>
           ) : null}
+          {isAdmin ? (
+            <NavBtn active={page.name==="calendar"} onClick={()=>setPage({name:"calendar"})}><Ico.Calendar/> ปฏิทิน</NavBtn>
+          ) : null}
         </nav>
 
         <div style={{marginLeft:"auto", display:"flex", alignItems:"center", gap:10}}>
