@@ -41,6 +41,9 @@ function App() {
   const [empId, setEmpId] = uSA(PORTAL_USER ? PORTAL_USER.id : "");
   const [bookings, setBookings] = uSA([]);
   const [dataReady, setDataReady] = uSA(false);
+  const [pendingCount, setPendingCount] = uSA(0);
+  const [toasts, setToasts] = uSA([]);   // [{id, name, route}]
+  const seenRef = React.useRef(null);    // Set<booking_no> we've already seen (admin)
   const password = PORTAL_PWD;
   const isAdmin = !!(PORTAL_USER && PORTAL_USER.isAdmin);
 
@@ -58,26 +61,100 @@ function App() {
 
   uEA(() => { reloadBookings(); }, [reloadBookings]);
 
+  // Admin: poll every 15s for pending bookings — drives the nav badge
+  // and surfaces a toast for any booking_no we haven't seen before.
+  uEA(() => {
+    if (!isAdmin || !empId) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const { data, error } = await window.sb.rpc('drv_get_all_bookings', {
+          p_emp_id: empId, p_password: password,
+        });
+        if (cancelled || error || !data || !data.success) return;
+        const all = data.bookings || [];
+        const pending = all.filter(b => b.status === 'pending');
+        setPendingCount(pending.length);
+
+        // First poll → just record what's already there, don't toast
+        if (seenRef.current === null) {
+          seenRef.current = new Set(all.map(b => b.booking_no));
+          return;
+        }
+        const seen = seenRef.current;
+        const fresh = all.filter(b => !seen.has(b.booking_no));
+        fresh.forEach(b => {
+          seen.add(b.booking_no);
+          const route = `${b.pickup_name || '-'} → ${b.dropoff_name || '-'}`;
+          const id = b.booking_no + '_' + Date.now();
+          setToasts(t => [...t, {
+            id, bookingNo: b.booking_no,
+            name: b.employee_name || b.employee_id || 'พนักงาน',
+            route,
+          }]);
+          // Auto-dismiss after 7s
+          setTimeout(() => {
+            setToasts(t => t.filter(x => x.id !== id));
+          }, 7000);
+        });
+      } catch (_) { /* swallow — next poll will retry */ }
+    };
+
+    poll();
+    const t = setInterval(poll, 15000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [isAdmin, empId, password]);
+
   // After a successful create_booking, refresh from server
   const onComplete = () => { reloadBookings(); };
 
   const logout = () => { setVerified(false); setEmpId(""); setPage({name:"home"}); };
+  const dismissToast = (id) => setToasts(t => t.filter(x => x.id !== id));
 
   if (!verified) {
     return <LoginScreen onVerified={(id)=>{ setEmpId(id); setVerified(true); setPage({name:"home"}); }}/>;
   }
 
   return (
-    <Shell page={page} setPage={setPage} empId={empId} isAdmin={isAdmin} onLogout={logout}>
+    <Shell page={page} setPage={setPage} empId={empId} isAdmin={isAdmin} pendingCount={pendingCount} onLogout={logout}>
       {page.name === "home" && <HomeScreen key="home" setPage={setPage} empId={empId} bookings={bookings}/>}
       {page.name === "booking" && (
         <BookingFlow setPage={setPage} empId={empId} password={password} onComplete={onComplete}/>
       )}
       {page.name === "track" && <TrackScreen key={"tr"+(page.id||"list")} setPage={setPage} empId={empId} password={password} bookings={bookings} detailId={page.id} onReload={reloadBookings}/>}
       {page.name === "admin" && isAdmin && <AdminScreen setPage={setPage} empId={empId} password={password}/>}
+      <ToastStack toasts={toasts} dismiss={dismissToast} onClick={()=>setPage({name:"admin"})}/>
     </Shell>
   );
 }
+
+// Stack of new-booking toasts in the top-right (admin only).
+const ToastStack = ({ toasts, dismiss, onClick }) => {
+  if (!toasts || toasts.length === 0) return null;
+  return (
+    <div style={{position:"fixed", top:16, right:16, display:"flex", flexDirection:"column", gap:10, zIndex:80, maxWidth:360}}>
+      {toasts.map(t => (
+        <div key={t.id} style={{
+          background:"#fff", border:"1px solid var(--blue-200)", borderLeft:"4px solid var(--blue-600)",
+          borderRadius:12, padding:"12px 14px", boxShadow:"var(--shadow-lg)",
+          display:"flex", alignItems:"flex-start", gap:10,
+          animation:"fadeUp .25s ease",
+        }}>
+          <div style={{width:36, height:36, borderRadius:10, background:"var(--blue-50)", color:"var(--blue-700)", display:"grid", placeItems:"center", flexShrink:0, fontSize:18}}>🚗</div>
+          <button onClick={() => { onClick && onClick(); dismiss(t.id); }}
+            style={{flex:1, textAlign:"left", background:"none", border:"none", padding:0, cursor:"pointer", fontFamily:"inherit"}}>
+            <div style={{fontSize:13, fontWeight:600, color:"var(--ink)", marginBottom:2}}>คำขอใหม่ · {t.bookingNo}</div>
+            <div style={{fontSize:12, color:"var(--ink-2)"}}><b>{t.name}</b> · {t.route}</div>
+            <div style={{fontSize:11, color:"var(--blue-600)", marginTop:4, fontWeight:600}}>คลิกเพื่อจัดการ →</div>
+          </button>
+          <button onClick={() => dismiss(t.id)}
+            style={{background:"none", border:"none", cursor:"pointer", color:"var(--muted)", fontSize:18, lineHeight:1, padding:"0 4px"}}>×</button>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 // Full-screen login (gateway)
 function LoginScreen({ onVerified }) {

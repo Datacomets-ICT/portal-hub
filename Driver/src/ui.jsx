@@ -1,9 +1,9 @@
 // Shared UI building blocks
 const { useState, useEffect, useRef, useMemo } = React;
 
-const Shell = ({ children, page, setPage, empId, isAdmin, onLogout }) => (
+const Shell = ({ children, page, setPage, empId, isAdmin, pendingCount, onLogout }) => (
   <div style={{minHeight:"100vh", display:"flex", flexDirection:"column"}}>
-    <TopBar page={page} setPage={setPage} empId={empId} isAdmin={isAdmin} onLogout={onLogout} />
+    <TopBar page={page} setPage={setPage} empId={empId} isAdmin={isAdmin} pendingCount={pendingCount} onLogout={onLogout} />
     <main style={{flex:1, width:"100%", maxWidth:1120, margin:"0 auto", padding:"28px 24px 64px"}}>
       {children}
     </main>
@@ -11,7 +11,7 @@ const Shell = ({ children, page, setPage, empId, isAdmin, onLogout }) => (
   </div>
 );
 
-const TopBar = ({ page, setPage, empId, isAdmin, onLogout }) => {
+const TopBar = ({ page, setPage, empId, isAdmin, pendingCount, onLogout }) => {
   const emp = EMPLOYEES.find(e => e.id === empId);
   return (
     <header style={{
@@ -37,7 +37,17 @@ const TopBar = ({ page, setPage, empId, isAdmin, onLogout }) => {
           <NavBtn active={page.name==="booking"} onClick={()=>setPage({name:"booking", step:0})}><Ico.Car/> จองรถ</NavBtn>
           <NavBtn active={page.name==="track"} onClick={()=>setPage({name:"track"})}><Ico.Route/> ติดตามการจอง</NavBtn>
           {isAdmin ? (
-            <NavBtn active={page.name==="admin"} onClick={()=>setPage({name:"admin"})}><Ico.Check/> จัดการคำขอ</NavBtn>
+            <NavBtn active={page.name==="admin"} onClick={()=>setPage({name:"admin"})}>
+              <Ico.Check/> จัดการคำขอ
+              {pendingCount > 0 ? (
+                <span style={{
+                  marginLeft:6, padding:"1px 8px", borderRadius:999,
+                  background: page.name==="admin" ? "var(--blue-600)" : "var(--err)",
+                  color:"#fff", fontSize:11, fontWeight:700, minWidth:18, textAlign:"center",
+                  lineHeight:1.4,
+                }}>{pendingCount}</span>
+              ) : null}
+            </NavBtn>
           ) : null}
         </nav>
 
