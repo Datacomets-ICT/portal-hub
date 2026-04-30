@@ -53,9 +53,8 @@ const TopBar = ({ page, setPage, empId, isAdmin, onLogout }) => {
               </div>
             </div>
           ) : null}
-          {onLogout ? (
-            <button onClick={onLogout} title="ออกจากระบบ" style={{background:"none", border:"1px solid var(--line)", borderRadius:10, padding:"7px 10px", cursor:"pointer", color:"var(--ink-3)", fontSize:12}}>ออกจากระบบ</button>
-          ) : null}
+          {/* Logout intentionally lives only in Workspace — sub-apps just
+              link back via the "← Workspace" pill (rendered by _back.js). */}
         </div>
       </div>
     </header>
