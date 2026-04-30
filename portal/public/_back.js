@@ -8,6 +8,11 @@
   if (window.top !== window) return;                       // skip if iframe
   if (document.getElementById('__portal-back')) return;
 
+  // Meeting Rooms has its own sticky header at top-left that overlaps
+  // with our floating button. Push its body down so the button has
+  // its own row instead of sitting on top of the "Meeting Rooms" logo.
+  var isMeeting = location.pathname.indexOf('/meeting') === 0;
+
   var css = '\
 .__portal-back{position:fixed;top:14px;left:14px;z-index:99999;display:inline-flex;align-items:center;gap:8px;padding:8px 14px 8px 12px;background:#2563eb;color:#fff;border:0;border-radius:10px;font:600 13px/1.2 \'IBM Plex Sans Thai\',\'Inter\',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;text-decoration:none;box-shadow:0 4px 10px rgba(37,99,235,.25);transition:background .15s,transform .08s,box-shadow .15s;white-space:nowrap}\
 .__portal-back:hover{background:#1d4ed8;transform:translateY(-1px);box-shadow:0 6px 14px rgba(37,99,235,.35)}\
@@ -16,6 +21,10 @@
 .__portal-back:hover svg{transform:translateX(-2px)}\
 @media (max-width:520px){.__portal-back{padding:8px 10px}.__portal-back .__lbl{display:none}}\
 ';
+  if (isMeeting) {
+    // Reserve a 56px strip at the top of the page for the button.
+    css += 'body{padding-top:56px !important}';
+  }
 
   var style = document.createElement('style');
   style.textContent = css;
