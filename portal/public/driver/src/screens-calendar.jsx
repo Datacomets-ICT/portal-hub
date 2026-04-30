@@ -86,9 +86,8 @@ const CalendarScreen = ({ setPage, empId, password }) => {
 
       <div style={{display:"flex", gap:6, padding:4, background:"#fff", border:"1px solid var(--line)", borderRadius:12, marginBottom:14, width:"fit-content"}}>
         {[
-          ['month',    '📅 เดือน'],
-          ['list',     '📋 รายการรายวัน'],
-          ['timeline', '🕐 ตารางรถ'],
+          ['month', '📅 เดือน'],
+          ['list',  '📋 รายการรายวัน'],
         ].map(([k,l]) => (
           <button key={k} onClick={()=>setView(k)} style={{
             padding:"6px 14px", border:"none", borderRadius:8, cursor:"pointer", fontSize:13, fontWeight:600, fontFamily:"inherit",
@@ -111,9 +110,6 @@ const CalendarScreen = ({ setPage, empId, password }) => {
         <Card style={{padding:40, textAlign:"center", color:"var(--ink-3)"}}>กำลังโหลด…</Card>
       ) : view === "month" ? (
         <MonthGrid day={day} bookings={bookings} onPickDay={(d)=>{ setDay(d); setView("list"); }}/>
-      ) : view === "timeline" ? (
-        <DayTimeline day={day} bookings={bookings}
-          onClickBooking={(b) => setPage({name:"admin", openBookingKey: b.key})}/>
       ) : (
         <DayList day={day} bookings={bookings}
           onClickBooking={(b) => setPage({name:"admin", openBookingKey: b.key})}/>
