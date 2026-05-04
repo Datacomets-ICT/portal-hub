@@ -4528,6 +4528,7 @@ function resetReportChat() {
     const body = document.getElementById('chatBody');
     if (body) body.innerHTML = '';
     aichatPendingImages = [];
+    aichatSessionImages = [];
     renderAIChatImagePreview();
     seedChatGreeting();
 }
@@ -4547,12 +4548,27 @@ function seedChatGreeting() {
 ผมจะถามข้อมูลเพิ่มระหว่างคุยกัน แล้วเปิด Ticket ให้ทีม IT ตามไปแก้ให้ครับ`);
 }
 
-function appendChatMsg(role, text) {
+function appendChatMsg(role, text, images) {
     const body = document.getElementById('chatBody');
     const div = document.createElement('div');
     div.className = `chat-msg ${role}`;
     if (role === 'bot') {
         div.innerHTML = formatBotMsg(text);
+    } else if (Array.isArray(images) && images.length > 0) {
+        // User bubble with attached image thumbnails — wraps text + image grid
+        const textNode = document.createElement('div');
+        textNode.textContent = text;
+        if (text) div.appendChild(textNode);
+        const grid = document.createElement('div');
+        grid.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-top:' + (text ? '6px' : '0') + ';';
+        images.forEach(f => {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(f);
+            img.style.cssText = 'width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.3);cursor:pointer;';
+            img.onclick = () => window.open(img.src, '_blank');
+            grid.appendChild(img);
+        });
+        div.appendChild(grid);
     } else {
         div.textContent = text;
     }
@@ -4602,8 +4618,13 @@ function removeTyping() {
     if (t) t.remove();
 }
 
-// AI chat attached images (passed to draft modal when CREATE_TICKET fires)
+// AI chat attached images
+//   aichatPendingImages = staging — what the user is about to send next
+//   aichatSessionImages = cumulative — every image sent this chat session.
+//                         Drives the draft-modal pre-fill so reopening
+//                         the modal still finds the originals.
 let aichatPendingImages = [];
+let aichatSessionImages = [];
 function onAIChatImagesSelected(e) {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -4638,11 +4659,14 @@ async function sendChat() {
     document.getElementById('chatSendBtn').disabled = true;
 
     // Display user message with image thumbnails if attached
-    let displayMsg = text || '(แนบรูป)';
-    if (aichatPendingImages.length > 0) {
-        displayMsg += ` 📎 ${aichatPendingImages.length} รูป`;
+    const attachedImages = aichatPendingImages.slice();   // snapshot for the bubble
+    appendChatMsg('user', text || '', attachedImages);
+    // Move staged → session bucket and clear the input preview
+    if (attachedImages.length > 0) {
+        attachedImages.forEach(f => aichatSessionImages.push(f));
+        aichatPendingImages = [];
+        renderAIChatImagePreview();
     }
-    appendChatMsg('user', displayMsg);
     // Add a hint to the AI that images were attached so it knows to include them in the ticket
     const userMsg = text + (aichatPendingImages.length > 0
         ? `\n\n[ผู้ใช้แนบรูปภาพ ${aichatPendingImages.length} รูปมาด้วย โปรดเปิด Ticket โดยไม่ต้องถามเพิ่มเรื่องรูปภาพ]`
@@ -4996,11 +5020,12 @@ function openDraftModal() {
     const validPri = ['low','medium','high','urgent'];
     priSel.value = (d.priority && validPri.includes(d.priority)) ? d.priority : 'medium';
 
-    // Auto-attach images from AI chat (if user uploaded any during conversation)
-    if (aichatPendingImages && aichatPendingImages.length > 0) {
-        draftPhotos = aichatPendingImages.slice();  // copy to draft
-        aichatPendingImages = [];                     // clear chat state
-        renderAIChatImagePreview();
+    // Auto-attach all images sent in this chat session. Stays alive
+    // even if user closes + reopens the draft modal; cleared only
+    // after the ticket is actually created (submitDraftModal success)
+    // or the user explicitly resets the chat.
+    if (aichatSessionImages && aichatSessionImages.length > 0) {
+        draftPhotos = aichatSessionImages.slice();
         renderDraftPhotoPreviews();
     }
 
@@ -5171,6 +5196,9 @@ async function submitDraftModal(e) {
         // Reset chat — start fresh for next issue (prevent mixing topics)
         chatHistory = [];
         chatSessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        aichatPendingImages = [];
+        aichatSessionImages = [];
+        renderAIChatImagePreview();
         const chatBody = document.getElementById('chatBody');
         chatBody.innerHTML = '';
         appendChatMsg('system', `เปิด Ticket สำเร็จ เลขที่: ${data.ticketId}\nทีม IT จะดำเนินการโดยเร็วที่สุดครับ`);
