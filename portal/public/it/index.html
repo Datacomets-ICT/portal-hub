@@ -765,14 +765,13 @@
     </div>
 </div>
 
-<!-- ========== PASSWORD RESET REQUEST POPUP (Sr.Mgr view) ========== -->
+<!-- ========== PASSWORD RESET REQUEST POPUP (System role view) ========== -->
 <div class="modal-backdrop" id="pwdResetPopup">
-    <div class="modal" style="width:440px;">
+    <div class="modal" style="width:460px;">
         <h3><i class="fas fa-key" style="color:#F59E0B;"></i> คำขอรีเซ็ตรหัสผ่าน</h3>
-        <div id="pwdResetPopupBody" style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin:12px 0; color:var(--text); font-size:14px; line-height:1.6; white-space:pre-line;"></div>
-        <div style="background:#FEF3C7; border:1px solid #F59E0B; border-radius:8px; padding:12px 14px; font-size:13px; color:#78350F;">
-            💬 ให้ IT ติดต่อ <b>เติ้ล</b> ได้เลย<br>
-            📱 LINE ID: <b style="font-size:14px;">0647241793</b>
+        <div id="pwdResetPopupBody" style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin:12px 0; color:var(--text); font-size:14px; line-height:1.7;"></div>
+        <div style="background:#DBEAFE; border:1px solid #2563EB; border-radius:8px; padding:12px 14px; font-size:13px; color:#1E3A8A;">
+            ✉️ คลิกที่อีเมลด้านบนเพื่อตอบกลับผู้ใช้ — แจ้งรหัสผ่านใหม่ + วิธีเข้าระบบ
         </div>
         <div class="actions" style="margin-top:14px;">
             <button type="button" class="btn btn-primary btn-sm" onclick="closePwdResetPopup()"><i class="fas fa-check"></i> รับทราบ</button>
@@ -5341,21 +5340,28 @@ function validateDraftWorklist(draft) {
 // ===== Password Reset Popup (Sr.Mgr / System view) =====
 function showPwdResetPopup(desc) {
     document.getElementById('notifPanel').classList.remove('show');
-    // desc format: "11295 — ธนบดี เหลาทอง | Comets | เหตุผล: ลืมครับ"
+    // Message format from request_password_reset RPC (v40):
+    //   "11295 — ธนบดี เหลาทอง | Comets | เหตุผล: ... | อีเมล: user@x.com"
+    // Split into labelled parts so we can pull email out reliably.
     const parts = (desc || '').split('|').map(s => s.trim());
-    const body = document.getElementById('pwdResetPopupBody');
-    if (parts.length >= 1) {
-        const first = parts[0];              // "11295 — ธนบดี เหลาทอง"
-        const company = parts[1] || '';       // "Comets"
-        const reason = (parts.slice(2).join(' | ') || '').replace(/^เหตุผล:\s*/, '');
-        body.innerHTML = `
-            <div><b>👤 พนักงาน:</b> ${esc(first)}</div>
-            ${company ? `<div><b>🏢 บริษัท:</b> ${esc(company)}</div>` : ''}
-            ${reason  ? `<div><b>📝 เหตุผล:</b> ${esc(reason)}</div>` : '<div style="color:var(--muted);">(ไม่ได้ระบุเหตุผล)</div>'}
-        `;
-    } else {
-        body.textContent = desc || '';
+    const first   = parts[0] || '';
+    let company = '', reason = '', email = '';
+    for (let i = 1; i < parts.length; i++) {
+        const p = parts[i];
+        if (/^เหตุผล:\s*/.test(p))      reason  = p.replace(/^เหตุผล:\s*/, '');
+        else if (/^อีเมล:\s*/.test(p))  email   = p.replace(/^อีเมล:\s*/, '');
+        else if (!company)              company = p;
     }
+    const body = document.getElementById('pwdResetPopupBody');
+    const subject = encodeURIComponent('ตอบกลับคำขอรีเซ็ตรหัสผ่าน — IT-Ticket');
+    body.innerHTML = `
+        <div><b>👤 พนักงาน:</b> ${esc(first)}</div>
+        ${company ? `<div><b>🏢 บริษัท:</b> ${esc(company)}</div>` : ''}
+        ${email
+            ? `<div><b>✉️ อีเมล:</b> <a href="mailto:${esc(email)}?subject=${subject}" style="color:var(--primary);font-weight:600;text-decoration:underline;">${esc(email)}</a></div>`
+            : '<div style="color:var(--danger);font-size:12px;">⚠️ ผู้ใช้ไม่ได้ระบุอีเมล (คำขอเก่าก่อน v40)</div>'}
+        ${reason ? `<div><b>📝 เหตุผล:</b> ${esc(reason)}</div>` : ''}
+    `;
     document.getElementById('pwdResetPopup').classList.add('show');
 }
 function closePwdResetPopup() {
@@ -5383,17 +5389,15 @@ async function submitForgotPwd(e) {
     if (!email) { showToast('กรุณากรอกอีเมล', 'error'); return; }
     setLoading(true);
     try {
-        const r = await fetch('/api/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, empId }),
+        const { data, error } = await sb.rpc('request_password_reset', {
+            p_emp_id: empId,
+            p_email:  email,
+            p_note:   null,
         });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok || !data.success) {
-            throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
-        }
+        if (error) throw error;
+        if (!data || !data.success) throw new Error((data && data.message) || 'ส่งคำขอไม่สำเร็จ');
         closeForgotPwdModal();
-        showToast(data.message || 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับ');
+        showToast(data.message || 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมล');
     } catch (err) {
         showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
     } finally {
