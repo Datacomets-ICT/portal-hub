@@ -1,115 +1,144 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 
-// ===== Pixel-art critters that wander across the login background =====
-// Each sprite is a string grid: '.' = transparent, any other char = a color
-// from the `palette` map. Rendered as inline SVG <rect>s so they stay crisp
-// at any zoom and don't need external assets.
-const SPRITES = {
-  cat: {
-    palette: { O: '#fb923c', D: '#9a3412', P: '#fde68a', K: '#0f172a' },
-    grid: [
-      '.OO....OO.',
-      'OOOOOOOOOO',
-      'OPOOOOOOPO',
-      'OKOOOOOOKO',
-      'OOOOOOOOOO',
-      'OOOOOOOOOO',
-      'OOOOOOOOOO',
-      'OO.OO.OO..',
-    ],
-  },
-  panda: {
-    palette: { W: '#ffffff', K: '#1e293b', P: '#fda4af' },
-    grid: [
-      '.K......K.',
-      'KKW....WKK',
-      'WKKWWWWKKW',
-      'WWKWPPWKWW',
-      'WWWWKKWWWW',
-      'WWWWWWWWWW',
-      'WWWWWWWWWW',
-      'KK.KK.KK..',
-    ],
-  },
-  dog: {
-    palette: { B: '#a16207', D: '#713f12', P: '#fef3c7', K: '#0f172a' },
-    grid: [
-      'BB.....BBB',
-      'BBBBBBBBBB',
-      'BPBBBBBBPB',
-      'BKBBBBBBKB',
-      'BBBBKKBBBB',
-      'BBBBBBBBBB',
-      'BBBBBBBBBB',
-      'BB.BB.BB..',
-    ],
-  },
-  owl: {
-    palette: { B: '#7c3f00', T: '#fbbf24', W: '#fef3c7', K: '#0f172a' },
-    grid: [
-      'B.B....B.B',
-      'BBBBBBBBBB',
-      'BWWBBBBWWB',
-      'BWKBBBBKWB',
-      'BBBBTTBBBB',
-      'BWWWWWWWWB',
-      'BWBWBWBWWB',
-      '.T..T..T..',
-    ],
-  },
-  hamster: {
-    palette: { Y: '#fde047', O: '#f59e0b', P: '#fda4af', K: '#0f172a' },
-    grid: [
-      '.YY....YY.',
-      'YYOOOOOOYY',
-      'YOPYYYYPOY',
-      'YOKYYYYKOY',
-      'YOOYYYYOOY',
-      'YOOOOOOOOY',
-      'YYYYYYYYYY',
-      '.O.OO.O...',
-    ],
-  },
-  fox: {
-    palette: { F: '#ea580c', D: '#7c2d12', W: '#fef3c7', K: '#0f172a' },
-    grid: [
-      'FF......FF',
-      'FFFFFFFFFF',
-      'FWFFFFFFWF',
-      'FKFFFFFFKF',
-      'FFFFKKFFFF',
-      'FFFFFFFFFF',
-      'WFFFFFFFFW',
-      'FF.FF.FF..',
-    ],
-  },
+// =====================================================================
+// Oneko — pixel cat that follows the mouse cursor.
+// Port of adryd325/oneko.js (MIT, classic Neko sprite is PD).
+// Sprite served from jsdelivr's GitHub mirror so we don't vendor a binary.
+// =====================================================================
+const ONEKO_SPRITE = 'https://cdn.jsdelivr.net/gh/adryd325/oneko.js@main/oneko.gif';
+const SPRITE_SETS = {
+  idle:        [[-3, -3]],
+  alert:       [[-7, -3]],
+  scratchSelf: [[-5,  0], [-6,  0], [-7,  0]],
+  scratchWallN:[[ 0,  0], [ 0, -1]],
+  scratchWallS:[[-7, -1], [-6, -2]],
+  scratchWallE:[[-2, -2], [-2, -3]],
+  scratchWallW:[[-4,  0], [-4, -1]],
+  tired:       [[-3, -2]],
+  sleeping:    [[-2,  0], [-2, -1]],
+  N:           [[-1, -2], [-1, -3]],
+  NE:          [[ 0, -2], [ 0, -3]],
+  E:           [[-3,  0], [-3, -1]],
+  SE:          [[-5, -1], [-5, -2]],
+  S:           [[-6, -3], [-7, -2]],
+  SW:          [[-5, -3], [-6, -1]],
+  W:           [[-4, -2], [-4, -3]],
+  NW:          [[-1,  0], [-1, -1]],
 };
 
-function Critter({ kind, className, style }) {
-  const sprite = SPRITES[kind];
-  if (!sprite) return null;
-  const w = sprite.grid[0].length;
-  const h = sprite.grid.length;
-  const rects = [];
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const ch = sprite.grid[y][x];
-      if (ch === '.' || !sprite.palette[ch]) continue;
-      rects.push(
-        <rect key={`${x},${y}`} x={x} y={y} width={1} height={1} fill={sprite.palette[ch]} />
-      );
+function Oneko() {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const nekoEl = ref.current;
+    if (!nekoEl) return;
+
+    let nekoPosX = 32, nekoPosY = window.innerHeight - 32;
+    let mousePosX = window.innerWidth / 2, mousePosY = window.innerHeight / 2;
+    let frameCount = 0, idleTime = 0, idleAnimation = null, idleAnimationFrame = 0;
+    const NEKO_SPEED = 10;
+
+    nekoEl.style.left = `${nekoPosX - 16}px`;
+    nekoEl.style.top  = `${nekoPosY - 16}px`;
+
+    const onMove = (e) => { mousePosX = e.clientX; mousePosY = e.clientY; };
+    document.addEventListener('mousemove', onMove);
+
+    function setSprite(name, frame) {
+      const set = SPRITE_SETS[name] || SPRITE_SETS.idle;
+      const s = set[frame % set.length];
+      nekoEl.style.backgroundPosition = `${s[0] * 32}px ${s[1] * 32}px`;
     }
-  }
+    function resetIdle() { idleAnimation = null; idleAnimationFrame = 0; }
+    function idle() {
+      idleTime += 1;
+      if (idleTime > 10 && Math.floor(Math.random() * 200) === 0 && !idleAnimation) {
+        const choices = ['sleeping', 'scratchSelf'];
+        if (nekoPosX < 32) choices.push('scratchWallW');
+        if (nekoPosY < 32) choices.push('scratchWallN');
+        if (nekoPosX > window.innerWidth  - 32) choices.push('scratchWallE');
+        if (nekoPosY > window.innerHeight - 32) choices.push('scratchWallS');
+        idleAnimation = choices[Math.floor(Math.random() * choices.length)];
+      }
+      switch (idleAnimation) {
+        case 'sleeping':
+          if (idleAnimationFrame < 8) { setSprite('tired', 0); break; }
+          setSprite('sleeping', Math.floor(idleAnimationFrame / 4));
+          if (idleAnimationFrame > 192) resetIdle();
+          break;
+        case 'scratchWallN':
+        case 'scratchWallS':
+        case 'scratchWallE':
+        case 'scratchWallW':
+        case 'scratchSelf':
+          setSprite(idleAnimation, idleAnimationFrame);
+          if (idleAnimationFrame > 9) resetIdle();
+          break;
+        default:
+          setSprite('idle', 0);
+          return;
+      }
+      idleAnimationFrame += 1;
+    }
+    function tick() {
+      frameCount += 1;
+      const diffX = nekoPosX - mousePosX;
+      const diffY = nekoPosY - mousePosY;
+      const distance = Math.sqrt(diffX * diffX + diffY * diffY);
+      if (distance < NEKO_SPEED || distance < 48) { idle(); return; }
+      idleAnimation = null; idleAnimationFrame = 0;
+      if (idleTime > 1) {
+        setSprite('alert', 0);
+        idleTime = Math.min(idleTime, 7) - 1;
+        return;
+      }
+      let dir = '';
+      dir += diffY / distance >  0.5 ? 'N' : '';
+      dir += diffY / distance < -0.5 ? 'S' : '';
+      dir += diffX / distance >  0.5 ? 'W' : '';
+      dir += diffX / distance < -0.5 ? 'E' : '';
+      setSprite(dir || 'idle', frameCount);
+      nekoPosX -= (diffX / distance) * NEKO_SPEED;
+      nekoPosY -= (diffY / distance) * NEKO_SPEED;
+      nekoPosX = Math.min(Math.max(16, nekoPosX), window.innerWidth  - 16);
+      nekoPosY = Math.min(Math.max(16, nekoPosY), window.innerHeight - 16);
+      nekoEl.style.left = `${nekoPosX - 16}px`;
+      nekoEl.style.top  = `${nekoPosY - 16}px`;
+    }
+
+    let last = 0, raf = 0;
+    function loop(ts) {
+      if (!nekoEl.isConnected) return;
+      if (!last) last = ts;
+      if (ts - last > 100) { last = ts; tick(); }
+      raf = requestAnimationFrame(loop);
+    }
+    raf = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('mousemove', onMove);
+    };
+  }, []);
+
   return (
-    <span className={className} style={style}>
-      <svg viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
-        {rects}
-      </svg>
-    </span>
+    <div
+      ref={ref}
+      aria-hidden="true"
+      style={{
+        width: 32, height: 32,
+        position: 'fixed', pointerEvents: 'none',
+        imageRendering: 'pixelated',
+        backgroundImage: `url(${ONEKO_SPRITE})`,
+        zIndex: 2147483647,
+      }}
+    />
   );
 }
+
 
 function ForgotModal({ initialEmpId, onClose }) {
   const [empId, setEmpId] = useState(initialEmpId || '');
@@ -223,9 +252,7 @@ export default function LoginPage() {
         <span className="orb orb-4" />
         <span className="orb orb-5" />
       </div>
-      <div className="critters" aria-hidden="true">
-        <Critter kind="cat" className="critter" style={{ top: '82%', animationDuration: '52s' }} />
-      </div>
+      <Oneko />
       <aside className="login-hero">
         <h1>
           ศูนย์รวมระบบภายใน

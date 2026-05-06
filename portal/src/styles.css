@@ -326,63 +326,6 @@ a { color: var(--accent); text-decoration: none; }
   .login-bg .orb { animation: none !important; }
 }
 
-/* =========================================================
-   Pixel-art critters that walk across the login background.
-   ========================================================= */
-.critters {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-  z-index: 1;  /* above the orbs, below the form (form has z-index:2 below) */
-}
-.critter {
-  position: absolute;
-  left: -60px;   /* start just off the left edge */
-  width: 44px;
-  height: 36px;
-  display: inline-block;
-  animation: critter-walk linear infinite;
-  opacity: 0.85;
-  filter: drop-shadow(0 4px 6px rgba(15, 23, 42, 0.18));
-}
-.critter svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  /* Bob up/down like a walk cycle */
-  animation: critter-bob 0.42s steps(2, end) infinite;
-}
-.critter.reverse {
-  left: auto;
-  right: -60px;
-  animation-name: critter-walk-rev;
-}
-.critter.reverse svg { transform: scaleX(-1); }
-
-@keyframes critter-walk {
-  from { transform: translateX(0); }
-  to   { transform: translateX(calc(100vw + 120px)); }
-}
-@keyframes critter-walk-rev {
-  from { transform: translateX(0); }
-  to   { transform: translateX(calc(-100vw - 120px)); }
-}
-@keyframes critter-bob {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-2px); }
-}
-
-/* Bump form ABOVE critters so they walk behind the login card */
-.login-wrap > .login-card-wrap,
-.login-wrap > .login-hero { z-index: 2; }
-
-@media (prefers-reduced-motion: reduce) {
-  .critter { animation: none !important; }
-  .critter svg { animation: none !important; }
-}
 .login-hero {
   display: flex;
   flex-direction: column;
