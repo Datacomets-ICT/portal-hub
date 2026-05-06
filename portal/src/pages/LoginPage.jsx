@@ -224,15 +224,7 @@ export default function LoginPage() {
         <span className="orb orb-5" />
       </div>
       <div className="critters" aria-hidden="true">
-        {/* Each critter walks across the screen on its own loop. Position
-            (top), speed (animation-duration), delay, and direction are
-            staggered so they never sync up. Flip via CSS .reverse class. */}
-        <Critter kind="cat"     className="critter"         style={{ top: '78%', animationDuration: '52s', animationDelay:  '0s' }} />
-        <Critter kind="panda"   className="critter reverse" style={{ top: '88%', animationDuration: '64s', animationDelay: '-12s' }} />
-        <Critter kind="dog"     className="critter"         style={{ top: '92%', animationDuration: '48s', animationDelay: '-25s' }} />
-        <Critter kind="owl"     className="critter reverse" style={{ top: '70%', animationDuration: '70s', animationDelay:  '-5s' }} />
-        <Critter kind="hamster" className="critter"         style={{ top: '85%', animationDuration: '44s', animationDelay: '-30s' }} />
-        <Critter kind="fox"     className="critter reverse" style={{ top: '82%', animationDuration: '58s', animationDelay: '-18s' }} />
+        <Critter kind="cat" className="critter" style={{ top: '82%', animationDuration: '52s' }} />
       </div>
       <aside className="login-hero">
         <h1>
