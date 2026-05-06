@@ -14,11 +14,16 @@ const PORTAL_USER = (function () {
     var fullName = u.firstName
       ? [u.firstName, u.lastName].filter(Boolean).join(' ')
       : (u.name || u.nickname || empId);
+    // Match Workspace's display priority: nickname > firstName > empId
+    var displayName = u.nickname || u.firstName || u.name || empId;
     var role = (u.role || 'user').toLowerCase();
     var isAdmin = !!u.isAdmin || ['manager','senior_manager','officer','system'].indexOf(role) !== -1;
     return {
       id: String(empId),
-      name: fullName,
+      name: fullName,                  // kept for places that want the full HR name
+      displayName: String(displayName), // what the navbar shows (nickname-first)
+      nickname: u.nickname || '',
+      avatarUrl: u.avatarUrl || '',    // synced from Workspace profile edits
       dept: u.department || u.dept || u.section || '-',
       phone: u.phone || '',
       role: role,
