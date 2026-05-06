@@ -250,6 +250,14 @@
         [data-theme="dark"] .ticket-table th:last-child { background: #0F172A; }
         .ticket-table td .wrap-cell { white-space: normal; word-break: break-word; }
         .ticket-table th { background: #F1F5F9; padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .ticket-table th.sortable { cursor: pointer; user-select: none; transition: background .12s, color .12s; }
+        .ticket-table th.sortable:hover { background: #E2E8F0; color: var(--primary); }
+        [data-theme="dark"] .ticket-table th.sortable:hover { background: #1E293B; color: var(--primary); }
+        .ticket-table th .sort-ind { display: inline-block; margin-left: 4px; font-size: 10px; opacity: .35; transition: opacity .12s; min-width: 8px; }
+        .ticket-table th.sortable:hover .sort-ind { opacity: .7; }
+        .ticket-table th.sort-active { color: var(--primary); background: #E0E7FF; }
+        [data-theme="dark"] .ticket-table th.sort-active { background: #1E293B; }
+        .ticket-table th.sort-active .sort-ind { opacity: 1; color: var(--primary); }
         .ticket-table td { padding: 12px 16px; font-size: 13px; color: var(--text2); border-top: 1px solid var(--border); }
         .ticket-table tr { transition: all .15s; }
         .ticket-table tr:hover td { background: var(--primary-light); }
@@ -1246,16 +1254,16 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Ticket No.</th>
-                        <th>วันที่แจ้ง</th>
-                        <th>ประเภทงาน</th>
-                        <th>ประเภทปัญหา</th>
-                        <th>อาการ</th>
-                        <th>สถานที่</th>
-                        <th>Priority</th>
-                        <th>สถานะ</th>
-                        <th>SLA</th>
-                        <th>ผู้ดำเนินการ</th>
+                        <th class="sortable" onclick="setTicketSort('ticketNo')">Ticket No. <span class="sort-ind" id="si-ticketNo"></span></th>
+                        <th class="sortable" onclick="setTicketSort('createdAt')">วันที่แจ้ง <span class="sort-ind" id="si-createdAt"></span></th>
+                        <th class="sortable" onclick="setTicketSort('jobType')">ประเภทงาน <span class="sort-ind" id="si-jobType"></span></th>
+                        <th class="sortable" onclick="setTicketSort('issueType')">ประเภทปัญหา <span class="sort-ind" id="si-issueType"></span></th>
+                        <th class="sortable" onclick="setTicketSort('symptom')">อาการ <span class="sort-ind" id="si-symptom"></span></th>
+                        <th class="sortable" onclick="setTicketSort('location')">สถานที่ <span class="sort-ind" id="si-location"></span></th>
+                        <th class="sortable" onclick="setTicketSort('priority')">Priority <span class="sort-ind" id="si-priority"></span></th>
+                        <th class="sortable" onclick="setTicketSort('status')">สถานะ <span class="sort-ind" id="si-status"></span></th>
+                        <th class="sortable" onclick="setTicketSort('dueAt')">SLA <span class="sort-ind" id="si-dueAt"></span></th>
+                        <th class="sortable" onclick="setTicketSort('admin')">ผู้ดำเนินการ <span class="sort-ind" id="si-admin"></span></th>
                         <th></th>
                     </tr>
                 </thead>
@@ -2573,6 +2581,67 @@ let ticketPageOffset  = 0;
 let ticketTotalFiltered = 0;
 let ticketCounts = { total: 0, open: 0, inprogress: 0, approve: 0, resolved: 0, closed: 0, cancelled: 0 };
 
+// Client-side sort for the currently-loaded ticket page
+let ticketSort = { field: 'createdAt', dir: 'desc' };
+const PRIORITY_ORDER = { urgent: 4, high: 3, medium: 2, low: 1 };
+const STATUS_ORDER = {
+    'เปิด Ticket': 1,
+    'รออนุมัติ': 2,
+    'กำลังดำเนินการ': 3,
+    'ดำเนินการเรียบร้อย': 4,
+    'ปิด Ticket': 5,
+    'ยกเลิก': 6,
+};
+function setTicketSort(field) {
+    if (ticketSort.field === field) {
+        ticketSort.dir = ticketSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        ticketSort.field = field;
+        // Dates + priority + SLA default to desc (newest/most-urgent first); others asc
+        ticketSort.dir = (field === 'createdAt' || field === 'priority' || field === 'dueAt') ? 'desc' : 'asc';
+    }
+    updateSortIndicators();
+    renderTickets();
+}
+function updateSortIndicators() {
+    document.querySelectorAll('.ticket-table th.sortable').forEach(th => {
+        th.classList.remove('sort-active');
+        const ind = th.querySelector('.sort-ind');
+        if (ind) ind.textContent = '⇅';
+    });
+    const activeId = 'si-' + ticketSort.field;
+    const activeInd = document.getElementById(activeId);
+    if (activeInd) {
+        activeInd.textContent = ticketSort.dir === 'asc' ? '↑' : '↓';
+        activeInd.parentElement.classList.add('sort-active');
+    }
+}
+function getSortValue(t, field) {
+    switch (field) {
+        case 'priority':  return PRIORITY_ORDER[t.priority] || 0;
+        case 'status':    return STATUS_ORDER[t.status] || 99;
+        case 'createdAt': return t.createdAtRaw ? new Date(t.createdAtRaw).getTime() : 0;
+        case 'dueAt':     return t.dueAt ? new Date(t.dueAt).getTime() : (ticketSort.dir === 'asc' ? Infinity : -Infinity);
+        case 'ticketNo':  return t.ticketNo || '';
+        case 'jobType':   return t.jobType || '';
+        case 'issueType': return t.issueType || '';
+        case 'symptom':   return t.symptom || '';
+        case 'location':  return t.location || '';
+        case 'admin':     return t.admin || '';
+        default:          return '';
+    }
+}
+function sortTicketsInPlace(arr) {
+    const f = ticketSort.field;
+    const mul = ticketSort.dir === 'asc' ? 1 : -1;
+    arr.sort((a, b) => {
+        const va = getSortValue(a, f);
+        const vb = getSortValue(b, f);
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * mul;
+        return String(va).localeCompare(String(vb), 'th') * mul;
+    });
+}
+
 function mapTicketRow(t) {
     return {
         key:          t.key,
@@ -2653,8 +2722,10 @@ function renderTickets() {
     const tbody = document.getElementById('ticketTableBody');
     const empty = document.getElementById('emptyState');
 
-    // Server already filters/sorts; render as-is (already paginated)
+    // Server filters + paginates; sort applied client-side over the loaded page
     updateSummaryCards();
+    sortTicketsInPlace(tickets);
+    updateSortIndicators();
 
     if (tickets.length === 0) {
         tbody.innerHTML = '';
