@@ -2,7 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { updateRoom, insertRoom, deleteRoom } from './api/rooms';
 import { supabase } from './lib/supabase';
 
-const STORAGE_BUCKET = 'room-photos';
+const STORAGE_BUCKET = 'mtg-room-photos';
 
 const PURPOSE_OPTIONS = [
   'ประชุมภายใน',

@@ -37,7 +37,7 @@ function toRow(obj) {
 
 export async function fetchBookingsByDateRange(startDate, endDate) {
   const { data, error } = await supabase
-    .from('bookings')
+    .from('mtg_bookings')
     .select('*')
     .gte('booking_date', startDate)
     .lte('booking_date', endDate)
@@ -49,7 +49,7 @@ export async function fetchBookingsByDateRange(startDate, endDate) {
 
 export async function fetchBookingsByBooker(bookerName, limit = 300) {
   const { data, error } = await supabase
-    .from('bookings')
+    .from('mtg_bookings')
     .select('*')
     .eq('booker', bookerName)
     .order('booking_date', { ascending: false })
@@ -60,7 +60,7 @@ export async function fetchBookingsByBooker(bookerName, limit = 300) {
 }
 
 export async function fetchBookingsForAnalytics({ startDate, endDate, limit = 5000 } = {}) {
-  let q = supabase.from('bookings').select('*').limit(limit);
+  let q = supabase.from('mtg_bookings').select('*').limit(limit);
   if (startDate) q = q.gte('booking_date', startDate);
   if (endDate) q = q.lte('booking_date', endDate);
   q = q.order('booking_date', { ascending: false });
@@ -73,7 +73,7 @@ export async function fetchBookingsForAnalytics({ startDate, endDate, limit = 50
 // Used by the "ประวัติการจอง" tab.
 export async function fetchRecentBookings({ limit = 500 } = {}) {
   const { data, error } = await supabase
-    .from('bookings')
+    .from('mtg_bookings')
     .select('*')
     .order('booking_date', { ascending: false })
     .order('start_min', { ascending: false })
@@ -88,7 +88,7 @@ export async function fetchAllBookings({ pageSize = 1000, maxRows = 20000 } = {}
   const all = [];
   for (let from = 0; from < maxRows; from += pageSize) {
     const { data, error } = await supabase
-      .from('bookings')
+      .from('mtg_bookings')
       .select('*')
       .order('booking_date', { ascending: false })
       .order('start_min', { ascending: false })
@@ -102,7 +102,7 @@ export async function fetchAllBookings({ pageSize = 1000, maxRows = 20000 } = {}
 
 export async function insertBooking(obj) {
   const { data, error } = await supabase
-    .from('bookings')
+    .from('mtg_bookings')
     .insert(toRow(obj))
     .select()
     .single();
@@ -112,7 +112,7 @@ export async function insertBooking(obj) {
 
 export async function updateBooking(id, obj) {
   const { data, error } = await supabase
-    .from('bookings')
+    .from('mtg_bookings')
     .update(toRow(obj))
     .eq('id', id)
     .select()
@@ -122,6 +122,6 @@ export async function updateBooking(id, obj) {
 }
 
 export async function deleteBooking(id) {
-  const { error } = await supabase.from('bookings').delete().eq('id', id);
+  const { error } = await supabase.from('mtg_bookings').delete().eq('id', id);
   if (error) throw error;
 }
