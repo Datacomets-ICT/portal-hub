@@ -492,8 +492,6 @@
         .sb-btn-quick:hover { background: #D97706; }
         .sb-btn-ticket { background: var(--success); }
         .sb-btn-ticket:hover { background: #059669; }
-        .sb-btn-manual { background: #0EA5E9; }
-        .sb-btn-manual:hover { background: #0369A1; }
 
         /* Hide old FABs */
         .chat-fab, .qchat-fab, .tchat-fab { display: none !important; }
@@ -787,16 +785,16 @@
     <div class="modal" style="width:440px;">
         <h3><i class="fas fa-key"></i> ลืมรหัสผ่าน</h3>
         <p style="color:var(--text2); font-size:13px; margin-bottom:14px;">
-            กรอกอีเมลที่ลงทะเบียนไว้ — ระบบจะส่ง <b>รหัสพนักงาน + รหัสผ่านใหม่</b> ไปให้ทางอีเมล
+            กรอกอีเมลของคุณ — ระบบจะแจ้งทีม IT ให้ติดต่อกลับเพื่อตั้งรหัสผ่านใหม่ให้
         </p>
         <form onsubmit="submitForgotPwd(event)">
             <div class="form-group">
-                <label><i class="fas fa-envelope"></i> อีเมลที่ใช้ลงทะเบียน <span style="color:var(--danger)">*</span></label>
+                <label><i class="fas fa-envelope"></i> อีเมลที่ใช้ติดต่อกลับ <span style="color:var(--danger)">*</span></label>
                 <input type="email" id="forgotEmail" required>
             </div>
             <div class="actions">
                 <button type="button" class="btn btn-outline btn-sm" onclick="closeForgotPwdModal()"><i class="fas fa-times"></i> ยกเลิก</button>
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane"></i> ส่งรหัสผ่านใหม่ทางอีเมล</button>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane"></i> ส่งคำขอไปทีม IT</button>
             </div>
         </form>
     </div>
@@ -1423,10 +1421,6 @@
         <i class="fas fa-comment-dots"></i>
         <span class="sb-label">แชท Ticket</span>
         <span class="sb-badge" id="tchatBadge" style="display:none;">0</span>
-    </button>
-    <button class="sb-btn sb-btn-manual" onclick="openManual()">
-        <i class="fas fa-book"></i>
-        <span class="sb-label">คู่มือการใช้งาน</span>
     </button>
 </div>
 <div class="tchat-panel" id="tchatPanel">
@@ -4250,9 +4244,6 @@ function toggleUserMenu(e) {
 function closeUserMenu() {
     const panel = document.getElementById('userMenuPanel');
     if (panel) panel.classList.remove('show');
-}
-function openManual() {
-    window.open('/manual.pdf', '_blank');
 }
 document.addEventListener('click', function(e) {
     const panel = document.getElementById('userMenuPanel');
