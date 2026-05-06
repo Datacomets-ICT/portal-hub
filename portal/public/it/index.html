@@ -475,17 +475,6 @@
         .file-chip a { color: var(--primary); text-decoration: none; }
         .file-chip .remove { background: transparent; border: none; color: var(--danger); cursor: pointer; padding: 0 2px; }
 
-        /* ===== History ===== */
-        .history-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
-        .history-section h4 { font-size: 13px; color: var(--text2); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-        .history-list { max-height: 200px; overflow-y: auto; }
-        .history-item { padding: 8px 10px; background: var(--primary-light); border-left: 3px solid var(--primary); border-radius: 6px; margin-bottom: 6px; font-size: 11px; }
-        .history-item .h-meta { color: var(--muted); font-size: 10px; margin-bottom: 3px; }
-        .history-item .h-field { font-weight: 600; color: var(--primary); }
-        .history-item .h-old { color: var(--danger); text-decoration: line-through; }
-        .history-item .h-arrow { color: var(--muted); margin: 0 4px; }
-        .history-item .h-new { color: #065F46; font-weight: 500; }
-        .history-empty { color: var(--muted); font-size: 11px; text-align: center; padding: 10px; }
 
         /* ===== Chat Sidebar (left side) ===== */
         .chat-sidebar { position: fixed; left: 0; top: 50%; transform: translateY(-50%); display: none; flex-direction: column; gap: 10px; padding: 12px 8px; background: var(--card); border: 1px solid var(--border); border-left: none; border-radius: 0 16px 16px 0; box-shadow: 4px 4px 20px rgba(0,0,0,.08); z-index: 300; }
@@ -1691,9 +1680,10 @@
                 <div id="adminReplyPhotoPreview" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
             </div>
 
-            <!-- ===== Permission slip section (visible only when ticket requires one) ===== -->
-            <div class="form-group" id="adminEditPermGroup" style="display:none; padding:14px; background:#FFFBEB; border:1px solid #FCD34D; border-radius:10px;">
+            <!-- ===== Permission slip section — always visible; supports retroactive upload ===== -->
+            <div class="form-group" id="adminEditPermGroup" style="padding:14px; background:#FFFBEB; border:1px solid #FCD34D; border-radius:10px;">
                 <label style="color:#92400E;"><i class="fas fa-file-signature" style="color:#D97706;"></i> ใบขอสิทธิ์ <span id="adminEditPermBadge" style="margin-left:6px; padding:2px 8px; border-radius:999px; font-size:11px; background:#FEF3C7; color:#92400E;">ต้องทำ</span></label>
+                <p id="adminEditPermNote" style="font-size:11px; color:#78350F; margin:2px 0 10px 0;">แนบใบย้อนหลังได้ — ระบบจะอัปเดตสถานะให้อัตโนมัติเมื่อแนบไฟล์</p>
                 <div class="form-row" style="margin-bottom:8px;">
                     <div class="form-group" style="margin-bottom:0;">
                         <label style="font-size:12px;">สถานะ</label>
@@ -1721,12 +1711,6 @@
                 </div>
             </div>
 
-            <div class="history-section">
-                <h4><i class="fas fa-history"></i> ประวัติการแก้ไข</h4>
-                <div class="history-list" id="adminEditHistory">
-                    <div class="history-empty">กำลังโหลด...</div>
-                </div>
-            </div>
         </div>
         <div class="actions">
             <button class="btn btn-outline btn-sm" onclick="closeAdminEdit()"><i class="fas fa-times"></i> ยกเลิก</button>
@@ -2940,9 +2924,53 @@ function openAdminEditFor(t) {
     statusSel.value = t.status;
     document.getElementById('adminEditReply').value  = t.reply || '';
     document.getElementById('adminEditPriority').value = t.priority || 'medium';
+    populatePermSlipSection(t);
     applyOfficerReadonlyFields();
     document.getElementById('adminEditModal').classList.add('show');
-    loadTicketHistory(t.key);
+}
+
+// Populate the always-visible permission slip section. Called from both
+// openListEdit (My Tickets) and openAdminEdit (Admin tab).
+function populatePermSlipSection(t) {
+    const permGroup = document.getElementById('adminEditPermGroup');
+    if (!permGroup) return;
+    permGroup.style.display = '';
+    const required = !!t.permissionRequired;
+    const hasDoc   = !!t.permissionDocUrl;
+    const ps = t.permissionStatus && t.permissionStatus !== 'not_required'
+        ? t.permissionStatus
+        : (hasDoc ? 'submitted' : 'pending');
+    document.getElementById('adminEditPermStatus').value = ps;
+    document.getElementById('adminEditPermDocNo').value  = t.permissionDocNo || '';
+    adminPermDocUrl = t.permissionDocUrl || '';
+
+    const badge = document.getElementById('adminEditPermBadge');
+    const note  = document.getElementById('adminEditPermNote');
+    if (badge) {
+        const labelMap = { pending: 'รอดำเนินการ', submitted: 'ยื่นใบแล้ว', approved: 'อนุมัติแล้ว', rejected: 'ไม่อนุมัติ' };
+        const colorMap = {
+            pending:   { bg: '#FEF3C7', fg: '#92400E' },
+            submitted: { bg: '#DBEAFE', fg: '#1E3A8A' },
+            approved:  { bg: '#DCFCE7', fg: '#14532D' },
+            rejected:  { bg: '#FEE2E2', fg: '#7F1D1D' },
+        };
+        if (!required && !hasDoc) {
+            badge.textContent = 'ไม่ต้องใช้ (เพิ่มย้อนหลังได้)';
+            badge.style.background = '#F1F5F9';
+            badge.style.color = '#475569';
+        } else {
+            const c = colorMap[ps] || colorMap.pending;
+            badge.textContent = labelMap[ps] || 'ต้องทำ';
+            badge.style.background = c.bg;
+            badge.style.color = c.fg;
+        }
+    }
+    if (note) {
+        note.textContent = required
+            ? 'Ticket นี้ต้องใช้ใบขอสิทธิ์ — แนบ/อัปเดตได้ที่นี่'
+            : 'แนบใบย้อนหลังได้ — ระบบจะ mark ticket ว่าต้องใช้ใบขอสิทธิ์ให้อัตโนมัติเมื่อแนบไฟล์';
+    }
+    renderPermDocPreview();
 }
 
 // Officer แก้ไข assignee + priority ไม่ได้ (Sr.Mgr / Manager เท่านั้น)
@@ -3810,8 +3838,11 @@ function renderAdminTickets() {
 }
 
 function renderPermBadge(t) {
-    if (!t.permissionRequired) return '';
-    const ps = t.permissionStatus || 'pending';
+    // Show when ticket was originally flagged OR admin attached a slip retroactively
+    if (!t.permissionRequired && !t.permissionDocUrl) return '';
+    const ps = t.permissionStatus && t.permissionStatus !== 'not_required'
+        ? t.permissionStatus
+        : (t.permissionDocUrl ? 'submitted' : 'pending');
     const map = {
         pending:   { label: 'รอใบ',     bg: '#FEE2E2', fg: '#7F1D1D', icon: 'fa-file-circle-exclamation' },
         submitted: { label: 'ยื่นแล้ว', bg: '#DBEAFE', fg: '#1E3A8A', icon: 'fa-file-arrow-up' },
@@ -3894,72 +3925,9 @@ function openAdminEdit(idx) {
     document.getElementById('adminEditReply').value  = t.reply || '';
     document.getElementById('adminEditPriority').value = t.priority || 'medium';
 
-    // Permission slip section — show only when this ticket requires one
-    const permGroup = document.getElementById('adminEditPermGroup');
-    if (permGroup) {
-        if (t.permissionRequired) {
-            permGroup.style.display = '';
-            const ps = t.permissionStatus || 'pending';
-            document.getElementById('adminEditPermStatus').value = ps;
-            document.getElementById('adminEditPermDocNo').value  = t.permissionDocNo || '';
-            adminPermDocUrl = t.permissionDocUrl || '';
-            const badge = document.getElementById('adminEditPermBadge');
-            if (badge) {
-                const labelMap = { pending: 'รอดำเนินการ', submitted: 'ยื่นใบแล้ว', approved: 'อนุมัติแล้ว', rejected: 'ไม่อนุมัติ' };
-                const colorMap = {
-                    pending:   { bg: '#FEF3C7', fg: '#92400E' },
-                    submitted: { bg: '#DBEAFE', fg: '#1E3A8A' },
-                    approved:  { bg: '#DCFCE7', fg: '#14532D' },
-                    rejected:  { bg: '#FEE2E2', fg: '#7F1D1D' },
-                };
-                const c = colorMap[ps] || colorMap.pending;
-                badge.textContent = labelMap[ps] || 'ต้องทำ';
-                badge.style.background = c.bg;
-                badge.style.color = c.fg;
-            }
-            renderPermDocPreview();
-        } else {
-            permGroup.style.display = 'none';
-            adminPermDocUrl = '';
-        }
-    }
-
+    populatePermSlipSection(t);
     applyOfficerReadonlyFields();
     document.getElementById('adminEditModal').classList.add('show');
-
-    // Load history asynchronously
-    loadTicketHistory(t.key);
-}
-
-async function loadTicketHistory(ticketKey) {
-    const wrap = document.getElementById('adminEditHistory');
-    wrap.innerHTML = '<div class="history-empty">กำลังโหลด...</div>';
-    try {
-        const { data, error } = await sb.rpc('get_ticket_history', { p_ticket_key: ticketKey });
-        if (error) throw error;
-        const rows = Array.isArray(data) ? data : [];
-        if (rows.length === 0) {
-            wrap.innerHTML = '<div class="history-empty">— ยังไม่มีประวัติการแก้ไข —</div>';
-            return;
-        }
-        const fieldLabel = (f) => ({ status: 'สถานะ', admin: 'ผู้รับผิดชอบ', reply: 'วิธีแก้ไข' }[f] || f);
-        wrap.innerHTML = rows.map(r => {
-            const dt = r.changedAt ? new Date(r.changedAt).toLocaleString('sv-SE').slice(0, 16) : '';
-            return `
-                <div class="history-item">
-                    <div class="h-meta">${esc(dt)} · ${esc(r.changedByName || r.changedById || '-')}</div>
-                    <div>
-                        <span class="h-field">${esc(fieldLabel(r.field))}:</span>
-                        <span class="h-old">${esc(r.oldValue || '(ว่าง)')}</span>
-                        <span class="h-arrow">→</span>
-                        <span class="h-new">${esc(r.newValue || '(ว่าง)')}</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (err) {
-        wrap.innerHTML = `<div class="history-empty" style="color:#dc3545">โหลดประวัติไม่สำเร็จ</div>`;
-    }
 }
 
 function closeAdminEdit() {
@@ -3998,13 +3966,10 @@ async function saveAdminEdit() {
         replyPhotos: replyPhotoUrls.length > 0 ? replyPhotoUrls : undefined,
     };
 
-    // Permission slip — include only if the section is visible (ticket requires one)
-    const permGroup = document.getElementById('adminEditPermGroup');
-    if (permGroup && permGroup.style.display !== 'none') {
-        payload.permissionStatus = document.getElementById('adminEditPermStatus').value;
-        payload.permissionDocNo  = document.getElementById('adminEditPermDocNo').value.trim();
-        payload.permissionDocUrl = adminPermDocUrl || '';
-    }
+    // Permission slip — always send so retroactive uploads stick
+    payload.permissionStatus = document.getElementById('adminEditPermStatus').value;
+    payload.permissionDocNo  = document.getElementById('adminEditPermDocNo').value.trim();
+    payload.permissionDocUrl = adminPermDocUrl || '';
     setLoading(true);
     try {
         const { data, error } = await sb.rpc('update_ticket', {
