@@ -4859,7 +4859,56 @@ function guessIssueFromText(text) {
     const empty = { jobType: '', issueType: '', symptom: '' };
     if (!text) return empty;
 
-    // Order matters — most specific first
+    // ===== Intent classifier =====
+    // "ขอสิทธิ์ปริ้น" should NOT map to printer/หมึกหมด just because it
+    // contains "ปริ้น" — the user is asking for permission, not reporting
+    // a broken printer. Detect request-intent FIRST and route to the
+    // "ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)" jobType from the worklist.
+    const PERM_JT = 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)';
+    const isRequest = /(?:^|\s|,|;|:|\.)(ขอสิทธิ์|ขอใช้|ขอเข้า|ขอเพิ่ม|ขอลบ|ขอลง|ขอติดตั้ง|ขอ\s*permission|ขอเปลี่ยน|ขอยืม|ขอ\s*account|ขอ\s*setup|ขอ\s*install|ติดตั้งโปรแกรม|พนักงานใหม่|new\s*employee|new\s*account)/i.test(text);
+    if (isRequest && worklist[PERM_JT]) {
+        // Try to pick the right issueType under ขอสิทธิ์เข้าระบบ
+        const REQ_RULES = [
+            // Priority order — more specific first
+            [/พนักงานใหม่|new\s*employee|onboard/i, 'พนักงานใหม่'],
+            [/express/i, 'ขอสิทธิ์เข้าระบบ Express'],
+            [/\bsap\b/i, 'ขอสิทธิ์เข้าระบบ SAP'],
+            [/\bvpn\b/i, 'ขอใช้งาน VPN'],
+            [/อีเมล|email|outlook/i, 'เปลี่ยนแปลงสิทธิ์ (Email)'],
+            [/driveshare|ไฟล์กลาง|drive\s*share/i, 'เปลี่ยนแปลงสิทธิ์ (Driveshare)'],
+            [/ปริ้น|printer|พริ้นต์|พริ้น/i, 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)'],
+            [/คอม|notebook|laptop|\bpc\b|imac|macbook/i, 'เปลี่ยนแปลงสิทธิ์ (คอมพิวเตอร์)'],
+        ];
+        for (const [kw, it] of REQ_RULES) {
+            if (kw.test(text) && worklist[PERM_JT][it]) {
+                // Pick a specific symptom only when the user's wording is unambiguous;
+                // otherwise leave symptom empty so the bot/user picks from the dropdown.
+                let symptom = '';
+                const syms = worklist[PERM_JT][it] || [];
+                if (it === 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)') {
+                    if (/สี|color/i.test(text) && syms.includes('ขอเพิ่มสิทธิ์ปริ้นเตอร์ (สี)')) symptom = 'ขอเพิ่มสิทธิ์ปริ้นเตอร์ (สี)';
+                    else if (/ขาวดำ|ขาว-?ดำ|black/i.test(text) && syms.includes('ขอเพิ่มสิทธิ์ปริ้นเตอร์ (ขาว-ดำ)')) symptom = 'ขอเพิ่มสิทธิ์ปริ้นเตอร์ (ขาว-ดำ)';
+                } else if (it === 'เปลี่ยนแปลงสิทธิ์ (Driveshare)') {
+                    if (/เพิ่ม|add/i.test(text) && syms.includes('ขอเพิ่มสิทธิ์ไฟล์กลาง')) symptom = 'ขอเพิ่มสิทธิ์ไฟล์กลาง';
+                    else if (/ลบ|remove/i.test(text) && syms.includes('ขอลบสิทธิ์ไฟล์กลาง')) symptom = 'ขอลบสิทธิ์ไฟล์กลาง';
+                } else if (it === 'เปลี่ยนแปลงสิทธิ์ (คอมพิวเตอร์)') {
+                    if (/ยืม|borrow/i.test(text) && syms.includes('ขอยืมคอมพิวเตอร์')) symptom = 'ขอยืมคอมพิวเตอร์';
+                    else if (/เปลี่ยน|swap|new/i.test(text) && syms.includes('ขอเปลี่ยนคอมพิวเตอร์')) symptom = 'ขอเปลี่ยนคอมพิวเตอร์';
+                } else if (it === 'พนักงานใหม่') {
+                    if (/เซ็?ทอัพ|setup|set\s*up|คอม/i.test(text) && syms.includes('เซ็ทอัพคอมพิวเตอร์')) symptom = 'เซ็ทอัพคอมพิวเตอร์';
+                }
+                return { jobType: PERM_JT, issueType: it, symptom };
+            }
+        }
+        // Generic permission request — fall back to "ขอใช้งานโปรแกรมอื่นๆ"
+        if (worklist[PERM_JT]['ขอใช้งานโปรแกรมอื่นๆ']) {
+            return { jobType: PERM_JT, issueType: 'ขอใช้งานโปรแกรมอื่นๆ', symptom: '' };
+        }
+        // Worklist exists but nothing matched — return empty so AI fills in
+        return empty;
+    }
+
+    // ===== Problem reports — order matters, most specific first =====
     const RULES = [
         // Email — order matters: most specific keyword first
         { kw: /อีเมล|email|outlook|ส่งเมล|รับเมล/i,
