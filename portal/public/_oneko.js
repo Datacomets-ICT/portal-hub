@@ -11,9 +11,9 @@
   if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   if (document.getElementById('__oneko')) return;
 
-  // 32px is the sprite's native size; render at 2x for clarity. The cat
-  // looks chunky-cute at this size, still crisp because of pixelated.
-  var DISPLAY = 64;
+  // 32px is the sprite's native size — render at 1:1 for the classic
+  // tiny-Neko look. (Was 64px; user prefers small.)
+  var DISPLAY = 32;
   var HALF = DISPLAY / 2;
   var SCALE = DISPLAY / 32;
   var SPRITE_URL = 'https://cdn.jsdelivr.net/gh/adryd325/oneko.js@14bab15a755d0e35cd4ae19c931d96d306f99f42/oneko.gif';
