@@ -935,13 +935,13 @@
             <p class="home-subtitle">เริ่มต้นได้จากการ์ดด้านล่าง — ให้ AI ช่วยเปิด Ticket ให้ได้เลย</p>
         </div>
         <div class="home-cards">
-            <button type="button" class="home-card home-card--report" onclick="enterReportChat()">
+            <button type="button" class="home-card home-card--report peek-host" onclick="enterReportChat()">
                 <div class="home-card__icon"><i class="fas fa-robot"></i></div>
                 <div class="home-card__title">แจ้งปัญหา</div>
                 <div class="home-card__desc">คุยกับ AI Support<br/>ช่วยสร้าง Ticket ให้อัตโนมัติ</div>
                 <div class="home-card__cta">เริ่มแจ้งปัญหา <i class="fas fa-arrow-right"></i></div>
             </button>
-            <button type="button" class="home-card home-card--track" onclick="showTab('tabTicketList', document.querySelector('.nav-links button:nth-child(3)'))">
+            <button type="button" class="home-card home-card--track peek-host" onclick="showTab('tabTicketList', document.querySelector('.nav-links button:nth-child(3)'))">
                 <div class="home-card__icon"><i class="fas fa-list-check"></i></div>
                 <div class="home-card__title">ติดตาม Ticket</div>
                 <div class="home-card__desc">ดูสถานะ Ticket ที่เปิดไว้<br/>และข้อความแชทกับทีม IT</div>
@@ -6604,5 +6604,6 @@ async function loadDashboard() {
     });
 })();
 </script>
+<script src="/_peek-cat.js" defer></script>
 </body>
 </html>

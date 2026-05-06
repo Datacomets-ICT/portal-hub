@@ -96,7 +96,7 @@ const HomeScreen = ({ setPage, empId, bookings = [] }) => {
 const BigAction = ({ onClick, accent, badge, title, sub, icon, illustration, cta }) => {
   const isBlue = accent === "blue";
   return (
-    <button onClick={onClick} className="lift" style={{
+    <button onClick={onClick} className="lift peek-host" style={{
       textAlign:"left", cursor:"pointer", border:"1px solid "+(isBlue?"var(--blue-700)":"var(--line)"),
       background: isBlue
         ? "linear-gradient(135deg, var(--blue-600) 0%, var(--blue-700) 60%, var(--blue-900) 100%)"
@@ -104,7 +104,7 @@ const BigAction = ({ onClick, accent, badge, title, sub, icon, illustration, cta
       color: isBlue ? "#fff" : "var(--ink)",
       borderRadius:"var(--radius-lg)", padding:"28px 28px 24px",
       boxShadow: isBlue ? "0 20px 40px -24px rgba(30,76,189,.8)" : "var(--shadow-md)",
-      position:"relative", overflow:"hidden", minHeight:260,
+      position:"relative", overflow:"visible", minHeight:260,
       fontFamily:"inherit",
     }}>
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
