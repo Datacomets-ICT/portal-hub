@@ -748,7 +748,7 @@
         <form id="loginForm" onsubmit="handleLogin(event)">
             <div class="form-group">
                 <label><i class="fas fa-id-badge"></i> รหัสพนักงาน</label>
-                <input type="text" id="loginEmpId" placeholder="เช่น 31043" required>
+                <input type="text" id="loginEmpId" required>
             </div>
             <div class="form-group">
                 <label><i class="fas fa-lock"></i> รหัสผ่าน</label>
@@ -784,23 +784,19 @@
 
 <!-- ========== FORGOT PASSWORD MODAL ========== -->
 <div class="modal-backdrop" id="forgotPwdModal">
-    <div class="modal" style="width:420px;">
-        <h3><i class="fas fa-key"></i> ขอรีเซ็ตรหัสผ่าน</h3>
+    <div class="modal" style="width:440px;">
+        <h3><i class="fas fa-key"></i> ลืมรหัสผ่าน</h3>
         <p style="color:var(--text2); font-size:13px; margin-bottom:14px;">
-            กรอกรหัสพนักงานของคุณ เจ้าหน้าที่ System จะติดต่อกลับเพื่อตั้งรหัสใหม่ให้
+            กรอกอีเมลที่ลงทะเบียนไว้ — ระบบจะส่ง <b>รหัสพนักงาน + รหัสผ่านใหม่</b> ไปให้ทางอีเมล
         </p>
         <form onsubmit="submitForgotPwd(event)">
             <div class="form-group">
-                <label><i class="fas fa-id-badge"></i> รหัสพนักงาน <span style="color:var(--danger)">*</span></label>
-                <input type="text" id="forgotEmpId" placeholder="เช่น 31043" required>
-            </div>
-            <div class="form-group">
-                <label>เหตุผลที่ลืม <span style="color:var(--muted); font-weight:400; font-size:11px;">(ถ้ามี)</span></label>
-                <textarea id="forgotNote" placeholder="เช่น จำไม่ได้ / เพิ่งเปลี่ยนเครื่อง..." style="min-height:60px;"></textarea>
+                <label><i class="fas fa-envelope"></i> อีเมลที่ใช้ลงทะเบียน <span style="color:var(--danger)">*</span></label>
+                <input type="email" id="forgotEmail" required>
             </div>
             <div class="actions">
                 <button type="button" class="btn btn-outline btn-sm" onclick="closeForgotPwdModal()"><i class="fas fa-times"></i> ยกเลิก</button>
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane"></i> ส่งคำขอ</button>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane"></i> ส่งรหัสผ่านใหม่ทางอีเมล</button>
             </div>
         </form>
     </div>
@@ -818,7 +814,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label>รหัสพนักงาน <span style="color:var(--danger)">*</span></label>
-                    <input type="text" id="regEmpId" placeholder="เช่น 31043" required>
+                    <input type="text" id="regEmpId" required>
                 </div>
                 <div class="form-group">
                     <label>Password <span style="color:var(--danger)">*</span></label>
@@ -841,12 +837,12 @@
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>ชื่อ (ไทย)</label>
-                    <input type="text" id="regFirstName" placeholder="ชื่อจริง">
+                    <label>ชื่อ (ไทย) <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="regFirstName" required>
                 </div>
                 <div class="form-group">
-                    <label>นามสกุล (ไทย)</label>
-                    <input type="text" id="regLastName" placeholder="นามสกุล">
+                    <label>นามสกุล (ไทย) <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="regLastName" required>
                 </div>
             </div>
             <div class="form-row">
@@ -861,12 +857,12 @@
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>อีเมล</label>
-                    <input type="email" id="regEmail" placeholder="email@company.com">
+                    <label>อีเมล <span style="color:var(--danger)">*</span></label>
+                    <input type="email" id="regEmail" placeholder="ใช้สำหรับรับรหัสผ่านเมื่อลืม" required>
                 </div>
                 <div class="form-group">
-                    <label>เบอร์โทร</label>
-                    <input type="text" id="regPhone" placeholder="0xx-xxx-xxxx">
+                    <label>เบอร์โทร <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="regPhone" required>
                 </div>
             </div>
             <button type="submit" class="btn btn-primary" style="margin-top:8px;">
@@ -3047,6 +3043,22 @@ function clearAdvFilters() {
     populateFilterJobType();
     setIssueFilterEnabled(false);
     setSymptomFilterEnabled(false);
+
+    // Search box
+    const search = document.getElementById('searchInput');
+    if (search) search.value = '';
+
+    // Status filter tabs ("ทั้งหมด / รอดำเนินการ / ...") → back to "ทั้งหมด"
+    currentFilter = 'all';
+    document.querySelectorAll('#tabMyTickets .filter-tabs button').forEach(b => b.classList.remove('active'));
+    const allBtn = document.querySelector('#tabMyTickets .filter-tabs button[data-filter="all"]')
+                || document.querySelector('#tabMyTickets .filter-tabs button:first-child');
+    if (allBtn) allBtn.classList.add('active');
+
+    // Reset client-side sort to default (newest first)
+    ticketSort = { field: 'createdAt', dir: 'desc' };
+    updateSortIndicators();
+
     loadTickets();
 }
 
@@ -5357,28 +5369,32 @@ function closePwdResetPopup() {
 
 // ===== Forgot Password =====
 function openForgotPwdModal() {
-    document.getElementById('forgotEmpId').value = document.getElementById('loginEmpId').value || '';
-    document.getElementById('forgotNote').value = '';
+    document.getElementById('forgotEmail').value = '';
     document.getElementById('forgotPwdModal').classList.add('show');
+    setTimeout(() => document.getElementById('forgotEmail').focus(), 100);
 }
 function closeForgotPwdModal() {
     document.getElementById('forgotPwdModal').classList.remove('show');
 }
 async function submitForgotPwd(e) {
     e.preventDefault();
-    const empId = document.getElementById('forgotEmpId').value.trim();
-    const note  = document.getElementById('forgotNote').value.trim();
-    if (!empId) { showToast('กรุณากรอกรหัสพนักงาน', 'error'); return; }
+    const email = document.getElementById('forgotEmail').value.trim();
+    if (!email) { showToast('กรุณากรอกอีเมล', 'error'); return; }
     setLoading(true);
     try {
-        const { data, error } = await sb.rpc('request_password_reset', {
-            p_emp_id: empId,
-            p_note: note || null,
+        // Server-side: Vercel function looks up employee by email,
+        // generates a new password, sends it via Resend, then commits.
+        const r = await fetch('/api/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
         });
-        if (error) throw error;
-        if (!data || !data.success) throw new Error((data && data.message) || 'ส่งคำขอไม่สำเร็จ');
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.success) {
+            throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
+        }
         closeForgotPwdModal();
-        showToast(data.message || 'ส่งคำขอรีเซ็ตรหัสผ่านแล้ว');
+        showToast(data.message || 'ส่งรหัสผ่านใหม่ไปทางอีเมลแล้ว — กรุณาตรวจสอบกล่องจดหมาย');
     } catch (err) {
         showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
     } finally {
