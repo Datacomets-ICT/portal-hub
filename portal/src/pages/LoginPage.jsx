@@ -2,13 +2,18 @@ import { useState } from 'react';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 
-function ForgotModal({ onClose }) {
+function ForgotModal({ initialEmpId, onClose }) {
+  const [empId, setEmpId] = useState(initialEmpId || '');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null); // { kind: 'error'|'success', text }
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!empId.trim()) {
+      setMsg({ kind: 'error', text: 'กรุณากรอกรหัสพนักงาน' });
+      return;
+    }
     if (!email.trim()) {
       setMsg({ kind: 'error', text: 'กรุณากรอกอีเมล' });
       return;
@@ -21,7 +26,7 @@ function ForgotModal({ onClose }) {
       const r = await fetch('/api/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: email.trim(), empId: empId.trim() }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.success) throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
@@ -37,16 +42,26 @@ function ForgotModal({ onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>🔑 ลืมรหัสผ่าน</h3>
-        <p className="modal-desc">กรอกอีเมลของคุณ — ทีม IT จะติดต่อกลับทางอีเมลเพื่อตั้งรหัสผ่านใหม่ให้</p>
+        <p className="modal-desc">กรอกข้อมูลของคุณ — ทีม IT จะติดต่อกลับทางอีเมลเพื่อตั้งรหัสผ่านใหม่ให้</p>
         {msg && <div className={msg.kind === 'error' ? 'error' : 'success'}>{msg.text}</div>}
         <form onSubmit={submit}>
+          <div className="field">
+            <label>รหัสพนักงาน *</label>
+            <input
+              type="text"
+              value={empId}
+              onChange={(e) => setEmpId(e.target.value)}
+              autoFocus
+              required
+              disabled={busy}
+            />
+          </div>
           <div className="field">
             <label>อีเมลที่ใช้ติดต่อกลับ *</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              autoFocus
               required
               disabled={busy}
             />
@@ -171,7 +186,7 @@ export default function LoginPage() {
       </div>
 
       {forgotOpen && (
-        <ForgotModal onClose={() => setForgotOpen(false)} />
+        <ForgotModal initialEmpId={empId} onClose={() => setForgotOpen(false)} />
       )}
     </div>
   );

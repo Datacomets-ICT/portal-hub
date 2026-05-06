@@ -785,9 +785,13 @@
     <div class="modal" style="width:440px;">
         <h3><i class="fas fa-key"></i> ลืมรหัสผ่าน</h3>
         <p style="color:var(--text2); font-size:13px; margin-bottom:14px;">
-            กรอกอีเมลของคุณ — ระบบจะแจ้งทีม IT ให้ติดต่อกลับเพื่อตั้งรหัสผ่านใหม่ให้
+            กรอกข้อมูลของคุณ — ทีม IT จะติดต่อกลับทางอีเมลเพื่อตั้งรหัสผ่านใหม่ให้
         </p>
         <form onsubmit="submitForgotPwd(event)">
+            <div class="form-group">
+                <label><i class="fas fa-id-badge"></i> รหัสพนักงาน <span style="color:var(--danger)">*</span></label>
+                <input type="text" id="forgotEmpId" required>
+            </div>
             <div class="form-group">
                 <label><i class="fas fa-envelope"></i> อีเมลที่ใช้ติดต่อกลับ <span style="color:var(--danger)">*</span></label>
                 <input type="email" id="forgotEmail" required>
@@ -5360,32 +5364,36 @@ function closePwdResetPopup() {
 
 // ===== Forgot Password =====
 function openForgotPwdModal() {
+    document.getElementById('forgotEmpId').value = document.getElementById('loginEmpId').value || '';
     document.getElementById('forgotEmail').value = '';
     document.getElementById('forgotPwdModal').classList.add('show');
-    setTimeout(() => document.getElementById('forgotEmail').focus(), 100);
+    setTimeout(() => {
+        const emp = document.getElementById('forgotEmpId');
+        (emp.value ? document.getElementById('forgotEmail') : emp).focus();
+    }, 100);
 }
 function closeForgotPwdModal() {
     document.getElementById('forgotPwdModal').classList.remove('show');
 }
 async function submitForgotPwd(e) {
     e.preventDefault();
+    const empId = document.getElementById('forgotEmpId').value.trim();
     const email = document.getElementById('forgotEmail').value.trim();
+    if (!empId) { showToast('กรุณากรอกรหัสพนักงาน', 'error'); return; }
     if (!email) { showToast('กรุณากรอกอีเมล', 'error'); return; }
     setLoading(true);
     try {
-        // Server-side: Vercel function looks up employee by email,
-        // generates a new password, sends it via Resend, then commits.
         const r = await fetch('/api/forgot-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
+            body: JSON.stringify({ email, empId }),
         });
         const data = await r.json().catch(() => ({}));
         if (!r.ok || !data.success) {
             throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
         }
         closeForgotPwdModal();
-        showToast(data.message || 'ส่งรหัสผ่านใหม่ไปทางอีเมลแล้ว — กรุณาตรวจสอบกล่องจดหมาย');
+        showToast(data.message || 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับ');
     } catch (err) {
         showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
     } finally {

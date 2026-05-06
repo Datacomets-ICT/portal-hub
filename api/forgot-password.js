@@ -26,7 +26,7 @@ function escapeHtml(s) {
   ));
 }
 
-async function sendNotifyEmail({ userEmail, userAgent, ip }) {
+async function sendNotifyEmail({ userEmail, empId, userAgent, ip }) {
   const ts = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Bangkok' });
   const html = `
 <div style="font-family:'IBM Plex Sans Thai','Inter',sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#F8FAFC;color:#0F172A;">
@@ -34,12 +34,14 @@ async function sendNotifyEmail({ userEmail, userAgent, ip }) {
     <h2 style="margin:0 0 6px 0;color:#D97706;">🔑 คำขอรีเซ็ตรหัสผ่าน — IT-Ticket</h2>
     <p style="margin:0 0 18px 0;color:#64748B;font-size:13px;">${escapeHtml(ts)} (Asia/Bangkok)</p>
     <div style="background:#FFFBEB;border-left:4px solid #F59E0B;border-radius:8px;padding:16px 18px;margin:14px 0;">
-      <div style="font-size:12px;color:#92400E;margin-bottom:4px;">อีเมลผู้ขอ</div>
-      <div style="font-size:18px;font-weight:700;color:#0F172A;">${escapeHtml(userEmail)}</div>
+      <div style="font-size:12px;color:#92400E;margin-bottom:4px;">รหัสพนักงาน</div>
+      <div style="font-size:20px;font-weight:700;color:#0F172A;letter-spacing:0.5px;">${escapeHtml(empId)}</div>
+      <div style="font-size:12px;color:#92400E;margin-top:12px;margin-bottom:4px;">อีเมลที่ใช้ติดต่อกลับ</div>
+      <div style="font-size:16px;font-weight:600;color:#0F172A;">${escapeHtml(userEmail)}</div>
     </div>
     <p style="margin:14px 0;font-size:14px;line-height:1.6;color:#334155;">
-      โปรดติดต่อผู้ใช้กลับเพื่อยืนยันตัวตน แล้วตั้งรหัสผ่านใหม่ให้ทาง
-      <a href="${APP_URL}" style="color:#2563EB;font-weight:600;">หน้าจัดการของ IT</a>
+      กด <b>Reply</b> ในอีเมลนี้เพื่อตอบกลับผู้ใช้โดยตรง<br>
+      หรือเข้าไปตั้งรหัสผ่านใหม่ทาง <a href="${APP_URL}" style="color:#2563EB;font-weight:600;">หน้าจัดการของ IT</a>
     </p>
     <div style="background:#F1F5F9;border-radius:8px;padding:12px 14px;margin-top:14px;font-size:11px;color:#64748B;line-height:1.6;">
       <div><b>IP:</b> ${escapeHtml(ip || '-')}</div>
@@ -58,7 +60,7 @@ async function sendNotifyEmail({ userEmail, userAgent, ip }) {
       from: RESEND_FROM,
       to: [IT_NOTIFY_TO],
       reply_to: userEmail,
-      subject: `🔑 คำขอรีเซ็ตรหัสผ่านจาก ${userEmail}`,
+      subject: `🔑 คำขอรีเซ็ตรหัสผ่าน — รหัส ${empId} (${userEmail})`,
       html,
     }),
   });
@@ -80,12 +82,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { email } = req.body || {};
+    const { email, empId } = req.body || {};
+    if (!empId || !String(empId).trim()) {
+      return res.status(400).json({ success: false, message: 'กรุณากรอกรหัสพนักงาน' });
+    }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ success: false, message: 'รูปแบบอีเมลไม่ถูกต้อง' });
     }
 
     const normalized = email.trim().toLowerCase();
+    const cleanEmpId = String(empId).trim();
 
     // Rate limit
     const last = recentRequests.get(normalized);
@@ -97,7 +103,7 @@ export default async function handler(req, res) {
     const ip = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '').split(',')[0].trim();
     const ua = req.headers['user-agent'] || '';
 
-    await sendNotifyEmail({ userEmail: normalized, userAgent: ua, ip });
+    await sendNotifyEmail({ userEmail: normalized, empId: cleanEmpId, userAgent: ua, ip });
     recentRequests.set(normalized, Date.now());
 
     return res.status(200).json({
