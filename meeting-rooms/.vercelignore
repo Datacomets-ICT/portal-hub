@@ -1,0 +1,6 @@
+source/
+uploads/
+Picture/
+*.xlsx
+supabase/
+scripts/

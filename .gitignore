@@ -25,3 +25,19 @@ __pycache__/
 # Driver — uploads + sensitive HR rosters (Drivers.xlsx is the seed source so keep)
 Driver/uploads/
 Driver/รายชื่อพนักงาน.xlsx
+
+# Meeting Rooms — vendored source kept in git, but skip:
+#  - build artifacts (regenerable from source)
+#  - the legacy source/ + uploads + Picture (internal references)
+#  - sensitive HR rosters
+#  - heavy room photos (already shipped in portal/public/meeting/dist)
+meeting-rooms/node_modules/
+meeting-rooms/dist/
+meeting-rooms/source/
+meeting-rooms/uploads/
+meeting-rooms/Picture/
+meeting-rooms/docs/
+meeting-rooms/public/rooms_Images/
+meeting-rooms/รายชื่อพนักงาน.xlsx
+meeting-rooms/supabase/.temp/
+meeting-rooms/supabase/.branches/
