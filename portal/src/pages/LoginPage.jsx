@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-import { supabase } from '../lib/supabase.js';
 
 function ForgotModal({ initialEmpId, onClose }) {
   const [empId, setEmpId] = useState(initialEmpId || '');
@@ -22,15 +21,15 @@ function ForgotModal({ initialEmpId, onClose }) {
     setBusy(true);
     setMsg(null);
     try {
-      // Same SQL RPC the IT-Ticket login uses — creates a password_reset_requests
-      // row + notifies the System-role inbox in-app.
-      const { data, error } = await supabase.rpc('request_password_reset', {
-        p_emp_id: empId.trim(),
-        p_email:  email.trim(),
-        p_note:   null,
+      // /api/forgot-password sends a Gmail SMTP notification from
+      // data@ictcos-cm.com → IT inbox with the user's email as Reply-To.
+      const r = await fetch('/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), empId: empId.trim() }),
       });
-      if (error) throw error;
-      if (!data || !data.success) throw new Error(data?.message || 'ส่งคำขอไม่สำเร็จ');
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.success) throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
       setMsg({ kind: 'success', text: data.message || 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมล' });
     } catch (err) {
       setMsg({ kind: 'error', text: err.message || 'เกิดข้อผิดพลาด' });

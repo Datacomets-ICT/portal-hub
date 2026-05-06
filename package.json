@@ -1,0 +1,9 @@
+{
+  "name": "portal-hub-api",
+  "private": true,
+  "description": "Vercel serverless functions for portal-hub (chat + forgot-password). Portal frontend has its own package.json under portal/.",
+  "type": "module",
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  }
+}

@@ -5422,15 +5422,19 @@ async function submitForgotPwd(e) {
     if (!email) { showToast('กรุณากรอกอีเมล', 'error'); return; }
     setLoading(true);
     try {
-        const { data, error } = await sb.rpc('request_password_reset', {
-            p_emp_id: empId,
-            p_email:  email,
-            p_note:   null,
+        // /api/forgot-password sends a notification from data@ictcos-cm.com
+        // (Gmail SMTP) → data@ictcos-cm.com with the user's email as Reply-To.
+        const r = await fetch('/api/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, empId }),
         });
-        if (error) throw error;
-        if (!data || !data.success) throw new Error((data && data.message) || 'ส่งคำขอไม่สำเร็จ');
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.success) {
+            throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
+        }
         closeForgotPwdModal();
-        showToast(data.message || 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมล');
+        showToast(data.message || 'ส่งคำขอไปทีม IT เรียบร้อย');
     } catch (err) {
         showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
     } finally {
