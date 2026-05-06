@@ -770,11 +770,13 @@
     <div class="modal" style="width:460px;">
         <h3><i class="fas fa-key" style="color:#F59E0B;"></i> คำขอรีเซ็ตรหัสผ่าน</h3>
         <div id="pwdResetPopupBody" style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px 16px; margin:12px 0; color:var(--text); font-size:14px; line-height:1.7;"></div>
-        <div style="background:#DBEAFE; border:1px solid #2563EB; border-radius:8px; padding:12px 14px; font-size:13px; color:#1E3A8A;">
-            ✉️ คลิกที่อีเมลด้านบนเพื่อตอบกลับผู้ใช้ — แจ้งรหัสผ่านใหม่ + วิธีเข้าระบบ
+        <div id="pwdResetPopupHint" style="background:#DBEAFE; border:1px solid #2563EB; border-radius:8px; padding:12px 14px; font-size:13px; color:#1E3A8A;">
+            ✉️ คลิกที่อีเมลด้านบนเพื่อตอบกลับผู้ใช้ — แจ้งรหัสผ่านใหม่ + วิธีเข้าระบบ<br>
+            <span style="font-size:12px;">เมื่อตอบกลับเรียบร้อยแล้ว กดปุ่ม <b>"ดำเนินการเรียบร้อย"</b> เพื่อปิดคำขอ</span>
         </div>
         <div class="actions" style="margin-top:14px;">
-            <button type="button" class="btn btn-primary btn-sm" onclick="closePwdResetPopup()"><i class="fas fa-check"></i> รับทราบ</button>
+            <button type="button" class="btn btn-outline btn-sm" onclick="closePwdResetPopup()"><i class="fas fa-times"></i> ปิด</button>
+            <button type="button" class="btn btn-success btn-sm" id="pwdResetCloseBtn" onclick="closePwdResetRequest()" style="display:none;"><i class="fas fa-check"></i> ดำเนินการเรียบร้อย</button>
         </div>
     </div>
 </div>
@@ -5338,12 +5340,18 @@ function validateDraftWorklist(draft) {
 
 // ===== Registration =====
 // ===== Password Reset Popup (Sr.Mgr / System view) =====
+let _pwdResetActiveId = null;
 function showPwdResetPopup(desc) {
     document.getElementById('notifPanel').classList.remove('show');
-    // Message format from request_password_reset RPC (v40):
-    //   "11295 — ธนบดี เหลาทอง | Comets | เหตุผล: ... | อีเมล: user@x.com"
-    // Split into labelled parts so we can pull email out reliably.
-    const parts = (desc || '').split('|').map(s => s.trim());
+    // Message format from v41 request_password_reset RPC:
+    //   "[id:42] 11295 — ธนบดี เหลาทอง | Comets | เหตุผล: ... | อีเมล: user@x.com"
+    // [id:N] prefix is optional (older requests don't have it).
+    let raw = (desc || '').trim();
+    const idMatch = raw.match(/^\[id:(\d+)\]\s*/);
+    _pwdResetActiveId = idMatch ? parseInt(idMatch[1], 10) : null;
+    if (idMatch) raw = raw.slice(idMatch[0].length);
+
+    const parts = raw.split('|').map(s => s.trim());
     const first   = parts[0] || '';
     let company = '', reason = '', email = '';
     for (let i = 1; i < parts.length; i++) {
@@ -5359,10 +5367,35 @@ function showPwdResetPopup(desc) {
         ${company ? `<div><b>🏢 บริษัท:</b> ${esc(company)}</div>` : ''}
         ${email
             ? `<div><b>✉️ อีเมล:</b> <a href="mailto:${esc(email)}?subject=${subject}" style="color:var(--primary);font-weight:600;text-decoration:underline;">${esc(email)}</a></div>`
-            : '<div style="color:var(--danger);font-size:12px;">⚠️ ผู้ใช้ไม่ได้ระบุอีเมล (คำขอเก่าก่อน v40)</div>'}
+            : '<div style="color:var(--danger);font-size:12px;">⚠️ ผู้ใช้ไม่ได้ระบุอีเมล (คำขอเก่า)</div>'}
         ${reason ? `<div><b>📝 เหตุผล:</b> ${esc(reason)}</div>` : ''}
     `;
+    // Show "ดำเนินการเรียบร้อย" only when we have a request id to close
+    document.getElementById('pwdResetCloseBtn').style.display = _pwdResetActiveId ? '' : 'none';
     document.getElementById('pwdResetPopup').classList.add('show');
+}
+
+async function closePwdResetRequest() {
+    if (!_pwdResetActiveId) { closePwdResetPopup(); return; }
+    if (!confirm('ปิดคำขอนี้? (กดเมื่อจัดการให้ผู้ใช้เรียบร้อยแล้ว)')) return;
+    setLoading(true);
+    try {
+        const { data, error } = await sb.rpc('close_password_reset', {
+            p_emp_id:     currentUser.employeeId,
+            p_password:   currentPwd,
+            p_request_id: _pwdResetActiveId,
+        });
+        if (error) throw error;
+        if (!data || !data.success) throw new Error((data && data.message) || 'ปิดคำขอไม่สำเร็จ');
+        showToast('ปิดคำขอเรียบร้อย');
+        _pwdResetActiveId = null;
+        closePwdResetPopup();
+        if (typeof loadNotifications === 'function') loadNotifications();
+    } catch (err) {
+        showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+        setLoading(false);
+    }
 }
 function closePwdResetPopup() {
     document.getElementById('pwdResetPopup').classList.remove('show');
