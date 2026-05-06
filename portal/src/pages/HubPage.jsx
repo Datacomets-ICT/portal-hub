@@ -375,6 +375,135 @@ export default function HubPage() {
           <span>{toast.text}</span>
         </div>
       )}
+
+      <SupportFAB onCopy={(label) => showToast(`คัดลอก ${label} แล้ว`, 'success')} />
+    </div>
+  );
+}
+
+// Floating "Contact System" button — bottom-right of the hub. Click to
+// reveal the System owner's email / Line / phone for bug reports or
+// "ฉันเข้าแอพไม่ได้" issues. Each row click-to-copy + opens the relevant
+// app (mailto:, tel:, line://).
+function SupportFAB({ onCopy }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    const onEsc = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('mousedown', onClick);
+    window.addEventListener('keydown', onEsc);
+    return () => {
+      window.removeEventListener('mousedown', onClick);
+      window.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  const copy = async (text, label) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (onCopy) onCopy(label);
+    } catch {
+      // fallback for older browsers — just open the link
+    }
+  };
+
+  const items = [
+    {
+      key: 'mail',
+      label: 'อีเมล',
+      value: 'sls03@cometsintertrade.com',
+      href: 'mailto:sls03@cometsintertrade.com?subject=' + encodeURIComponent('แจ้งปัญหา Workspace'),
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
+        </svg>
+      ),
+    },
+    {
+      key: 'line',
+      label: 'LINE ID',
+      value: '0647241793',
+      href: 'https://line.me/ti/p/~0647241793',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.4 9.5C19.4 6.1 16 3.3 11.7 3.3S4 6.1 4 9.5c0 3.1 2.7 5.7 6.4 6.1.2 0 .6.2.7.4.1.2.1.5 0 .7-.1.4-.2 1-.2 1.1 0 .3-.3.6.5.3 1.1-.5 5.7-3.4 7.7-5.7 1.4-1.6 2.3-3.2 2.3-2.9z" />
+        </svg>
+      ),
+    },
+    {
+      key: 'tel',
+      label: 'โทร',
+      value: '0646967494',
+      href: 'tel:0646967494',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+      ),
+    },
+  ];
+
+  return (
+    <div className="support-fab" ref={wrapRef}>
+      {open && (
+        <div className="support-pop" role="dialog" aria-label="ติดต่อ System">
+          <div className="support-pop-head">
+            <div>
+              <div className="support-pop-title">ติดต่อ System</div>
+              <div className="support-pop-sub">แจ้งบัค · เว็บล่ม · เข้าแอพไม่ได้</div>
+            </div>
+            <button type="button" className="support-pop-x" onClick={() => setOpen(false)} aria-label="ปิด">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          {items.map((it) => (
+            <div key={it.key} className="support-pop-row">
+              <a className="support-pop-link" href={it.href} target="_blank" rel="noreferrer">
+                <span className="support-pop-icon">{it.icon}</span>
+                <span className="support-pop-text">
+                  <span className="support-pop-label">{it.label}</span>
+                  <span className="support-pop-value">{it.value}</span>
+                </span>
+              </a>
+              <button
+                type="button"
+                className="support-pop-copy"
+                onClick={() => copy(it.value, it.label)}
+                aria-label={'คัดลอก ' + it.label}
+                title="คัดลอก"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+            </div>
+          ))}
+          <div className="support-pop-foot">
+            กรุณาแจ้ง <b>อาการที่เจอ</b> + <b>หน้าจอ/แอพ</b> ที่มีปัญหา
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        className={'support-btn' + (open ? ' is-open' : '')}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="ติดต่อ System"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        </svg>
+        <span className="support-btn-label">ติดต่อ System</span>
+      </button>
     </div>
   );
 }

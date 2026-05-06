@@ -1117,3 +1117,127 @@ a { color: var(--accent); text-decoration: none; }
 [data-theme="dark"] .nav-time { background: var(--surface); }
 [data-theme="dark"] .user-btn { background: var(--surface); }
 [data-theme="dark"] .hub-chip { background: rgba(255, 255, 255, 0.04); }
+
+/* =========================================================
+   Support FAB — bottom-right "ติดต่อ System" button + popup
+   ========================================================= */
+.support-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 100;
+}
+.support-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: 600 14px/1 'IBM Plex Sans Thai', 'Inter', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -8px rgba(249, 115, 22, 0.55), 0 4px 10px -4px rgba(15, 23, 42, 0.2);
+  transition: transform .12s, box-shadow .12s, background .12s;
+}
+.support-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -8px rgba(249, 115, 22, 0.65), 0 6px 14px -4px rgba(15, 23, 42, 0.25);
+}
+.support-btn:active { transform: translateY(0); }
+.support-btn.is-open { background: var(--ink); }
+.support-btn-label { white-space: nowrap; }
+@media (max-width: 520px) {
+  .support-btn-label { display: none; }
+  .support-btn { padding: 14px; }
+}
+
+.support-pop {
+  position: absolute;
+  right: 0;
+  bottom: 60px;
+  width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  box-shadow: 0 24px 50px -16px rgba(15, 23, 42, 0.25), 0 8px 20px -10px rgba(15, 23, 42, 0.12);
+  padding: 14px;
+  animation: support-pop-in .18s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes support-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+.support-pop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0 4px 12px;
+  border-bottom: 1px solid var(--line-2);
+  margin-bottom: 8px;
+}
+.support-pop-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.support-pop-sub   { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.support-pop-x {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--ink-3);
+  display: grid;
+  place-items: center;
+}
+.support-pop-x:hover { background: var(--line); color: var(--ink); }
+.support-pop-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+.support-pop-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  transition: background .12s;
+}
+.support-pop-link:hover { background: var(--line); }
+.support-pop-icon {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.support-pop-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.support-pop-label { font-size: 11px; color: var(--ink-3); font-weight: 500; }
+.support-pop-value { font-size: 13.5px; color: var(--ink); font-weight: 600; word-break: break-all; }
+.support-pop-copy {
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  width: 32px; height: 32px;
+  cursor: pointer;
+  color: var(--ink-3);
+  display: grid;
+  place-items: center;
+  transition: background .12s, color .12s;
+  flex-shrink: 0;
+}
+.support-pop-copy:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.support-pop-foot {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--accent);
+}
