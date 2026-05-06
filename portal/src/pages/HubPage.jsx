@@ -323,7 +323,7 @@ export default function HubPage() {
               <button
                 key={app.key}
                 type="button"
-                className={`app-card peek-host ${app.cardClass}`}
+                className={`app-card ${app.cardClass}`}
                 onClick={() => openApp(app.href)}
               >
                 <div className="card-tag">{app.tag}</div>
