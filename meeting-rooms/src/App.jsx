@@ -361,26 +361,34 @@ export default function App() {
         >
           + จองห้องประชุม
         </button>
-        <div className="topbar-user">
-          <div className="topbar-user-avatar">
-            {(currentUser.nickname || currentUser.name || '?')[0]}
-          </div>
-          <div className="topbar-user-text">
-            <div className="topbar-user-name">
-              {currentUser.name}
-              {currentUser.nickname && (
-                <span className="topbar-user-nick"> ({currentUser.nickname})</span>
-              )}
+        {(() => {
+          // Match Workspace + Driver pill: nickname · empId, avatarUrl image if set.
+          const display = currentUser.nickname || currentUser.name || currentUser.code || '?';
+          const initial = String(display).charAt(0).toUpperCase();
+          const empId = currentUser.code || '';
+          return (
+            <div className="topbar-user">
+              <div className="topbar-user-avatar">
+                {currentUser.avatarUrl
+                  ? <img src={currentUser.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  : initial}
+              </div>
+              <div className="topbar-user-text">
+                <div className="topbar-user-name">
+                  {display}
+                  {empId && <span className="topbar-user-nick"> · {empId}</span>}
+                </div>
+                <div className="topbar-user-meta">
+                  <span className={`role-badge ${isAdmin ? 'admin' : ''}`}>
+                    {isAdmin ? 'Admin' : 'User'}
+                  </span>
+                  {currentUser.dept && <> · {currentUser.dept}</>}
+                  {currentUser.position && <> · {currentUser.position}</>}
+                </div>
+              </div>
             </div>
-            <div className="topbar-user-meta">
-              <span className={`role-badge ${isAdmin ? 'admin' : ''}`}>
-                {isAdmin ? 'Admin' : 'User'}
-              </span>
-              {currentUser.dept && <> · {currentUser.dept}</>}
-              {currentUser.position && <> · {currentUser.position}</>}
-            </div>
-          </div>
-        </div>
+          );
+        })()}
       </header>
 
       {view === 'schedule' && (

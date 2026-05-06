@@ -34,6 +34,9 @@ function toMeetingUser(itUser) {
     nickname: itUser.nickname || '',
     dept: itUser.department || '',
     position: itUser.position || '',
+    // Propagate the Workspace-chosen avatar so meeting-rooms shows the
+    // same pill as Workspace + Driver instead of falling back to a flat letter.
+    avatarUrl: itUser.avatarUrl || '',
   };
 }
 
