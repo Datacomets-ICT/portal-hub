@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import LoginScreen from './LoginScreen.jsx';
 import BookingsHistoryView from './BookingsHistoryView.jsx';
 import BookingWizard from './BookingWizard.jsx';
-import DashboardView from './DashboardView.jsx';
 import RoomEditorView from './RoomEditorView.jsx';
 import {
   RoomCard,
@@ -339,14 +338,6 @@ export default function App() {
           </button>
           {isAdmin && (
             <button
-              className={view === 'dashboard' ? 'on' : ''}
-              onClick={() => setView('dashboard')}
-            >
-              Dashboard ห้องประชุม
-            </button>
-          )}
-          {isAdmin && (
-            <button
               className={view === 'editor' ? 'on' : ''}
               onClick={() => setView('editor')}
             >
@@ -578,12 +569,6 @@ export default function App() {
             onEditBooking={openEdit}
             refreshKey={mybookingsRefreshKey}
           />
-        </div>
-      )}
-
-      {view === 'dashboard' && isAdmin && (
-        <div className="view-wrap">
-          <DashboardView rooms={rooms} employees={employees} />
         </div>
       )}
 
