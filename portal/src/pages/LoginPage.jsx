@@ -2,6 +2,115 @@ import { useState } from 'react';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 
+// ===== Pixel-art critters that wander across the login background =====
+// Each sprite is a string grid: '.' = transparent, any other char = a color
+// from the `palette` map. Rendered as inline SVG <rect>s so they stay crisp
+// at any zoom and don't need external assets.
+const SPRITES = {
+  cat: {
+    palette: { O: '#fb923c', D: '#9a3412', P: '#fde68a', K: '#0f172a' },
+    grid: [
+      '.OO....OO.',
+      'OOOOOOOOOO',
+      'OPOOOOOOPO',
+      'OKOOOOOOKO',
+      'OOOOOOOOOO',
+      'OOOOOOOOOO',
+      'OOOOOOOOOO',
+      'OO.OO.OO..',
+    ],
+  },
+  panda: {
+    palette: { W: '#ffffff', K: '#1e293b', P: '#fda4af' },
+    grid: [
+      '.K......K.',
+      'KKW....WKK',
+      'WKKWWWWKKW',
+      'WWKWPPWKWW',
+      'WWWWKKWWWW',
+      'WWWWWWWWWW',
+      'WWWWWWWWWW',
+      'KK.KK.KK..',
+    ],
+  },
+  dog: {
+    palette: { B: '#a16207', D: '#713f12', P: '#fef3c7', K: '#0f172a' },
+    grid: [
+      'BB.....BBB',
+      'BBBBBBBBBB',
+      'BPBBBBBBPB',
+      'BKBBBBBBKB',
+      'BBBBKKBBBB',
+      'BBBBBBBBBB',
+      'BBBBBBBBBB',
+      'BB.BB.BB..',
+    ],
+  },
+  owl: {
+    palette: { B: '#7c3f00', T: '#fbbf24', W: '#fef3c7', K: '#0f172a' },
+    grid: [
+      'B.B....B.B',
+      'BBBBBBBBBB',
+      'BWWBBBBWWB',
+      'BWKBBBBKWB',
+      'BBBBTTBBBB',
+      'BWWWWWWWWB',
+      'BWBWBWBWWB',
+      '.T..T..T..',
+    ],
+  },
+  hamster: {
+    palette: { Y: '#fde047', O: '#f59e0b', P: '#fda4af', K: '#0f172a' },
+    grid: [
+      '.YY....YY.',
+      'YYOOOOOOYY',
+      'YOPYYYYPOY',
+      'YOKYYYYKOY',
+      'YOOYYYYOOY',
+      'YOOOOOOOOY',
+      'YYYYYYYYYY',
+      '.O.OO.O...',
+    ],
+  },
+  fox: {
+    palette: { F: '#ea580c', D: '#7c2d12', W: '#fef3c7', K: '#0f172a' },
+    grid: [
+      'FF......FF',
+      'FFFFFFFFFF',
+      'FWFFFFFFWF',
+      'FKFFFFFFKF',
+      'FFFFKKFFFF',
+      'FFFFFFFFFF',
+      'WFFFFFFFFW',
+      'FF.FF.FF..',
+    ],
+  },
+};
+
+function Critter({ kind, className, style }) {
+  const sprite = SPRITES[kind];
+  if (!sprite) return null;
+  const w = sprite.grid[0].length;
+  const h = sprite.grid.length;
+  const rects = [];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const ch = sprite.grid[y][x];
+      if (ch === '.' || !sprite.palette[ch]) continue;
+      rects.push(
+        <rect key={`${x},${y}`} x={x} y={y} width={1} height={1} fill={sprite.palette[ch]} />
+      );
+    }
+  }
+  return (
+    <span className={className} style={style}>
+      <svg viewBox={`0 0 ${w} ${h}`} shapeRendering="crispEdges" preserveAspectRatio="xMidYMid meet">
+        {rects}
+      </svg>
+    </span>
+  );
+}
+
 function ForgotModal({ initialEmpId, onClose }) {
   const [empId, setEmpId] = useState(initialEmpId || '');
   const [email, setEmail] = useState('');
@@ -113,6 +222,17 @@ export default function LoginPage() {
         <span className="orb orb-3" />
         <span className="orb orb-4" />
         <span className="orb orb-5" />
+      </div>
+      <div className="critters" aria-hidden="true">
+        {/* Each critter walks across the screen on its own loop. Position
+            (top), speed (animation-duration), delay, and direction are
+            staggered so they never sync up. Flip via CSS .reverse class. */}
+        <Critter kind="cat"     className="critter"         style={{ top: '78%', animationDuration: '52s', animationDelay:  '0s' }} />
+        <Critter kind="panda"   className="critter reverse" style={{ top: '88%', animationDuration: '64s', animationDelay: '-12s' }} />
+        <Critter kind="dog"     className="critter"         style={{ top: '92%', animationDuration: '48s', animationDelay: '-25s' }} />
+        <Critter kind="owl"     className="critter reverse" style={{ top: '70%', animationDuration: '70s', animationDelay:  '-5s' }} />
+        <Critter kind="hamster" className="critter"         style={{ top: '85%', animationDuration: '44s', animationDelay: '-30s' }} />
+        <Critter kind="fox"     className="critter reverse" style={{ top: '82%', animationDuration: '58s', animationDelay: '-18s' }} />
       </div>
       <aside className="login-hero">
         <h1>
