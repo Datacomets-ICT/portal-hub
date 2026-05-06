@@ -107,8 +107,14 @@ export default function LoginPage() {
 
   return (
     <div className="login-wrap">
+      <div className="login-bg" aria-hidden="true">
+        <span className="orb orb-1" />
+        <span className="orb orb-2" />
+        <span className="orb orb-3" />
+        <span className="orb orb-4" />
+        <span className="orb orb-5" />
+      </div>
       <aside className="login-hero">
-        <div className="brand-mark">P</div>
         <h1>
           ศูนย์รวมระบบภายใน
           <br />

@@ -239,19 +239,91 @@ a { color: var(--accent); text-decoration: none; }
    Login
    ========================================================= */
 .login-wrap {
+  position: relative;
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background:
-    radial-gradient(1200px 700px at -10% -10%, #dee8ff, transparent 60%),
-    radial-gradient(900px 600px at 110% 10%, #e4ecff, transparent 60%),
-    linear-gradient(180deg, #f4f7ff, #f6f8fc);
+  overflow: hidden;
+  background: linear-gradient(180deg, #fafbff 0%, #f4f6fc 100%);
 }
 [data-theme="dark"] .login-wrap {
-  background:
-    radial-gradient(1200px 700px at -10% -10%, #18234a, transparent 60%),
-    radial-gradient(900px 600px at 110% 10%, #142345, transparent 60%),
-    linear-gradient(180deg, #0b1221, #0a0f1d);
+  background: linear-gradient(180deg, #0a0f1d 0%, #0b1221 100%);
+}
+
+/* Hero + card need to sit above the floating orbs */
+.login-wrap > .login-hero,
+.login-wrap > .login-card-wrap { position: relative; z-index: 1; }
+
+/* =========================================================
+   Floating gradient orbs (login background)
+   Soft, blurred glows that drift slowly. CSS-only, GPU-friendly.
+   Respects prefers-reduced-motion.
+   ========================================================= */
+.login-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+.login-bg .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+  will-change: transform;
+}
+[data-theme="dark"] .login-bg .orb { opacity: 0.35; }
+
+.login-bg .orb-1 {
+  width: 620px; height: 620px; top: -180px; left: -120px;
+  background: radial-gradient(circle at 30% 30%, #fb923c 0%, transparent 70%);
+  animation: orb-drift-1 28s ease-in-out infinite alternate;
+}
+.login-bg .orb-2 {
+  width: 540px; height: 540px; top: 40%; left: 18%;
+  background: radial-gradient(circle at 40% 60%, #f472b6 0%, transparent 70%);
+  animation: orb-drift-2 34s ease-in-out infinite alternate;
+}
+.login-bg .orb-3 {
+  width: 700px; height: 700px; top: -120px; right: -180px;
+  background: radial-gradient(circle at 60% 40%, #60a5fa 0%, transparent 70%);
+  animation: orb-drift-3 32s ease-in-out infinite alternate;
+}
+.login-bg .orb-4 {
+  width: 480px; height: 480px; bottom: -120px; right: 22%;
+  background: radial-gradient(circle at 50% 50%, #c084fc 0%, transparent 70%);
+  animation: orb-drift-4 30s ease-in-out infinite alternate;
+}
+.login-bg .orb-5 {
+  width: 420px; height: 420px; bottom: -160px; left: 30%;
+  background: radial-gradient(circle at 50% 40%, #22d3ee 0%, transparent 70%);
+  animation: orb-drift-5 36s ease-in-out infinite alternate;
+}
+
+@keyframes orb-drift-1 {
+  0%   { transform: translate(0, 0)        scale(1); }
+  100% { transform: translate(120px, 80px) scale(1.15); }
+}
+@keyframes orb-drift-2 {
+  0%   { transform: translate(0, 0)         scale(1); }
+  100% { transform: translate(-90px, -120px) scale(0.9); }
+}
+@keyframes orb-drift-3 {
+  0%   { transform: translate(0, 0)        scale(1); }
+  100% { transform: translate(-110px, 90px) scale(1.1); }
+}
+@keyframes orb-drift-4 {
+  0%   { transform: translate(0, 0)        scale(1); }
+  100% { transform: translate(80px, -100px) scale(1.2); }
+}
+@keyframes orb-drift-5 {
+  0%   { transform: translate(0, 0)         scale(1); }
+  100% { transform: translate(140px, -70px) scale(0.95); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-bg .orb { animation: none !important; }
 }
 .login-hero {
   display: flex;
@@ -307,11 +379,17 @@ a { color: var(--accent); text-decoration: none; }
 .login-card {
   width: 100%;
   max-width: 420px;
-  background: var(--surface);
-  border: 1px solid var(--line-2);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-lg);
   padding: 36px 32px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 60px -20px rgba(15, 23, 42, 0.18), 0 8px 20px -10px rgba(15, 23, 42, 0.1);
+}
+[data-theme="dark"] .login-card {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 .login-title { font-size: 22px; font-weight: 700; margin: 0 0 6px; }
 .login-sub { color: var(--ink-3); font-size: 14px; margin: 0 0 24px; }
