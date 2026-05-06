@@ -57,10 +57,6 @@ async function sendNotifyEmail({ userEmail, empId, userAgent, ip }) {
         <a href="mailto:${escapeHtml(userEmail)}?subject=${encodeURIComponent('ตอบกลับคำขอรีเซ็ตรหัสผ่าน — IT-Ticket')}" style="color:#2563EB;text-decoration:underline;">${escapeHtml(userEmail)}</a>
       </div>
     </div>
-    <p style="margin:14px 0;font-size:14px;line-height:1.6;color:#334155;">
-      กด <b>Reply</b> เพื่อตอบกลับผู้ใช้โดยตรง<br>
-      หรือเข้าไปตั้งรหัสผ่านใหม่ทาง <a href="${APP_URL}" style="color:#2563EB;font-weight:600;">หน้าจัดการของ IT</a>
-    </p>
     <div style="background:#F1F5F9;border-radius:8px;padding:12px 14px;margin-top:14px;font-size:11px;color:#64748B;line-height:1.6;">
       <div><b>IP:</b> ${escapeHtml(ip || '-')}</div>
       <div><b>User-Agent:</b> ${escapeHtml((userAgent || '-').slice(0, 200))}</div>
