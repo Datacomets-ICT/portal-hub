@@ -1,30 +1,31 @@
 import { useState } from 'react';
 import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
-import { supabase } from '../lib/supabase.js';
 
-function ForgotModal({ initialEmpId, onClose }) {
-  const [empId, setEmpId] = useState(initialEmpId || '');
-  const [note, setNote] = useState('');
+function ForgotModal({ onClose }) {
+  const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null); // { kind: 'error'|'success', text }
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!empId.trim()) {
-      setMsg({ kind: 'error', text: 'กรุณากรอกรหัสพนักงาน' });
+    if (!email.trim()) {
+      setMsg({ kind: 'error', text: 'กรุณากรอกอีเมล' });
       return;
     }
     setBusy(true);
     setMsg(null);
     try {
-      const { data, error } = await supabase.rpc('request_password_reset', {
-        p_emp_id: empId.trim(),
-        p_note: note.trim() || null,
+      // Same /api endpoint the IT-Ticket login uses — notifies the IT
+      // inbox (data@ictcos-cm.com) with this email set as Reply-To.
+      const r = await fetch('/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
       });
-      if (error) throw error;
-      if (!data || !data.success) throw new Error(data?.message || 'ส่งคำขอไม่สำเร็จ');
-      setMsg({ kind: 'success', text: data.message || 'ส่งคำขอรีเซ็ตรหัสผ่านแล้ว เจ้าหน้าที่จะติดต่อกลับ' });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || !data.success) throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
+      setMsg({ kind: 'success', text: data.message || 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมล' });
     } catch (err) {
       setMsg({ kind: 'error', text: err.message || 'เกิดข้อผิดพลาด' });
     } finally {
@@ -35,28 +36,18 @@ function ForgotModal({ initialEmpId, onClose }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>🔑 ขอรีเซ็ตรหัสผ่าน</h3>
-        <p className="modal-desc">กรอกรหัสพนักงาน เจ้าหน้าที่ System จะติดต่อกลับเพื่อตั้งรหัสใหม่</p>
+        <h3>🔑 ลืมรหัสผ่าน</h3>
+        <p className="modal-desc">กรอกอีเมลของคุณ — ทีม IT จะติดต่อกลับทางอีเมลเพื่อตั้งรหัสผ่านใหม่ให้</p>
         {msg && <div className={msg.kind === 'error' ? 'error' : 'success'}>{msg.text}</div>}
         <form onSubmit={submit}>
           <div className="field">
-            <label>รหัสพนักงาน *</label>
+            <label>อีเมลที่ใช้ติดต่อกลับ *</label>
             <input
-              type="text"
-              value={empId}
-              onChange={(e) => setEmpId(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               autoFocus
               required
-              disabled={busy}
-            />
-          </div>
-          <div className="field">
-            <label>เหตุผล (ถ้ามี)</label>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="เช่น จำไม่ได้ / เพิ่งเปลี่ยนเครื่อง…"
-              rows={3}
               disabled={busy}
             />
           </div>
@@ -65,7 +56,7 @@ function ForgotModal({ initialEmpId, onClose }) {
               ปิด
             </button>
             <button type="submit" className="btn btn-primary" disabled={busy}>
-              {busy ? 'กำลังส่ง…' : 'ส่งคำขอ'}
+              {busy ? 'กำลังส่ง…' : 'ส่งคำขอไปทีม IT'}
             </button>
           </div>
         </form>
@@ -180,7 +171,7 @@ export default function LoginPage() {
       </div>
 
       {forgotOpen && (
-        <ForgotModal initialEmpId={empId} onClose={() => setForgotOpen(false)} />
+        <ForgotModal onClose={() => setForgotOpen(false)} />
       )}
     </div>
   );
