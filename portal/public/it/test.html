@@ -22,6 +22,13 @@
   td { padding: 10px 12px; border-bottom: 1px solid #F1F5F9; vertical-align: top; }
   tr.pass { background: #F0FDF4; }
   tr.fail { background: #FEF2F2; }
+  tr.group-header td { background: #FEF3C7; padding: 12px 14px; font-weight: 700; font-size: 13px; color: #78350F; border-top: 2px solid #F59E0B; }
+  tr.group-header .gh-jt { color: #92400E; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; display: block; }
+  tr.group-header .gh-it { color: #0F172A; font-size: 14px; font-weight: 700; }
+  tr.group-header .gh-desc { color: #78350F; font-size: 12px; font-weight: 400; margin-top: 2px; }
+  tr.group-header .gh-stats { float: right; font-weight: 600; font-size: 12px; }
+  .explainer { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; font-size: 13px; color: #334155; line-height: 1.7; }
+  .explainer b { color: #0F172A; }
   td.cell-input { font-weight: 600; max-width: 240px; word-break: break-word; }
   td.cell-expected, td.cell-actual { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.5; }
   td.cell-actual.fail { color: #B91C1C; }
@@ -36,8 +43,16 @@
 </head>
 <body>
 
-<h1>🧪 Bot Classifier Test Harness</h1>
-<p class="lead">รัน heuristic + AI draft กับ scenarios ครอบ worklist ทั้งหมด เปรียบเทียบกับ expected (jobType, issueType). ใช้ดูว่ามีเคสไหน classify ผิด.</p>
+<h1>🧪 Bot Classifier Test</h1>
+<p class="lead">ทดสอบว่า bot classify ticket ลง worklist ถูกหมวดมั้ย — รันอัตโนมัติทุก scenarios</p>
+
+<div class="explainer">
+📖 <b>วิธีอ่านผล:</b> ตารางแบ่งเป็นกลุ่มตาม <b>worklist category</b> — แต่ละกลุ่มคือ 1 หมวดใน worklist (เช่น <b>"ปัญหาโปรแกรม / Email"</b>) ที่ตั้งใจจะเทส
+<br>
+ในแต่ละกลุ่มจะมีตัวอย่างประโยคที่ user น่าจะพิมพ์ → ถ้า bot classify เข้ากลุ่มนี้ถูก = <b>PASS</b> ✅, ผิดหมวด = <b>FAIL</b> ❌
+<br>
+<small>หมายเหตุ: heuristic = keyword regex ในเครื่อง (deterministic). AI = ส่งไป LLM (ช้ากว่า, อาจ random)</small>
+</div>
 
 <div class="controls">
   <button id="runHeur">🔍 รันแค่ Heuristic (เร็ว, ฟรี)</button>
@@ -92,80 +107,213 @@ async function loadWorklist() {
     });
 }
 
-// ===== Test Cases =====
-// Each case: { input, expected: { jobType, issueType?, symptom? } }
-// Only jobType is checked strictly — issueType + symptom are nice-to-have.
-const TEST_CASES = [
-    // ===== Computer hardware failure =====
-    { input: 'หน้าจอคอมดับ',                expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
-    { input: 'จอฟ้าระหว่างทำงาน',           expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC', symptom: 'หน้าจอฟ้า' } },
-    { input: 'blue screen',                 expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC', symptom: 'หน้าจอฟ้า' } },
-    { input: 'คอมเปิดไม่ติด',               expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
-    { input: 'notebook ค้าง',               expect: { jobType: 'คอมพิวเตอร์', issueType: 'Notebook' } },
-    { input: 'macbook ช้า',                 expect: { jobType: 'คอมพิวเตอร์', issueType: 'Macbook' } },
-    { input: 'iMac เปิดไม่ติด',             expect: { jobType: 'คอมพิวเตอร์', issueType: 'iMac' } },
-    { input: 'PC ล็อกอินไม่ได้',            expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
-    { input: 'รีสตาร์ทเองตลอด',             expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
-
-    // ===== Printer =====
-    { input: 'ปริ้นไม่ออก',                  expect: { jobType: 'ปริ้นเตอร์', issueType: 'Printer แผนก' } },
-    { input: 'หมึกหมดครับ',                  expect: { jobType: 'ปริ้นเตอร์', issueType: 'Printer แผนก', symptom: 'หมึกหมด' } },
-    { input: 'printer แผนกพัง',              expect: { jobType: 'ปริ้นเตอร์', issueType: 'Printer แผนก' } },
-
-    // ===== Email =====
-    { input: 'อีเมลเต็ม',                    expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email', symptom: 'อีเมลเต็ม (แบ็คอัพอีเมล)' } },
-    { input: 'Outlook เปิดไม่ได้',           expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email', symptom: 'เปิดโปรแกรมไม่ได้' } },
-    { input: 'ส่งเมลไม่ออก',                  expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email' } },
-    { input: 'ภาษาเพี้ยนใน email',           expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email', symptom: 'ภาษาเพี้ยน' } },
-
-    // ===== SAP / Express / VPN =====
-    { input: 'SAP รหัสหมดอายุ',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'SAP', symptom: 'รหัสหมดอายุ' } },
-    { input: 'SAP ล็อกอินไม่ได้',            expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'SAP', symptom: 'ล็อกอินไม่ได้' } },
-    { input: 'Express ปริ้นไม่ออก',          expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Express', symptom: 'ปริ้นไม่ออก' } },
-    { input: 'VPN ใช้งานไม่ได้',             expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'VPN' } },
-
-    // ===== Office =====
-    { input: 'Excel save ไม่ได้',            expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Office\n(Word, Excel, Power Point)', symptom: 'Save ไฟล์ไม่ได้' } },
-    { input: 'Word เปิดไม่ได้',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Office\n(Word, Excel, Power Point)' } },
-    { input: 'PowerPoint ไฟล์เสียหาย',       expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Office\n(Word, Excel, Power Point)' } },
-
-    // ===== Adobe / Power BI / PDF / Tigersoft =====
-    { input: 'Acrobat ค้าง',                 expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Adobe Acrobat Pro' } },
-    { input: 'Illustrator เปิดไม่ได้',       expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Adobe Illustrator' } },
-    { input: 'Creative Cloud license หมด',   expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Adobe Creative Cloud' } },
-    { input: 'Power BI เปิดไม่ได้',          expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Power Bi' } },
-    { input: 'เปิด PDF ไม่ได้',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'PDF' } },
-    { input: 'Tigersoft error',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Tigersoft' } },
-
-    // ===== Network =====
-    { input: 'เน็ตช้า',                      expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'อินเทอร์เน็ต' } },
-    { input: 'wifi หลุดบ่อย',                expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'อินเทอร์เน็ต' } },
-    { input: 'ไฟล์กลางหาย',                  expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'Driveshare (ไฟล์กลาง)', symptom: 'ไดรฟ์ไฟล์กลางหาย' } },
-    { input: 'driveshare เข้าไม่ได้',        expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'Driveshare (ไฟล์กลาง)' } },
-
-    // ===== IT equipment =====
-    { input: 'เมาส์ไม่ติด',                  expect: { jobType: 'อุปกรณ์ไอที', issueType: 'เมาส์', symptom: 'เมาส์ไม่ติด' } },
-    { input: 'คีย์บอร์ดพิมพ์ไม่ติด',         expect: { jobType: 'อุปกรณ์ไอที', issueType: 'คีย์บอร์ด', symptom: 'พิมพ์ไม่ติด' } },
-    { input: 'ขอยืมสายชาร์จ',                 expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)' } },  // "ขอ" → permission
-    { input: 'จอแยกเปิดไม่ติด',              expect: { jobType: 'อุปกรณ์ไอที', issueType: 'จอคอมพิวเตอร์' } },
-    { input: 'TV ห้องประชุมเปิดไม่ติด',     expect: { jobType: 'อุปกรณ์ไอที', issueType: 'ทีวี' } },
-    { input: 'โปรเจคเตอร์ภาพไม่ขึ้น',        expect: { jobType: 'อุปกรณ์ไอที', issueType: 'โปรเจคเตอร์' } },
-    { input: 'ไมค์ไม่ติด',                    expect: { jobType: 'อุปกรณ์ไอที', issueType: 'ไมโครโฟน' } },
-    { input: 'กล้องวงจรปิดดูผ่านแอพไม่ได้', expect: { jobType: 'อุปกรณ์ไอที', issueType: 'กล้องวงจรปิด' } },
-    { input: 'เครื่องสแกนนิ้วไม่ติด',        expect: { jobType: 'อุปกรณ์ไอที', issueType: 'เครื่องสแกนหน้า / นิ้ว' } },
-    { input: 'UPS มีเสียงร้อง',              expect: { jobType: 'อุปกรณ์ไอที', issueType: 'เครื่องสำรองไฟ' } },
-
-    // ===== Permission requests =====
-    { input: 'ขอสิทธิ์ปริ้น',                expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)' } },
-    { input: 'ขอสิทธิ์ปริ้นสี',              expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)', symptom: 'ขอเพิ่มสิทธิ์ปริ้นเตอร์ (สี)' } },
-    { input: 'ขอเข้า SAP',                   expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'ขอสิทธิ์เข้าระบบ SAP' } },
-    { input: 'ขอลง Photoshop',              expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)' } },
-    { input: 'ขอเปลี่ยนคอม',                 expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (คอมพิวเตอร์)', symptom: 'ขอเปลี่ยนคอมพิวเตอร์' } },
-    { input: 'ขอใช้งาน VPN',                 expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'ขอใช้งาน VPN' } },
-    { input: 'ขอเพิ่มสิทธิ์ไฟล์กลาง',        expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (Driveshare)' } },
-    { input: 'พนักงานใหม่เซ็ทอัพคอม',         expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'พนักงานใหม่' } },
-    { input: 'อยากขอสิทธิ์ปริ้น',            expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)' } },
+// ===== Test Cases — กลุ่มตาม worklist category =====
+// แต่ละ group = 1 หมวดใน worklist พร้อม inputs ที่ user น่าจะพิมพ์
+// แล้วต้องไปลงหมวดนี้ (jobType + issueType ของ group)
+const TEST_GROUPS = [
+    { jobType:'คอมพิวเตอร์', issueType:'PC',
+      desc:'PC ตั้งโต๊ะเสีย / ค้าง / blue screen — เครื่องพังต้องซ่อม',
+      cases:[
+        { input:'หน้าจอคอมดับ' },
+        { input:'จอฟ้าระหว่างทำงาน', sym:'หน้าจอฟ้า' },
+        { input:'blue screen', sym:'หน้าจอฟ้า' },
+        { input:'คอมเปิดไม่ติด' },
+        { input:'PC ล็อกอินไม่ได้' },
+        { input:'รีสตาร์ทเองตลอด' },
+      ] },
+    { jobType:'คอมพิวเตอร์', issueType:'Notebook',
+      desc:'Notebook / โน้ตบุ๊ก เสีย',
+      cases:[
+        { input:'notebook ค้าง' },
+        { input:'โน้ตบุ๊กเปิดไม่ติด' },
+        { input:'notebook ชาร์จไฟไม่เข้า', sym:'ชาร์จไฟไม่เข้า' },
+      ] },
+    { jobType:'คอมพิวเตอร์', issueType:'Macbook',
+      desc:'Macbook เสีย',
+      cases:[
+        { input:'macbook ช้า' },
+        { input:'macbook เปิดไม่ติด' },
+      ] },
+    { jobType:'คอมพิวเตอร์', issueType:'iMac',
+      desc:'iMac เสีย',
+      cases:[
+        { input:'iMac เปิดไม่ติด' },
+      ] },
+    { jobType:'ปริ้นเตอร์', issueType:'Printer แผนก',
+      desc:'ปริ้นเตอร์เสีย / ไม่ออก / หมึกหมด',
+      cases:[
+        { input:'ปริ้นไม่ออก' },
+        { input:'หมึกหมดครับ', sym:'หมึกหมด' },
+        { input:'printer แผนกพัง' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Email',
+      desc:'Outlook / Email มีปัญหา (ไม่ใช่ขอเปิดบัญชีใหม่)',
+      cases:[
+        { input:'อีเมลเต็ม', sym:'อีเมลเต็ม (แบ็คอัพอีเมล)' },
+        { input:'Outlook เปิดไม่ได้', sym:'เปิดโปรแกรมไม่ได้' },
+        { input:'ส่งเมลไม่ออก' },
+        { input:'ภาษาเพี้ยนใน email', sym:'ภาษาเพี้ยน' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'SAP',
+      desc:'SAP login / รหัส error (ไม่ใช่ขอเปิดสิทธิ์ใหม่)',
+      cases:[
+        { input:'SAP รหัสหมดอายุ', sym:'รหัสหมดอายุ' },
+        { input:'SAP ล็อกอินไม่ได้', sym:'ล็อกอินไม่ได้' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Express',
+      desc:'Express มีปัญหา',
+      cases:[
+        { input:'Express ปริ้นไม่ออก', sym:'ปริ้นไม่ออก' },
+        { input:'Express ล็อกอินไม่ได้', sym:'ล็อกอินไม่ได้' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'VPN',
+      desc:'VPN เชื่อมต่อไม่ได้',
+      cases:[
+        { input:'VPN ใช้งานไม่ได้' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Microsoft Office\n(Word, Excel, Power Point)',
+      desc:'Word / Excel / PowerPoint',
+      cases:[
+        { input:'Excel save ไม่ได้', sym:'Save ไฟล์ไม่ได้' },
+        { input:'Word เปิดไม่ได้' },
+        { input:'PowerPoint ไฟล์เสียหาย' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Adobe Acrobat Pro',
+      desc:'Acrobat Pro',
+      cases:[
+        { input:'Acrobat ค้าง' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Adobe Illustrator',
+      desc:'Illustrator / Photoshop',
+      cases:[
+        { input:'Illustrator เปิดไม่ได้' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Adobe Creative Cloud',
+      desc:'Creative Cloud',
+      cases:[
+        { input:'Creative Cloud license หมด' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Microsoft Power Bi',
+      desc:'Power BI',
+      cases:[
+        { input:'Power BI เปิดไม่ได้' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'PDF',
+      desc:'PDF (ไม่ใช่ Acrobat)',
+      cases:[
+        { input:'เปิด PDF ไม่ได้' },
+      ] },
+    { jobType:'ปัญหาโปรแกรม', issueType:'Tigersoft',
+      desc:'Tigersoft (HR/payroll)',
+      cases:[
+        { input:'Tigersoft error' },
+      ] },
+    { jobType:'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType:'อินเทอร์เน็ต',
+      desc:'เน็ต / WiFi',
+      cases:[
+        { input:'เน็ตช้า' },
+        { input:'wifi หลุดบ่อย' },
+      ] },
+    { jobType:'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType:'Driveshare (ไฟล์กลาง)',
+      desc:'Driveshare / ไฟล์กลาง (ไม่ใช่ขอเพิ่มสิทธิ์ใหม่)',
+      cases:[
+        { input:'ไฟล์กลางหาย', sym:'ไดรฟ์ไฟล์กลางหาย' },
+        { input:'driveshare เข้าไม่ได้' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'เมาส์',
+      desc:'เมาส์เสีย',
+      cases:[
+        { input:'เมาส์ไม่ติด', sym:'เมาส์ไม่ติด' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'คีย์บอร์ด',
+      desc:'คีย์บอร์ดเสีย',
+      cases:[
+        { input:'คีย์บอร์ดพิมพ์ไม่ติด', sym:'พิมพ์ไม่ติด' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'จอคอมพิวเตอร์',
+      desc:'จอแยก (ไม่ใช่ของ notebook)',
+      cases:[
+        { input:'จอแยกเปิดไม่ติด' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'ทีวี',
+      desc:'TV ห้องประชุม',
+      cases:[
+        { input:'TV ห้องประชุมเปิดไม่ติด' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'โปรเจคเตอร์',
+      desc:'Projector',
+      cases:[
+        { input:'โปรเจคเตอร์ภาพไม่ขึ้น' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'ไมโครโฟน',
+      desc:'ไมค์',
+      cases:[
+        { input:'ไมค์ไม่ติด' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'กล้องวงจรปิด',
+      desc:'CCTV',
+      cases:[
+        { input:'กล้องวงจรปิดดูผ่านแอพไม่ได้' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'เครื่องสแกนหน้า / นิ้ว',
+      desc:'Face/Fingerprint scanner',
+      cases:[
+        { input:'เครื่องสแกนนิ้วไม่ติด' },
+      ] },
+    { jobType:'อุปกรณ์ไอที', issueType:'เครื่องสำรองไฟ',
+      desc:'UPS',
+      cases:[
+        { input:'UPS มีเสียงร้อง' },
+      ] },
+    { jobType:'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType:'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)',
+      desc:'ขอสิทธิ์ปริ้น (ไม่ใช่ปริ้นเตอร์เสีย)',
+      cases:[
+        { input:'ขอสิทธิ์ปริ้น' },
+        { input:'ขอสิทธิ์ปริ้นสี', sym:'ขอเพิ่มสิทธิ์ปริ้นเตอร์ (สี)' },
+        { input:'อยากขอสิทธิ์ปริ้น' },
+      ] },
+    { jobType:'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType:'ขอสิทธิ์เข้าระบบ SAP',
+      desc:'ขอเปิดสิทธิ์ SAP ใหม่',
+      cases:[
+        { input:'ขอเข้า SAP' },
+      ] },
+    { jobType:'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType:'เปลี่ยนแปลงสิทธิ์ (คอมพิวเตอร์)',
+      desc:'ขอเปลี่ยน/ยืมคอม',
+      cases:[
+        { input:'ขอเปลี่ยนคอม', sym:'ขอเปลี่ยนคอมพิวเตอร์' },
+        { input:'ขอยืมคอม', sym:'ขอยืมคอมพิวเตอร์' },
+      ] },
+    { jobType:'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType:'ขอใช้งาน VPN',
+      desc:'ขอเปิดสิทธิ์ VPN',
+      cases:[
+        { input:'ขอใช้งาน VPN' },
+      ] },
+    { jobType:'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType:'เปลี่ยนแปลงสิทธิ์ (Driveshare)',
+      desc:'ขอเพิ่ม/ลบสิทธิ์ไฟล์กลาง',
+      cases:[
+        { input:'ขอเพิ่มสิทธิ์ไฟล์กลาง' },
+      ] },
+    { jobType:'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType:'พนักงานใหม่',
+      desc:'พนักงานใหม่ — เซ็ทอัพคอม',
+      cases:[
+        { input:'พนักงานใหม่เซ็ทอัพคอม' },
+      ] },
+    { jobType:'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType:'ขอใช้งานโปรแกรมอื่นๆ',
+      desc:'ขอลง/ติดตั้งโปรแกรมอื่นๆ',
+      cases:[
+        { input:'ขอลง Photoshop' },
+      ] },
 ];
+
+// Flatten groups → flat list (for the runner) but keep group reference
+const TEST_CASES = TEST_GROUPS.flatMap((g, gi) => g.cases.map(c => ({
+    input: c.input,
+    expect: { jobType: g.jobType, issueType: g.issueType, symptom: c.sym },
+    groupIdx: gi,
+    groupLabel: g.issueType + (g.desc ? ' — ' + g.desc : ''),
+    groupJt: g.jobType,
+    groupIt: g.issueType,
+})));
 
 // ============================================================
 // COPY of heuristic functions from main app (keep in sync)
@@ -529,6 +677,7 @@ function fmtCell(o) {
 }
 
 async function runAll(withAi) {
+    const colspan = withAi ? 7 : 6;
     document.getElementById('aiCol').style.display = withAi ? '' : 'none';
     const tbody = document.getElementById('resultBody');
     tbody.innerHTML = '';
@@ -537,28 +686,61 @@ async function runAll(withAi) {
     document.getElementById('status').textContent = 'กำลังโหลด worklist...';
     if (Object.keys(worklist).length === 0) await loadWorklist();
     document.getElementById('status').textContent = withAi ? 'รัน AI ทุกเคส (อาจช้า ~30s+)...' : 'รัน heuristic...';
+
+    // Pre-compute every result so we know group totals before rendering
+    const results = [];
     let pass = 0, fail = 0;
     for (let i = 0; i < TEST_CASES.length; i++) {
         const tc = TEST_CASES[i];
         const aiDraft = withAi ? await callAiDraft(tc.input) : null;
-        const result = runOneCase(tc.input, tc.expect, aiDraft);
-        if (result.passed) pass++; else fail++;
-        const tr = document.createElement('tr');
-        tr.className = result.passed ? 'pass' : 'fail';
-        tr.innerHTML = `
-            <td>${i + 1}</td>
-            <td class="cell-input">${escHtml(tc.input)}</td>
-            <td class="cell-expected">${fmtCell({ jobType: tc.expect.jobType, issueType: tc.expect.issueType, symptom: tc.expect.symptom })}</td>
-            <td class="cell-actual">${fmtCell(result.heur)}</td>
-            ${withAi ? `<td class="cell-actual">${fmtCell(result.ai)}</td>` : ''}
-            <td class="cell-actual ${result.passed ? '' : 'fail'}">${fmtCell(result.final)}</td>
-            <td><span class="status ${result.passed ? 'pass' : 'fail'}">${result.passed ? 'PASS' : 'FAIL'}</span></td>
-        `;
-        tbody.appendChild(tr);
+        const r = runOneCase(tc.input, tc.expect, aiDraft);
+        r._tc = tc;
+        results.push(r);
+        if (r.passed) pass++; else fail++;
         document.getElementById('pillTotal').textContent = `Total: ${i + 1}/${TEST_CASES.length}`;
         document.getElementById('pillPass').textContent  = `✅ Pass: ${pass}`;
         document.getElementById('pillFail').textContent  = `❌ Fail: ${fail}`;
     }
+
+    // Render grouped: insert a header row for each new groupIdx
+    let lastGroup = -1;
+    let rowNum = 0;
+    for (const r of results) {
+        const tc = r._tc;
+        if (tc.groupIdx !== lastGroup) {
+            lastGroup = tc.groupIdx;
+            const groupResults = results.filter(x => x._tc.groupIdx === tc.groupIdx);
+            const gPass = groupResults.filter(x => x.passed).length;
+            const gTotal = groupResults.length;
+            const allOk = gPass === gTotal;
+            const gh = document.createElement('tr');
+            gh.className = 'group-header';
+            const g = TEST_GROUPS[tc.groupIdx];
+            gh.innerHTML = `
+                <td colspan="${colspan}">
+                    <span class="gh-stats" style="color:${allOk ? '#16A34A' : '#DC2626'};">${gPass}/${gTotal} ${allOk ? '✅' : '❌'}</span>
+                    <span class="gh-jt">📂 ${escHtml(g.jobType)}</span>
+                    <span class="gh-it">${escHtml(g.issueType)}</span>
+                    ${g.desc ? `<div class="gh-desc">${escHtml(g.desc)}</div>` : ''}
+                </td>
+            `;
+            tbody.appendChild(gh);
+        }
+        rowNum++;
+        const tr = document.createElement('tr');
+        tr.className = r.passed ? 'pass' : 'fail';
+        tr.innerHTML = `
+            <td>${rowNum}</td>
+            <td class="cell-input">${escHtml(tc.input)}</td>
+            <td class="cell-expected">${fmtCell({ jobType: tc.expect.jobType, issueType: tc.expect.issueType, symptom: tc.expect.symptom })}</td>
+            <td class="cell-actual">${fmtCell(r.heur)}</td>
+            ${withAi ? `<td class="cell-actual">${fmtCell(r.ai)}</td>` : ''}
+            <td class="cell-actual ${r.passed ? '' : 'fail'}">${fmtCell(r.final)}</td>
+            <td><span class="status ${r.passed ? 'pass' : 'fail'}">${r.passed ? 'PASS' : 'FAIL'}</span></td>
+        `;
+        tbody.appendChild(tr);
+    }
+
     document.getElementById('status').textContent = `เสร็จ ${pass}/${TEST_CASES.length} ผ่าน`;
 }
 
