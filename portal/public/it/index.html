@@ -4632,9 +4632,11 @@ async function sendChat() {
         aichatPendingImages = [];
         renderAIChatImagePreview();
     }
-    // Add a hint to the AI that images were attached so it knows to include them in the ticket
-    const userMsg = text + (aichatPendingImages.length > 0
-        ? `\n\n[ผู้ใช้แนบรูปภาพ ${aichatPendingImages.length} รูปมาด้วย โปรดเปิด Ticket โดยไม่ต้องถามเพิ่มเรื่องรูปภาพ]`
+    // Add a hint to the AI that images were attached so it knows to include them in the ticket.
+    // Use the snapshot above — `aichatPendingImages` was just cleared, so reading its length
+    // here always yielded 0 and the hint never reached the model.
+    const userMsg = text + (attachedImages.length > 0
+        ? `\n\n[ผู้ใช้แนบรูปภาพ ${attachedImages.length} รูปมาด้วย โปรดเปิด Ticket โดยไม่ต้องถามเพิ่มเรื่องรูปภาพ]`
         : '');
     chatHistory.push({ role: 'user', content: userMsg });
     appendTyping();
@@ -4664,8 +4666,11 @@ async function sendChat() {
                 worklist: chatWorklist,
             }),
         });
-        if (!res.ok && attempt < 2) {
-            await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        // The /api/chat endpoint already walks Groq → Gemini → Groq-8b on
+        // its side. One frontend retry on top is enough — used to retry 2x,
+        // stacking ~10s of waiting before the user saw any error (B6).
+        if (!res.ok && attempt < 1) {
+            await new Promise(r => setTimeout(r, 800));
             return tryChat(attempt + 1);
         }
         const data = await res.json();
@@ -4685,8 +4690,12 @@ async function sendChat() {
         }
     } catch (err) {
         removeTyping();
-        // ถ้า user เพิ่งยืนยัน → เปิด Ticket ให้เลย ไม่ต้องให้พิมพ์ใหม่
-        const isConfirm = /^(เปิด|เปิดเลย|เปิดเลยครับ|ยืนยัน|ใช่|โอเค|ok|okay|ครับ|จัดเลย|เปิดตั๋ว)$/i.test(text.trim());
+        // ถ้า user เพิ่งยืนยัน → เปิด Ticket ให้เลย ไม่ต้องให้พิมพ์ใหม่.
+        // Pattern matches with optional ครับ/ค่ะ + filler so common phrasings
+        // ("เอาเลยครับ", "เปิดทีนะ", "got it", "got it", "ใช่ครับ ใช่")
+        // recover instead of looping the user through retypes (B6).
+        const confirmRe = /^(เปิด(เลย|ตั๋ว|ที|ให้)?|ยืนยัน|ใช่(ครับ|ค่ะ)?(\s*ใช่)?|โอเค|โอเคเลย|ok(ay)?|got\s*it|จัด(เลย|ให้|ได้เลย)?|เอาเลย|เอาเลยครับ|เอา|ลุย)\s*(ครับ|ค่ะ|นะ(ครับ|ค่ะ)?)?\s*$/i;
+        const isConfirm = confirmRe.test(text.trim());
         if (isConfirm && chatHistory.length >= 3) {
             appendChatMsg('bot', 'AI ติดขัดนิดนึงครับ แต่ไม่เป็นไร เปิด Ticket ให้เลยนะครับ 🙏');
             await offerTicketDraft();
@@ -4705,10 +4714,14 @@ function heuristicExtract(history) {
     const all = history.map(m => m.content || '').join('\n');
     const userText = history.filter(m => m.role === 'user').map(m => m.content).join(' / ');
 
-    // Priority
-    let priority = 'medium';
+    // Priority — only set when the conversation has explicit signal.
+    // Returning '' when nothing matched lets the draft modal stay empty
+    // until the user actually picks one (B3: was defaulting to 'medium'
+    // which bypassed the "no priority guessing" guardrail end-to-end).
+    let priority = '';
     if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(all)) priority = 'urgent';
     else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(all)) priority = 'high';
+    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(all)) priority = 'medium';
     else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(all)) priority = 'low';
 
     // Location
@@ -4726,10 +4739,13 @@ function heuristicExtract(history) {
         if (roomMatch) locationDetail = roomMatch[0].trim();
     }
 
-    // VNC number (2-3 digits) — เฉพาะถ้า user พิมพ์ตัวเลขเดี่ยว ๆ
+    // VNC number — only when user explicitly says "VNC <num>". The old
+    // regex also accepted any standalone 2-3 digit number anywhere in the
+    // text (B4), so "Printer 24" / "ICT 22" / "ห้อง 301" pre-filled
+    // bogus VNC numbers in the draft.
     let vncNumber = '';
-    const vncMatch = userText.match(/\bvnc[:\s]*([0-9]{1,4})\b|\b([0-9]{2,3})\b(?!\s*\/)/i);
-    if (vncMatch) vncNumber = (vncMatch[1] || vncMatch[2] || '').trim();
+    const vncMatch = userText.match(/\bvnc[:\s]*([0-9]{1,4})\b/i);
+    if (vncMatch) vncNumber = vncMatch[1].trim();
 
     // Request = เลือกข้อความแรกของ user (ปัญหาหลัก) + ตัดคำยืนยัน/filler
     const skipPatterns = /^(ยืนยัน|ใช่|ตกลง|ok|okay|เปิด|เปิดเลย|เปิดเลยครับ|เปิดเลยครับผม|จัดเลย|ข้าม|ไม่รู้|ไม่มี|ครับ|ค่ะ|ด่วน|ด่วนมาก|ไม่เร่ง|สำคัญ|ปกติ|urgent|high|medium|low)\s*ครับ?\s*$/i;
@@ -4761,7 +4777,11 @@ function guessIssueFromText(text) {
     // a broken printer. Detect request-intent FIRST and route to the
     // "ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)" jobType from the worklist.
     const PERM_JT = 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)';
-    const isRequest = /(?:^|\s|,|;|:|\.)(ขอสิทธิ์|ขอใช้|ขอเข้า|ขอเพิ่ม|ขอลบ|ขอลง|ขอติดตั้ง|ขอ\s*permission|ขอเปลี่ยน|ขอยืม|ขอ\s*account|ขอ\s*setup|ขอ\s*install|ติดตั้งโปรแกรม|พนักงานใหม่|new\s*employee|new\s*account)/i.test(text);
+    // Drop the leading word-boundary so phrasings like "อยากขอสิทธิ์ปริ้น"
+    // / "รบกวนขอสิทธิ์" / "ช่วยลง Photoshop" still classify as requests
+    // — Thai letters don't satisfy the \s|,|; anchor (U2). Also broadened
+    // to catch "อยาก<verb>" / "ช่วย<verb>" which carry the same intent.
+    const isRequest = /(ขอสิทธิ์|ขอใช้|ขอเข้า|ขอเพิ่ม|ขอลบ|ขอลง|ขอติดตั้ง|ขอ\s*permission|ขอเปลี่ยน|ขอยืม|ขอ\s*account|ขอ\s*setup|ขอ\s*install|ขอ\s*key|ขอ\s*license|อยาก(ใช้|ลง|ติดตั้ง|ขอ|ได้)|ช่วย(ลง|ติดตั้ง|เพิ่มสิทธิ์)|รบกวน(ขอ|ลง|ติดตั้ง)|ติดตั้งโปรแกรม|พนักงานใหม่|new\s*employee|new\s*account)/i.test(text);
     if (isRequest && worklist[PERM_JT]) {
         // Try to pick the right issueType under ขอสิทธิ์เข้าระบบ
         const REQ_RULES = [
@@ -4816,9 +4836,11 @@ function guessIssueFromText(text) {
               // ยกเลิก / เปิดใช้
               [/ยกเลิก/i, 'ยกเลิกอีเมล'],
               [/เปิดใช้|เปิดใหม่|setup|new account/i, 'เปิดใช้งานอีเมล'],
-              // login / can't open / can't access — treat as "เปิดโปรแกรมไม่ได้"
-              // (the worklist has no explicit "ล็อกอินไม่ได้" for Email)
-              [/login|ล็อกอิน|เข้า.*ไม่ได้|รหัสผ่าน|password|เปิดไม่ได้|เปิดโปรแกรม/i, 'เปิดโปรแกรมไม่ได้'],
+              // login / can't open the program — treat as "เปิดโปรแกรมไม่ได้".
+              // Dropped รหัสผ่าน|password from this rule (U4) — those are
+              // forgot-password cases, not "can't open Outlook" cases. Let
+              // the AI ask the user to pick the right symptom instead.
+              [/login|ล็อกอิน|เปิดไม่ได้|เปิดโปรแกรม/i, 'เปิดโปรแกรมไม่ได้'],
               // can't send / receive
               [/ส่ง.*ไม่|รับ.*ไม่|ส่งไม่ออก|รับไม่|sync|ค้าง/i, 'ไม่สามารถรับ / ส่งอีเมลได้'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
@@ -5029,10 +5051,12 @@ function openDraftModal() {
     locDetailInput.value = locDetail;
     document.getElementById('draftPhone').value = currentUser.phone || '';
     document.getElementById('draftVnc').value = d.vncNumber || '';
-    // Pre-fill priority from AI (default medium)
+    // Pre-fill priority from AI ONLY when it's a valid value the user
+    // (or heuristic) actually said. Leave empty otherwise so user has to
+    // pick — submitDraftModal blocks submit when blank (B3).
     const priSel = document.getElementById('draftPriority');
     const validPri = ['low','medium','high','urgent'];
-    priSel.value = (d.priority && validPri.includes(d.priority)) ? d.priority : 'medium';
+    priSel.value = (d.priority && validPri.includes(d.priority)) ? d.priority : '';
 
     // Auto-attach all images sent in this chat session. Stays alive
     // even if user closes + reopens the draft modal; cleared only
@@ -5175,6 +5199,15 @@ function closeDraftModal() {
 
 async function submitDraftModal(e) {
     e.preventDefault();
+    // Block submit when priority isn't picked — used to silently fall
+    // back to 'medium' which created tickets that didn't reflect user
+    // urgency (B3).
+    const priorityVal = document.getElementById('draftPriority').value;
+    if (!priorityVal) {
+        showToast('กรุณาเลือก Priority', 'error');
+        document.getElementById('draftPriority').focus();
+        return;
+    }
     setLoading(true);
     try {
         // Upload photos + files ผ่าน uploadBatchWithProgress
@@ -5198,7 +5231,7 @@ async function submitDraftModal(e) {
                               ? ' — ' + document.getElementById('draftLocationDetail').value.trim() : ''),
             vncNumber:    document.getElementById('draftVnc').value.trim(),
             phone:        document.getElementById('draftPhone').value.trim(),
-            priority:     document.getElementById('draftPriority').value || 'medium',
+            priority:     priorityVal,
             photoUrls,
             fileUrls,
         };
@@ -5243,42 +5276,43 @@ function fuzzyMatch(target, candidates) {
 }
 
 function validateDraftWorklist(draft) {
+    // Resolve AI-returned strings against the real worklist. When something
+    // doesn't match cleanly we leave the field BLANK and let the user pick —
+    // silently picking "first issueType under that jobType" pre-filled the
+    // wrong category (B2).
     const out = { jobType: '', issueType: '', symptom: '' };
 
-    // Match jobType (fuzzy)
+    // jobType — fuzzy match against worklist keys
     const jt = fuzzyMatch(draft.jobType, Object.keys(worklist));
     if (!jt) {
-        // Try matching against issueType or symptom to guess jobType
+        // jobType missing/wrong → try to recover via issueType: pick the
+        // jobType that contains a matching issueType, but only if the match
+        // is unambiguous (one candidate). Otherwise leave everything blank.
+        const candidates = [];
         for (const [j, issues] of Object.entries(worklist)) {
-            for (const [i, syms] of Object.entries(issues)) {
-                if (fuzzyMatch(draft.issueType, [i]) || (syms || []).some(s => fuzzyMatch(draft.symptom, [s]))) {
-                    out.jobType = j;
-                    out.issueType = i;
-                    out.symptom = fuzzyMatch(draft.symptom, syms) || (syms[0] || '');
-                    return out;
-                }
-            }
+            const i = fuzzyMatch(draft.issueType, Object.keys(issues));
+            if (i) candidates.push({ j, i });
+        }
+        if (candidates.length === 1) {
+            out.jobType = candidates[0].j;
+            out.issueType = candidates[0].i;
+            const syms = worklist[out.jobType][out.issueType] || [];
+            out.symptom = fuzzyMatch(draft.symptom, syms) || '';
         }
         return out;
     }
     out.jobType = jt;
 
-    // Match issueType (fuzzy) within chosen jobType
+    // issueType — fuzzy match within the chosen jobType. No match → blank.
     const it = fuzzyMatch(draft.issueType, Object.keys(worklist[jt]));
-    if (!it) {
-        const firstIt = Object.keys(worklist[jt])[0];
-        if (firstIt) {
-            out.issueType = firstIt;
-            out.symptom = (worklist[jt][firstIt][0] || '');
-        }
-        return out;
-    }
+    if (!it) return out;
     out.issueType = it;
 
-    // Match symptom (fuzzy) within chosen issueType
-    const symptoms = worklist[jt][it] || [];
-    const s = fuzzyMatch(draft.symptom, symptoms);
-    out.symptom = s || (symptoms[0] || '');
+    // symptom — fuzzy match within the chosen issueType. No match → blank
+    // (don't auto-pick the first symptom; some categories like
+    // "เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)" have สี / ขาว-ดำ as siblings —
+    // pre-filling the wrong one creates an incorrect ticket).
+    out.symptom = fuzzyMatch(draft.symptom, worklist[jt][it] || []) || '';
     return out;
 }
 
