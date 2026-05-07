@@ -976,7 +976,6 @@
                             <option value="Comets FAC">Comets FAC</option>
                             <option value="ICT">ICT</option>
                             <option value="JA">JA</option>
-                            <option value="บ้านแสง">บ้านแสง</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1465,7 +1464,6 @@
                         <option value="Comets FAC">Comets FAC</option>
                         <option value="ICT">ICT</option>
                         <option value="JA">JA</option>
-                        <option value="บ้านแสง">บ้านแสง</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -3035,7 +3033,7 @@ function onFilterIssueTypeChange() {
 }
 // Populate filter dropdowns from loaded data
 function populateFilterDropdowns() {
-    // Plant/Location dropdown uses hardcoded options in HTML (Comets HQ, Comets FAC, ICT, JA, บ้านแสง)
+    // Plant/Location dropdown uses hardcoded options in HTML (Comets HQ, Comets FAC, ICT, JA)
     // — don't override with get_plants_list (that returns plant column values which are different)
 
     // Admin dropdown (use assignees list)
@@ -4555,7 +4553,12 @@ function appendChatMsg(role, text, images) {
     // option text gets sent as their next message.
     if (role === 'bot') {
         const opts = extractNumberedOptions(text);
-        if (opts.length >= 2 && /เลือก(ข้อไหน|อันไหน|แบบไหน|ไหน|ข้อใด)|พิมพ์(ตัว)?เลข|เลือกเลย/i.test(text)) {
+        // Render chips whenever the bot has lined up >=2 numbered options
+        // and the message ends in a question. We don't require "เลือก" verb
+        // because phrasings like "อยู่โลเคชั่นไหนครับ?" / "ตัวไหนครับ?" /
+        // "แบบไหนครับ?" are equally clear pick-prompts.
+        const isPickPrompt = /[?？]\s*$/.test(text.trim()) || /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด/i.test(text);
+        if (opts.length >= 2 && isPickPrompt) {
             const row = document.createElement('div');
             row.className = 'chat-quick-replies';
             opts.forEach((opt, i) => {
@@ -4779,7 +4782,7 @@ function heuristicExtract(history) {
     else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(all)) priority = 'low';
 
     // Location
-    const locs = ['Comets HQ', 'Comets FAC', 'ICT', 'JA', 'บ้านแสง'];
+    const locs = ['Comets HQ', 'Comets FAC', 'ICT', 'JA'];
     let location = '';
     for (const l of locs) if (all.includes(l)) { location = l; break; }
 

@@ -34,7 +34,7 @@ const SYSTEM_PROMPT = `คุณคือ "IT Support Assistant" ผู้ช่
 
 # ข้อมูล 4 ข้อที่ต้องเก็บ (CHECKLIST)
 1. **ปัญหา + symptom** (เลือกจาก worklist — ดูส่วน "เลือก symptom" ด้านล่าง)
-2. **location หลัก** — Comets HQ / Comets FAC / ICT / JA / บ้านแสง
+2. **location หลัก** — Comets HQ / Comets FAC / ICT / JA
 3. **zone** — ชั้น/ห้อง/แผนก เช่น "ชั้น 3", "ห้องบัญชี", "แผนกการตลาด" (**ห้ามข้าม** — "Comets" เฉย ๆ ยังไม่ครบ ต้องถามต่อ)
 4. **priority** — user เลือก:
    🔴 **ด่วนมาก** งานหยุด · 🟠 **สำคัญ** ต้องใช้วันนี้ · 🟡 **ปกติ** มีทางเลี่ยง · ⚪ **ไม่เร่ง** ขอสิทธิ์/ติดตั้ง
@@ -302,7 +302,7 @@ function buildDraftPrompt(history, worklist) {
      • "ขอเข้า SAP" → user ขอ access → **ขอสิทธิ์เข้าระบบ / ขอสิทธิ์เข้าระบบ SAP**
      • "SAP ค้าง" → โปรแกรมเสีย → **ปัญหาโปรแกรม / SAP**
    - **กฎทั่วไป:** ถ้ามีคำขึ้นต้นว่า "ขอ" + (สิทธิ์/ใช้/เข้า/เปลี่ยน/ยืม/ติดตั้ง) → อ่าน worklist หา jobType แนว "ขอสิทธิ์/ติดตั้ง" ก่อน อย่าเลือก jobType ตามอุปกรณ์ที่ปรากฏในประโยค
-6. location ต้องเป็น 1 ใน: "Comets HQ", "Comets FAC", "ICT", "JA", "บ้านแสง" (ว่างถ้าไม่ระบุ)
+6. location ต้องเป็น 1 ใน: "Comets HQ", "Comets FAC", "ICT", "JA" (ว่างถ้าไม่ระบุ)
 7. locationDetail = โซน/จุดที่พบปัญหา (เช่น "ชั้น 2 ห้อง IT", "โต๊ะทำงาน") หรือ "" ถ้าไม่ระบุ
 8. priority ประเมินจากอาการ:
    - "urgent" = งานหยุด / CEO / ปิดงบ
@@ -316,7 +316,7 @@ function buildDraftPrompt(history, worklist) {
   "jobType": "ค่าจากรายการ",
   "issueType": "ค่าจากรายการ",
   "symptom": "ค่าจากรายการ",
-  "location": "Comets HQ | Comets FAC | ICT | JA | บ้านแสง | \"\"",
+  "location": "Comets HQ | Comets FAC | ICT | JA | \"\"",
   "locationDetail": "โซน/จุด หรือ \"\"",
   "priority": "urgent | high | medium | low",
   "vncNumber": "",
