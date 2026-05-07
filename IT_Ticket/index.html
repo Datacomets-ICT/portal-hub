@@ -757,7 +757,7 @@
             </button>
         </form>
         <p style="text-align:center; margin-top:12px; font-size:13px; color:var(--text2);">
-            ยังไม่มีบัญชี? <a href="#" onclick="showPage('pageRegister');return false;" style="color:var(--primary);font-weight:600;text-decoration:underline;">ลงทะเบียนที่นี่</a>
+            ยังไม่มีบัญชี? <a href="/register" style="color:var(--primary);font-weight:600;text-decoration:underline;">ลงทะเบียนที่ Workspace</a>
         </p>
         <p style="text-align:center; margin-top:6px; font-size:12px; color:var(--muted);">
             <a href="#" onclick="openForgotPwdModal();return false;" style="color:var(--text2);text-decoration:underline;">ลืมรหัสผ่าน?</a>
@@ -802,79 +802,6 @@
                 <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane"></i> ส่งคำขอไปทีม IT</button>
             </div>
         </form>
-    </div>
-</div>
-
-<!-- ========== REGISTER ========== -->
-<div class="page auth-page" id="pageRegister">
-    <div class="auth-card" style="width:460px;">
-        <div class="logo">
-            <i class="fas fa-user-plus"></i>
-            <h1>ลงทะเบียนผู้ใช้ใหม่</h1>
-            <p>กรอกข้อมูลเพื่อสมัครใช้งานระบบ IT Ticket</p>
-        </div>
-        <form id="registerForm" onsubmit="handleRegister(event)">
-            <div class="form-row">
-                <div class="form-group">
-                    <label>รหัสพนักงาน <span style="color:var(--danger)">*</span></label>
-                    <input type="text" id="regEmpId" required>
-                </div>
-                <div class="form-group">
-                    <label>Password <span style="color:var(--danger)">*</span></label>
-                    <input type="password" id="regPassword" placeholder="ตั้งรหัสผ่าน" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>สังกัด <span style="color:var(--danger)">*</span></label>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <label style="display:flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;transition:all .15s;">
-                        <input type="radio" name="regCompany" value="Comets" required style="width:auto;"> Comets
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;transition:all .15s;">
-                        <input type="radio" name="regCompany" value="ICT" style="width:auto;"> ICT
-                    </label>
-                    <label style="display:flex;align-items:center;gap:6px;padding:8px 16px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;font-size:14px;transition:all .15s;">
-                        <input type="radio" name="regCompany" value="JA" style="width:auto;"> JA
-                    </label>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>ชื่อ (ไทย) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" id="regFirstName" required>
-                </div>
-                <div class="form-group">
-                    <label>นามสกุล (ไทย) <span style="color:var(--danger)">*</span></label>
-                    <input type="text" id="regLastName" required>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>ชื่อเล่น</label>
-                    <input type="text" id="regNickname" placeholder="ชื่อเล่น">
-                </div>
-                <div class="form-group">
-                    <label>ตำแหน่ง (ไทย)</label>
-                    <input type="text" id="regPosition" placeholder="ตำแหน่งงาน">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>อีเมล <span style="color:var(--danger)">*</span></label>
-                    <input type="email" id="regEmail" placeholder="ใช้สำหรับรับรหัสผ่านเมื่อลืม" required>
-                </div>
-                <div class="form-group">
-                    <label>เบอร์โทร <span style="color:var(--danger)">*</span></label>
-                    <input type="text" id="regPhone" required>
-                </div>
-            </div>
-            <button type="submit" class="btn btn-primary" style="margin-top:8px;">
-                <i class="fas fa-user-plus"></i> ลงทะเบียน
-            </button>
-        </form>
-        <p style="text-align:center; margin-top:16px; font-size:13px; color:var(--muted);">
-            มีบัญชีอยู่แล้ว? <a href="#" onclick="showPage('pageLogin');return false;" style="color:var(--primary);font-weight:600;text-decoration:none;">เข้าสู่ระบบ</a>
-        </p>
     </div>
 </div>
 
@@ -1262,37 +1189,6 @@
                 <p>ยังไม่มี Ticket</p>
                 <p style="font-size:12px; margin-top:4px;">ลองเปิด Ticket ใหม่ หรือสอบถามกับ AI Chatbot ทางซ้ายของหน้าจอ</p>
                 <button class="btn btn-primary btn-sm" style="margin-top:14px;width:auto;" onclick="showTab('tabNewTicket', document.querySelector('.nav-links button:first-child'))"><i class="fas fa-plus"></i> เปิด Ticket ใหม่</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tab: Approval (Admin only) -->
-    <div class="content tab-content" id="tabApproval" style="display:none;">
-        <div class="list-header">
-            <h2><i class="fas fa-user-check"></i> อนุมัติผู้ลงทะเบียนใหม่</h2>
-            <button class="btn btn-outline btn-sm" onclick="loadPendingRegistrations()"><i class="fas fa-sync"></i> รีเฟรช</button>
-        </div>
-        <div class="ticket-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>รหัสพนักงาน</th>
-                        <th>ชื่อ-นามสกุล</th>
-                        <th>ชื่อเล่น</th>
-                        <th>สังกัด</th>
-                        <th>ตำแหน่ง</th>
-                        <th>อีเมล</th>
-                        <th>เบอร์โทร</th>
-                        <th>วันที่สมัคร</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="approvalTableBody"></tbody>
-            </table>
-            <div class="empty-state" id="approvalEmpty" style="display:none;">
-                <i class="fas fa-check-circle" style="color:var(--success);"></i>
-                <p>ไม่มีผู้ลงทะเบียนรออนุมัติ</p>
-                <p style="font-size:12px; margin-top:4px;">จะมีการแจ้งเตือนในกระดิ่ง 🔔 เมื่อมีผู้สมัครใหม่</p>
             </div>
         </div>
     </div>
@@ -1939,7 +1835,6 @@ function showTab(id, btn) {
     if (btn) btn.classList.add('active');
     if (id === 'tabTicketList') loadTickets();
     if (id === 'tabFaq') loadFaq();
-    if (id === 'tabApproval') loadPendingRegistrations();
     if (id === 'tabDashboard') loadDashboard();
 
     // Auto-refresh ticket list every 30s for admins
@@ -2168,7 +2063,6 @@ function enterApp() {
 
     if (currentUser.isAdmin) {
         loadAssignees().then(() => populateFilterDropdowns());
-        loadPendingRegistrations();
     }
     populateFilterDropdowns();
 }
@@ -5484,113 +5378,6 @@ async function submitForgotPwd(e) {
         }
         closeForgotPwdModal();
         showToast(data.message || 'ส่งคำขอไปทีม IT เรียบร้อย');
-    } catch (err) {
-        showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
-    } finally {
-        setLoading(false);
-    }
-}
-
-async function handleRegister(e) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-        const company = document.querySelector('input[name="regCompany"]:checked');
-        if (!company) throw new Error('กรุณาเลือกสังกัด');
-
-        const { data, error } = await sb.rpc('register_employee', {
-            p_emp_id:     document.getElementById('regEmpId').value.trim(),
-            p_password:   document.getElementById('regPassword').value.trim(),
-            p_company:    company.value,
-            p_first_name: document.getElementById('regFirstName').value.trim(),
-            p_last_name:  document.getElementById('regLastName').value.trim(),
-            p_nickname:   document.getElementById('regNickname').value.trim(),
-            p_position:   document.getElementById('regPosition').value.trim(),
-            p_email:      document.getElementById('regEmail').value.trim(),
-            p_phone:      document.getElementById('regPhone').value.trim(),
-        });
-        if (error) throw error;
-        if (!data || !data.success) throw new Error((data && data.message) || 'ลงทะเบียนไม่สำเร็จ');
-
-        showToast(data.message || 'ลงทะเบียนสำเร็จ เข้าใช้งานได้ทันที');
-        document.getElementById('registerForm').reset();
-        showPage('pageLogin');
-    } catch (err) {
-        showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
-    } finally {
-        setLoading(false);
-    }
-}
-
-// ===== Admin Approval =====
-let pendingRegs = [];
-
-async function loadPendingRegistrations() {
-    if (!currentUser || !currentUser.isAdmin) return;
-    try {
-        const { data, error } = await sb.rpc('get_pending_registrations');
-        if (error) throw error;
-        pendingRegs = Array.isArray(data) ? data : [];
-        renderApprovalTable();
-        // Update badge
-        const badge = document.getElementById('approveBadge');
-        if (pendingRegs.length > 0) {
-            badge.textContent = pendingRegs.length;
-            badge.style.display = 'inline';
-        } else {
-            badge.style.display = 'none';
-        }
-    } catch (err) {
-        console.warn('loadPendingRegistrations error:', err);
-    }
-}
-
-function renderApprovalTable() {
-    const tbody = document.getElementById('approvalTableBody');
-    const empty = document.getElementById('approvalEmpty');
-
-    if (pendingRegs.length === 0) {
-        tbody.innerHTML = '';
-        empty.style.display = 'block';
-        return;
-    }
-    empty.style.display = 'none';
-
-    tbody.innerHTML = pendingRegs.map(r => {
-        const dt = r.registeredAt ? new Date(r.registeredAt).toLocaleString('sv-SE').slice(0, 16) : '-';
-        return `
-            <tr>
-                <td><strong>${esc(r.employeeId)}</strong></td>
-                <td>${esc(r.firstName)} ${esc(r.lastName)}</td>
-                <td>${esc(r.nickname || '-')}</td>
-                <td>${esc(r.company || '-')}</td>
-                <td>${esc(r.position || '-')}</td>
-                <td>${esc(r.email || '-')}</td>
-                <td>${esc(r.phone || '-')}</td>
-                <td style="font-size:12px;">${esc(dt)}</td>
-                <td style="white-space:nowrap;">
-                    <button class="btn btn-success btn-sm" onclick="approveReg('${esc(r.employeeId)}','approve')" title="อนุมัติ"><i class="fas fa-check"></i></button>
-                    <button class="btn btn-outline btn-sm" style="border-color:var(--danger);color:var(--danger);" onclick="approveReg('${esc(r.employeeId)}','reject')" title="ปฏิเสธ"><i class="fas fa-times"></i></button>
-                </td>
-            </tr>`;
-    }).join('');
-}
-
-async function approveReg(empId, action) {
-    const label = action === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ';
-    if (!confirm(`ยืนยัน${label} รหัส ${empId}?`)) return;
-    setLoading(true);
-    try {
-        const { data, error } = await sb.rpc('approve_registration', {
-            p_admin_id:  currentUser.employeeId,
-            p_admin_pwd: currentPwd,
-            p_emp_id:    empId,
-            p_action:    action,
-        });
-        if (error) throw error;
-        if (!data || !data.success) throw new Error((data && data.message) || 'ไม่สำเร็จ');
-        showToast(`${label}เรียบร้อย`);
-        loadPendingRegistrations();
     } catch (err) {
         showToast(err.message || 'เกิดข้อผิดพลาด', 'error');
     } finally {
