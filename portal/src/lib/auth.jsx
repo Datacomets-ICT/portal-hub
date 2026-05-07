@@ -28,6 +28,9 @@ function readSession() {
 function toMeetingUser(itUser) {
   if (!itUser) return null;
   const fullName = [itUser.firstName, itUser.lastName].filter(Boolean).join(' ') || itUser.nickname || itUser.employeeId;
+  // Elevated org roles count as admin in every sub-app
+  const elevated = ['manager', 'senior_manager', 'officer', 'system'].includes(itUser.role || 'user');
+  const meetingAdmin = (itUser.meetingRole === 'admin') || elevated;
   return {
     code: itUser.employeeId,
     name: fullName,
@@ -37,6 +40,9 @@ function toMeetingUser(itUser) {
     // Propagate the Workspace-chosen avatar so meeting-rooms shows the
     // same pill as Workspace + Driver instead of falling back to a flat letter.
     avatarUrl: itUser.avatarUrl || '',
+    // Per-app role (v43): Meeting Rooms uses meeting_role.
+    role: meetingAdmin ? 'admin' : 'user',
+    meetingRole: itUser.meetingRole || 'user',
   };
 }
 

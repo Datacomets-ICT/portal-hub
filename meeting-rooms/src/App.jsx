@@ -21,6 +21,9 @@ import {
   deleteBooking,
 } from './api/bookings';
 
+// Per-app role (v43): admin determined by meeting_role from Workspace
+// auth (toMeetingUser already sets role='admin' for elevated users).
+// ADMIN_CODE kept as a fallback for accounts predating v43.
 const ADMIN_CODE = '11295';
 
 function ymd(d) {
@@ -49,7 +52,9 @@ export default function App() {
       return null;
     }
   });
-  const isAdmin = currentUser?.code === ADMIN_CODE;
+  const isAdmin = currentUser?.role === 'admin'
+    || currentUser?.meetingRole === 'admin'
+    || currentUser?.code === ADMIN_CODE;
 
   const handleLogin = (emp) => {
     localStorage.setItem('mr_user', JSON.stringify(emp));

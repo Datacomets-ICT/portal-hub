@@ -2046,6 +2046,15 @@ function handleLogout() {
 }
 
 function enterApp() {
+    // Per-app role (v43): IT-Ticket uses it_role. Override the legacy
+    // global isAdmin flag with IT-specific access so the rest of this
+    // file's `currentUser.isAdmin` checks reflect *this app's* role.
+    // Elevated org roles (system/manager/senior_manager/officer) still
+    // count as admin everywhere — they're cross-app oversight roles.
+    if (currentUser) {
+        currentUser.isAdmin = (currentUser.itRole === 'admin')
+            || ['system','manager','senior_manager','officer'].includes(currentUser.role || 'user');
+    }
     const displayName = currentUser.nickname || currentUser.firstName || 'User';
     document.getElementById('userName').textContent  = `${displayName} (${currentUser.section})`;
     const navAv = document.getElementById('userAvatar');

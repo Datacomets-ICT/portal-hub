@@ -17,7 +17,11 @@ const PORTAL_USER = (function () {
     // Match Workspace's display priority: nickname > firstName > empId
     var displayName = u.nickname || u.firstName || u.name || empId;
     var role = (u.role || 'user').toLowerCase();
-    var isAdmin = !!u.isAdmin || ['manager','senior_manager','officer','system'].indexOf(role) !== -1;
+    // Per-app role (v43): Driver uses driver_role. Elevated org roles
+    // (system/manager/senior_manager/officer) still count as admin.
+    var driverRole = (u.driverRole || u.driver_role || 'user').toLowerCase();
+    var isAdmin = driverRole === 'admin'
+      || ['manager','senior_manager','officer','system'].indexOf(role) !== -1;
     return {
       id: String(empId),
       name: fullName,                  // kept for places that want the full HR name
