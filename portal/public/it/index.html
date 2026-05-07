@@ -1490,9 +1490,22 @@
                 <label>รายละเอียดคำขอ <span style="color:var(--danger)">*</span></label>
                 <textarea id="draftRequest" required placeholder="อธิบายรายละเอียดของปัญหา..." style="min-height:80px;"></textarea>
             </div>
-            <div class="form-group">
-                <label>VNC Number <span style="color:var(--muted); font-weight:400; font-size:11px;">(ถ้ามี)</span></label>
-                <input type="text" id="draftVnc" placeholder="เช่น 91 (ถ้าไม่รู้ข้ามได้)">
+            <div class="form-group" style="position:relative;">
+                <label>
+                    VNC Number
+                    <span class="vnc-help-btn" onclick="toggleDraftVncHelp(event)" title="วิธีดู VNC" style="margin-left:4px;"><i class="fas fa-question-circle"></i></span>
+                </label>
+                <div class="vnc-help-popup" id="draftVncHelpPopup">
+                    <div class="vnc-help-header"><b>วิธีดูหมายเลข VNC</b><button onclick="toggleDraftVncHelp(event)"><i class="fas fa-times"></i></button></div>
+                    <div class="vnc-help-body">
+                        <p>1. มองที่ <b>Taskbar มุมขวาล่าง</b> ของหน้าจอ</p>
+                        <p>2. หาไอคอน <b>TightVNC</b> (รูปตัว V สีเขียว/แดง)</p>
+                        <p>3. <b>เอาเมาส์ชี้ค้างไว้</b> จะเห็นข้อความ เช่น<br><code>TightVNC Service - 192.168.120.91</code></p>
+                        <p>4. พิมพ์เลข <b>192.168.xxx.xxx</b> ลงในช่องนี้</p>
+                        <p style="color:var(--muted);font-size:11px;margin-top:8px;">* ถ้าไม่เจอไอคอน กดลูกศร ▲ ที่ taskbar เพื่อดู hidden icons</p>
+                    </div>
+                </div>
+                <input type="text" id="draftVnc" placeholder="เช่น 192.168.120.91 (ถ้าไม่รู้ข้ามได้)">
             </div>
             <div class="form-group">
                 <label><i class="fas fa-camera"></i> แนบรูป (สูงสุด 5 รูป)</label>
@@ -3935,11 +3948,19 @@ function toggleVncHelp(e) {
     if (e) e.stopPropagation();
     document.getElementById('vncHelpPopup').classList.toggle('show');
 }
+function toggleDraftVncHelp(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('draftVncHelpPopup').classList.toggle('show');
+}
 document.addEventListener('click', (e) => {
-    const popup = document.getElementById('vncHelpPopup');
-    if (popup && popup.classList.contains('show') && !e.target.closest('.vnc-help-popup') && !e.target.closest('.vnc-help-btn')) {
-        popup.classList.remove('show');
-    }
+    ['vncHelpPopup', 'draftVncHelpPopup'].forEach(id => {
+        const popup = document.getElementById(id);
+        if (popup && popup.classList.contains('show')
+            && !e.target.closest('.vnc-help-popup')
+            && !e.target.closest('.vnc-help-btn')) {
+            popup.classList.remove('show');
+        }
+    });
 });
 
 // ===== Sticker Panel =====
