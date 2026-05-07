@@ -680,6 +680,13 @@
         .chat-step > :not(.step-num) { flex: 1; min-width: 0; overflow-wrap: break-word; word-break: break-word; }
         .chat-bullet { padding-left: 12px; position: relative; margin: 2px 0; overflow-wrap: break-word; }
         .chat-bullet::before { content: ''; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+        .chat-quick-replies { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 4px 4px; align-self: flex-start; max-width: 85%; }
+        .chat-quick-reply { background: var(--card); border: 1.5px solid var(--primary); color: var(--primary); padding: 8px 14px; border-radius: 999px; font: 600 12.5px/1.2 inherit; cursor: pointer; transition: background .15s, color .15s, transform .08s; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+        .chat-quick-reply:hover:not(:disabled) { background: var(--primary); color: #fff; transform: translateY(-1px); }
+        .chat-quick-reply:active:not(:disabled) { transform: translateY(0); }
+        .chat-quick-reply:disabled { opacity: 0.45; cursor: not-allowed; }
+        .chat-quick-reply .qr-num { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; text-align: center; background: var(--primary); color: #fff; border-radius: 50%; font-size: 10px; margin-right: 6px; }
+        .chat-quick-reply:hover:not(:disabled) .qr-num { background: #fff; color: var(--primary); }
         .chat-link { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; background: var(--primary-light); color: var(--primary) !important; border: 1px solid #C7D2FE; border-radius: 6px; text-decoration: none !important; font-size: 12px; font-weight: 600; margin: 2px 2px; transition: all .15s; word-break: break-all; }
         .chat-link:hover { background: var(--primary); color: #fff !important; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(79,70,229,.3); }
         .chat-link i { font-size: 10px; }
@@ -4515,6 +4522,10 @@ function seedChatGreeting() {
 
 function appendChatMsg(role, text, images) {
     const body = document.getElementById('chatBody');
+    // Disable quick-reply buttons from previous turns when ANY new message
+    // arrives — old options aren't relevant once the conversation moves on.
+    body.querySelectorAll('.chat-quick-reply:not(:disabled)').forEach(b => b.disabled = true);
+
     const div = document.createElement('div');
     div.className = `chat-msg ${role}`;
     if (role === 'bot') {
@@ -4538,7 +4549,50 @@ function appendChatMsg(role, text, images) {
         div.textContent = text;
     }
     body.appendChild(div);
+
+    // Quick-reply buttons: when bot lists numbered options + asks user
+    // to pick, render clickable chips below the bubble. User clicks →
+    // option text gets sent as their next message.
+    if (role === 'bot') {
+        const opts = extractNumberedOptions(text);
+        if (opts.length >= 2 && /เลือก(ข้อไหน|อันไหน|แบบไหน|ไหน|ข้อใด)|พิมพ์(ตัว)?เลข|เลือกเลย/i.test(text)) {
+            const row = document.createElement('div');
+            row.className = 'chat-quick-replies';
+            opts.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'chat-quick-reply';
+                btn.innerHTML = `<span class="qr-num">${i + 1}</span>${esc(opt)}`;
+                btn.addEventListener('click', () => sendQuickReply(opt));
+                row.appendChild(btn);
+            });
+            body.appendChild(row);
+        }
+    }
+
     body.scrollTop = body.scrollHeight;
+}
+
+// Pull "1. **Label**" / "2. Label" entries out of a bot message so we can
+// turn them into quick-reply buttons. Only matches the first ~6 to avoid
+// turning every numbered list (e.g. troubleshooting steps) into chips.
+function extractNumberedOptions(text) {
+    const re = /^\s*(\d+)\.\s+(?:\*\*([^*\n]+?)\*\*|([^\n]+?))\s*$/gm;
+    const out = [];
+    let m;
+    while ((m = re.exec(text)) !== null && out.length < 6) {
+        const label = (m[2] || m[3] || '').trim()
+            .replace(/\s*[—-]\s*.+$/, '');  // drop "— description" tail
+        if (label) out.push(label);
+    }
+    return out;
+}
+
+function sendQuickReply(text) {
+    const input = document.getElementById('chatInput');
+    if (!input || chatBusy) return;
+    input.value = text;
+    sendChat();
 }
 
 function formatBotMsg(text) {
