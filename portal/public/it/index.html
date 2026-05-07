@@ -4893,6 +4893,23 @@ function guessIssueFromText(text) {
     // a broken printer. Detect request-intent FIRST and route to the
     // "ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)" jobType from the worklist.
     const PERM_JT = 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)';
+
+    // ===== Hard hardware-failure pre-check =====
+    // Phrases like "จอฟ้า", "หน้าจอคอมดับ", "blue screen", "เครื่องค้าง"
+    // are unambiguous hardware-broken signals. They must take precedence
+    // over the permission classifier because the bot's own reply often
+    // contains "ขอ..." (e.g. "ขอข้อมูลเพิ่ม") which used to flip isRequest
+    // and route the whole conversation to ขอสิทธิ์เข้าระบบ.
+    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง/i;
+    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์'] && worklist['คอมพิวเตอร์']['PC']) {
+        const pcSyms = worklist['คอมพิวเตอร์']['PC'] || [];
+        let symptom = '';
+        if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && pcSyms.includes('หน้าจอฟ้า')) symptom = 'หน้าจอฟ้า';
+        else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && pcSyms.includes('เครื่องเปิดไม่ติด')) symptom = 'เครื่องเปิดไม่ติด';
+        else if (/ช้า/i.test(text) && pcSyms.includes('เครื่องช้า')) symptom = 'เครื่องช้า';
+        return { jobType: 'คอมพิวเตอร์', issueType: 'PC', symptom };
+    }
+
     // Drop the leading word-boundary so phrasings like "อยากขอสิทธิ์ปริ้น"
     // / "รบกวนขอสิทธิ์" / "ช่วยลง Photoshop" still classify as requests
     // — Thai letters don't satisfy the \s|,|; anchor (U2). Also broadened
@@ -5101,6 +5118,10 @@ async function offerTicketDraft() {
         // wrong sibling symptoms (e.g. "ไม่สามารถส่งเมล" for a login issue).
         const heur = heuristicExtract(chatHistory);
         const ai = data.draft || {};
+        // Debug: log both side's classification so we can see why a wrong
+        // category appears in the modal. Open DevTools console.
+        console.log('[draft] AI:', ai.jobType, '/', ai.issueType, '/', ai.symptom);
+        console.log('[draft] heur:', heur.jobType, '/', heur.issueType, '/', heur.symptom);
         const merged = { ...ai };
         for (const k of Object.keys(heur)) {
             if (merged[k] === undefined || merged[k] === null || merged[k] === '') {
