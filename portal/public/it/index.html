@@ -680,13 +680,11 @@
         .chat-step > :not(.step-num) { flex: 1; min-width: 0; overflow-wrap: break-word; word-break: break-word; }
         .chat-bullet { padding-left: 12px; position: relative; margin: 2px 0; overflow-wrap: break-word; }
         .chat-bullet::before { content: ''; position: absolute; left: 0; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
-        .chat-quick-replies { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 4px 4px; align-self: flex-start; max-width: 85%; }
-        .chat-quick-reply { background: var(--card); border: 1.5px solid var(--primary); color: var(--primary); padding: 8px 14px; border-radius: 999px; font: 600 12.5px/1.2 inherit; cursor: pointer; transition: background .15s, color .15s, transform .08s; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
-        .chat-quick-reply:hover:not(:disabled) { background: var(--primary); color: #fff; transform: translateY(-1px); }
-        .chat-quick-reply:active:not(:disabled) { transform: translateY(0); }
-        .chat-quick-reply:disabled { opacity: 0.45; cursor: not-allowed; }
-        .chat-quick-reply .qr-num { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; text-align: center; background: var(--primary); color: #fff; border-radius: 50%; font-size: 10px; margin-right: 6px; }
-        .chat-quick-reply:hover:not(:disabled) .qr-num { background: #fff; color: var(--primary); }
+        /* Numbered options that the bot listed → become clickable button-style rows */
+        .chat-step.chat-step-clickable { cursor: pointer; padding: 6px 10px 6px 6px; border-radius: 8px; border: 1px solid transparent; margin: 4px 0; transition: background .12s, border-color .12s, transform .06s; user-select: none; }
+        .chat-step.chat-step-clickable:hover { background: var(--primary-light); border-color: var(--primary); transform: translateX(2px); }
+        .chat-step.chat-step-clickable:active { transform: translateX(0); }
+        .chat-step.chat-step-clickable.is-disabled { pointer-events: none; opacity: 0.45; }
         .chat-link { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; background: var(--primary-light); color: var(--primary) !important; border: 1px solid #C7D2FE; border-radius: 6px; text-decoration: none !important; font-size: 12px; font-weight: 600; margin: 2px 2px; transition: all .15s; word-break: break-all; }
         .chat-link:hover { background: var(--primary); color: #fff !important; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(79,70,229,.3); }
         .chat-link i { font-size: 10px; }
@@ -1011,8 +1009,8 @@
                         <div class="vnc-help-body">
                             <p>1. มองที่ <b>Taskbar มุมขวาล่าง</b> ของหน้าจอ</p>
                             <p>2. หาไอคอน <b>TightVNC</b> (รูปตัว V สีเขียว/แดง)</p>
-                            <p>3. <b>เอาเมาส์ชี้ค้างไว้</b> จะเห็นข้อความ เช่น<br><code>TightVNC Service - 192.168.120.91</code></p>
-                            <p>4. พิมพ์เลข <b>192.168.xxx.xxx</b> ลงในช่องนี้</p>
+                            <p>3. <b>เอาเมาส์ชี้ค้างไว้</b> จะเห็นข้อความ เช่น<br><code>TightVNC Service - 192.168.120.xx</code></p>
+                            <p>4. พิมพ์เลขที่ขึ้นลงในช่องนี้</p>
                             <p style="color:var(--muted);font-size:11px;margin-top:8px;">* ถ้าไม่เจอไอคอน กด ลูกศร ▲ ที่ taskbar เพื่อดู hidden icons</p>
                         </div>
                     </div>
@@ -1500,12 +1498,12 @@
                     <div class="vnc-help-body">
                         <p>1. มองที่ <b>Taskbar มุมขวาล่าง</b> ของหน้าจอ</p>
                         <p>2. หาไอคอน <b>TightVNC</b> (รูปตัว V สีเขียว/แดง)</p>
-                        <p>3. <b>เอาเมาส์ชี้ค้างไว้</b> จะเห็นข้อความ เช่น<br><code>TightVNC Service - 192.168.120.91</code></p>
-                        <p>4. พิมพ์เลข <b>192.168.xxx.xxx</b> ลงในช่องนี้</p>
+                        <p>3. <b>เอาเมาส์ชี้ค้างไว้</b> จะเห็นข้อความ เช่น<br><code>TightVNC Service - 192.168.120.xx</code></p>
+                        <p>4. พิมพ์เลขที่ขึ้นลงในช่องนี้</p>
                         <p style="color:var(--muted);font-size:11px;margin-top:8px;">* ถ้าไม่เจอไอคอน กดลูกศร ▲ ที่ taskbar เพื่อดู hidden icons</p>
                     </div>
                 </div>
-                <input type="text" id="draftVnc" placeholder="เช่น 192.168.120.91 (ถ้าไม่รู้ข้ามได้)">
+                <input type="text" id="draftVnc" placeholder="เช่น 192.168.120.xx (ถ้าไม่รู้ข้ามได้)">
             </div>
             <div class="form-group">
                 <label><i class="fas fa-camera"></i> แนบรูป (สูงสุด 5 รูป)</label>
@@ -4543,7 +4541,7 @@ function appendChatMsg(role, text, images) {
     const body = document.getElementById('chatBody');
     // Disable quick-reply buttons from previous turns when ANY new message
     // arrives — old options aren't relevant once the conversation moves on.
-    body.querySelectorAll('.chat-quick-reply:not(:disabled)').forEach(b => b.disabled = true);
+    body.querySelectorAll('.chat-step-clickable:not(.is-disabled)').forEach(s => s.classList.add('is-disabled'));
 
     const div = document.createElement('div');
     div.className = `chat-msg ${role}`;
@@ -4569,28 +4567,27 @@ function appendChatMsg(role, text, images) {
     }
     body.appendChild(div);
 
-    // Quick-reply buttons: when bot lists numbered options + asks user
-    // to pick, render clickable chips below the bubble. User clicks →
-    // option text gets sent as their next message.
+    // Make the numbered list IN the bubble clickable instead of rendering
+    // a duplicate chip row below — user pointed out the duplication wasn't
+    // wanted ("ให้คลิกตรงนี้เลย"). The .chat-step rows that formatBotMsg
+    // already produced get an onclick + button styling.
     if (role === 'bot') {
         const opts = extractNumberedOptions(text);
-        // Render chips whenever the bot has lined up >=2 numbered options
-        // and the message ends in a question. We don't require "เลือก" verb
-        // because phrasings like "อยู่โลเคชั่นไหนครับ?" / "ตัวไหนครับ?" /
-        // "แบบไหนครับ?" are equally clear pick-prompts.
         const isPickPrompt = /[?？]\s*$/.test(text.trim()) || /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด/i.test(text);
         if (opts.length >= 2 && isPickPrompt) {
-            const row = document.createElement('div');
-            row.className = 'chat-quick-replies';
-            opts.forEach((opt, i) => {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'chat-quick-reply';
-                btn.innerHTML = `<span class="qr-num">${i + 1}</span>${esc(opt)}`;
-                btn.addEventListener('click', () => sendQuickReply(opt));
-                row.appendChild(btn);
+            const steps = div.querySelectorAll('.chat-step');
+            steps.forEach((step, i) => {
+                if (i >= opts.length) return;
+                step.classList.add('chat-step-clickable');
+                step.setAttribute('role', 'button');
+                step.setAttribute('tabindex', '0');
+                const optText = opts[i];
+                const fire = () => sendQuickReply(optText);
+                step.addEventListener('click', fire);
+                step.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fire(); }
+                });
             });
-            body.appendChild(row);
         }
     }
 
