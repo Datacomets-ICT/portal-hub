@@ -4612,6 +4612,17 @@ function extractNumberedOptions(text) {
 function sendQuickReply(text) {
     const input = document.getElementById('chatInput');
     if (!input || chatBusy) return;
+    // Special case: "อื่นๆ (ระบุเอง)" should focus the input instead of
+    // submitting that literal phrase — user is supposed to type their own
+    // answer. Disable the just-clicked option (and siblings) so it's clear
+    // the question is "in progress" while they type.
+    if (/อื่น\s*ๆ|อื่นๆ\s*\(ระบุเอง\)/i.test(text)) {
+        input.placeholder = 'พิมพ์คำตอบของคุณ...';
+        input.focus();
+        document.querySelectorAll('.chat-step.chat-step-clickable:not(.is-disabled)')
+            .forEach(s => s.classList.add('is-disabled'));
+        return;
+    }
     input.value = text;
     sendChat();
 }
