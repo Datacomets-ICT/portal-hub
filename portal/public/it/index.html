@@ -1579,8 +1579,6 @@
                     <div class="form-group" style="margin-bottom:0;">
                         <label style="font-size:12px;">สถานะ</label>
                         <select id="adminEditPermStatus">
-                            <option value="pending">⏳ รอดำเนินการ</option>
-                            <option value="submitted">📄 ยื่นใบแล้ว</option>
                             <option value="approved">✅ อนุมัติแล้ว</option>
                             <option value="rejected">❌ ไม่อนุมัติ</option>
                         </select>
@@ -2851,9 +2849,13 @@ function populatePermSlipSection(t) {
     permGroup.style.display = '';
     const required = !!t.permissionRequired;
     const hasDoc   = !!t.permissionDocUrl;
-    const ps = t.permissionStatus && t.permissionStatus !== 'not_required'
+    // Dropdown only offers approved / rejected (per user request — pending +
+    // submitted removed). Old tickets stored with those statuses still
+    // render their badge correctly via labelMap below; the dropdown just
+    // falls through to the first option (approved) for them.
+    const ps = (t.permissionStatus === 'approved' || t.permissionStatus === 'rejected')
         ? t.permissionStatus
-        : (hasDoc ? 'submitted' : 'pending');
+        : 'approved';
     document.getElementById('adminEditPermStatus').value = ps;
     document.getElementById('adminEditPermDocNo').value  = t.permissionDocNo || '';
     adminPermDocUrl = t.permissionDocUrl || '';

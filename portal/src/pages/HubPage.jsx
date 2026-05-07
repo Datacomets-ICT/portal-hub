@@ -48,6 +48,13 @@ const APPS = [
   },
 ];
 
+// Drop the leading code (e.g. "A62_วิเคราะห์ข้อมูล" → "วิเคราะห์ข้อมูล").
+// HR exports section/position fields with a department-code prefix that
+// users don't need to see in the Workspace greeting card.
+function stripCode(s) {
+  return (s || '').replace(/^[A-Za-z]\d+_/, '');
+}
+
 function useClock() {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -231,7 +238,6 @@ export default function HubPage() {
             <h1 className="hub-name">
               {greeting(now)}คุณ <span>{display}</span>
             </h1>
-            <p className="hub-sub">เลือกแอปที่ต้องการใช้งาน — เข้าได้เลยโดยไม่ต้องล็อกอินซ้ำ</p>
             <div className="hub-info-row">
               {user?.department && (
                 <span className="hub-chip">
@@ -241,7 +247,7 @@ export default function HubPage() {
                       <path d="M9 22V12h6v10" />
                     </svg>
                   </span>
-                  {user.department}
+                  {stripCode(user.department)}
                 </span>
               )}
               {user?.section && (
@@ -254,7 +260,7 @@ export default function HubPage() {
                       <rect x="3" y="14" width="7" height="7" />
                     </svg>
                   </span>
-                  {user.section}
+                  {stripCode(user.section)}
                 </span>
               )}
               {user?.position && (
@@ -265,7 +271,7 @@ export default function HubPage() {
                       <path d="M20 21a8 8 0 0 0-16 0" />
                     </svg>
                   </span>
-                  {user.position}
+                  {stripCode(user.position)}
                 </span>
               )}
               <span className="hub-chip">
