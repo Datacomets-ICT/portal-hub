@@ -5505,18 +5505,50 @@ function fuzzyMatch(target, candidates) {
 }
 
 function validateDraftWorklist(draft) {
-    // Resolve AI-returned strings against the real worklist. When something
-    // doesn't match cleanly we leave the field BLANK and let the user pick —
-    // silently picking "first issueType under that jobType" pre-filled the
-    // wrong category (B2).
+    // Resolve AI-returned strings against the real worklist. The SYMPTOM
+    // is the strongest signal because the user clicked it from a list —
+    // if it exists in only one (jobType, issueType) pair, that pair wins
+    // even when the AI's free-text jobType says something different.
     const out = { jobType: '', issueType: '', symptom: '' };
 
-    // jobType — fuzzy match against worklist keys
+    // ===== Symptom-first reverse lookup =====
+    // Find every (jt, it) pair whose symptom list contains draft.symptom
+    // (exact match first, then fuzzy). If exactly one pair → use it
+    // outright. If multiple pairs → prefer one matching AI's draft.
+    if (draft.symptom) {
+        const sym = String(draft.symptom).trim();
+        const matches = [];
+        for (const [j, issues] of Object.entries(worklist)) {
+            for (const [i, syms] of Object.entries(issues)) {
+                if ((syms || []).some(s => s === sym)) matches.push({ j, i, sym });
+            }
+        }
+        // Fall back to fuzzy if exact missed
+        if (matches.length === 0) {
+            for (const [j, issues] of Object.entries(worklist)) {
+                for (const [i, syms] of Object.entries(issues)) {
+                    const m = fuzzyMatch(sym, syms || []);
+                    if (m) matches.push({ j, i, sym: m });
+                }
+            }
+        }
+        if (matches.length === 1) {
+            return { jobType: matches[0].j, issueType: matches[0].i, symptom: matches[0].sym };
+        }
+        if (matches.length > 1) {
+            // Multiple pairs share this symptom — prefer the one whose
+            // jt+it matches the AI's draft (loose fuzzy), else first.
+            const aiJt = fuzzyMatch(draft.jobType,   Object.keys(worklist));
+            const aiIt = aiJt ? fuzzyMatch(draft.issueType, Object.keys(worklist[aiJt] || {})) : '';
+            const preferred = matches.find(m => m.j === aiJt && m.i === aiIt) || matches[0];
+            return { jobType: preferred.j, issueType: preferred.i, symptom: preferred.sym };
+        }
+    }
+
+    // ===== No symptom (or symptom not in any worklist) — fall back to
+    // jobType/issueType matching =====
     const jt = fuzzyMatch(draft.jobType, Object.keys(worklist));
     if (!jt) {
-        // jobType missing/wrong → try to recover via issueType: pick the
-        // jobType that contains a matching issueType, but only if the match
-        // is unambiguous (one candidate). Otherwise leave everything blank.
         const candidates = [];
         for (const [j, issues] of Object.entries(worklist)) {
             const i = fuzzyMatch(draft.issueType, Object.keys(issues));
@@ -5532,15 +5564,10 @@ function validateDraftWorklist(draft) {
     }
     out.jobType = jt;
 
-    // issueType — fuzzy match within the chosen jobType. No match → blank.
     const it = fuzzyMatch(draft.issueType, Object.keys(worklist[jt]));
     if (!it) return out;
     out.issueType = it;
 
-    // symptom — fuzzy match within the chosen issueType. No match → blank
-    // (don't auto-pick the first symptom; some categories like
-    // "เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)" have สี / ขาว-ดำ as siblings —
-    // pre-filling the wrong one creates an incorrect ticket).
     out.symptom = fuzzyMatch(draft.symptom, worklist[jt][it] || []) || '';
     return out;
 }
