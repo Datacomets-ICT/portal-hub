@@ -4971,6 +4971,18 @@ function guessIssueFromText(text) {
               [/ช้า/i, 'เครื่องช้า'],
               [/ล็อกอิน|login/i, 'ล็อกอินไม่ได้'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Generic "คอม + อาการเสีย" — catches "หน้าจอคอมดับ", "คอมพัง",
+        // "คอมเปิดไม่ติด" etc. that don't say PC/Notebook explicitly.
+        // Defaults to PC since that's the most common in the office.
+        // Placed BEFORE the standalone monitor rule so it wins on
+        // "หน้าจอคอม*" (which means computer-screen-issue, not separate monitor).
+        { kw: /คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|ไม่ทำงาน|blue\s*screen|หน้าจอฟ้า)|(?:ดับ|พัง|ค้าง|blue\s*screen).*คอม|หน้าจอคอม/i,
+          jt: 'คอมพิวเตอร์', it: 'PC', symKw: [
+              [/หน้าจอฟ้า|blue screen/i, 'หน้าจอฟ้า'],
+              [/เปิดไม่ติด|ไม่บูต/i, 'เครื่องเปิดไม่ติด'],
+              [/ช้า/i, 'เครื่องช้า'],
+              [/ดับ/i, 'เครื่องเปิดไม่ติด'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
         // Printers
         { kw: /ปริ้นเตอร์|printer|ปริ้น|พริ้นต์/i,
           jt: 'ปริ้นเตอร์', it: 'Printer แผนก', symKw: [
