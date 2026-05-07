@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Bot Classifier Test — IT Ticket</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body { font-family: 'IBM Plex Sans Thai','Inter',sans-serif; background: #F8FAFC; color: #0F172A; margin: 0; padding: 24px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p.lead { color: #64748B; font-size: 13px; margin: 0 0 18px; }
+  .controls { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+  button { background: #F97316; color: #fff; border: 0; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; font-family: inherit; }
+  button:hover { background: #EA580C; }
+  button.outline { background: #fff; color: #F97316; border: 1.5px solid #F97316; }
+  .summary { display: flex; gap: 16px; margin-bottom: 12px; }
+  .pill { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+  .pill.pass { background: #DCFCE7; color: #14532D; }
+  .pill.fail { background: #FEE2E2; color: #7F1D1D; }
+  .pill.total { background: #E0E7FF; color: #1E1B4B; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); font-size: 13px; }
+  th { background: #F1F5F9; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748B; letter-spacing: 0.4px; border-bottom: 1px solid #E2E8F0; }
+  td { padding: 10px 12px; border-bottom: 1px solid #F1F5F9; vertical-align: top; }
+  tr.pass { background: #F0FDF4; }
+  tr.fail { background: #FEF2F2; }
+  td.cell-input { font-weight: 600; max-width: 240px; word-break: break-word; }
+  td.cell-expected, td.cell-actual { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; line-height: 1.5; }
+  td.cell-actual.fail { color: #B91C1C; }
+  .status { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 700; font-size: 11px; }
+  .status.pass { background: #16A34A; color: #fff; }
+  .status.fail { background: #DC2626; color: #fff; }
+  .field-row { display: flex; gap: 4px; }
+  .field-label { color: #94A3B8; min-width: 50px; }
+  .field-bad { color: #DC2626; font-weight: 700; }
+  #log { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; color: #64748B; margin-top: 14px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<h1>🧪 Bot Classifier Test Harness</h1>
+<p class="lead">รัน heuristic + AI draft กับ scenarios ครอบ worklist ทั้งหมด เปรียบเทียบกับ expected (jobType, issueType). ใช้ดูว่ามีเคสไหน classify ผิด.</p>
+
+<div class="controls">
+  <button id="runHeur">🔍 รันแค่ Heuristic (เร็ว, ฟรี)</button>
+  <button id="runAi" class="outline">🤖 รัน AI ด้วย (ช้ากว่า, ใช้ quota)</button>
+  <span id="status" style="color:#64748B;font-size:13px;"></span>
+</div>
+
+<div class="summary" id="summary" style="display:none;">
+  <span class="pill total" id="pillTotal">Total: 0</span>
+  <span class="pill pass" id="pillPass">✅ Pass: 0</span>
+  <span class="pill fail" id="pillFail">❌ Fail: 0</span>
+</div>
+
+<table id="results" style="display:none;">
+  <thead>
+    <tr>
+      <th style="width:40px;">#</th>
+      <th>Input (user message)</th>
+      <th>Expected</th>
+      <th>Heuristic</th>
+      <th id="aiCol" style="display:none;">AI</th>
+      <th>Final (merged)</th>
+      <th style="width:60px;">Status</th>
+    </tr>
+  </thead>
+  <tbody id="resultBody"></tbody>
+</table>
+
+<div id="log"></div>
+
+<script>
+// ===== Supabase config (same as IT-Ticket main) =====
+const SUPABASE_URL      = 'https://dixechuojsfaypagbfqu.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_lLFnuVu8vg4GD2bkOmsxIA_IXdgwMmL';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let worklist = {};
+
+async function loadWorklist() {
+    const { data, error } = await sb.from('worklist').select('job_type, issue_type, symptom');
+    if (error) throw error;
+    worklist = {};
+    data.forEach(r => {
+        if (!r.job_type) return;
+        if (!worklist[r.job_type]) worklist[r.job_type] = {};
+        if (r.issue_type) {
+            if (!worklist[r.job_type][r.issue_type]) worklist[r.job_type][r.issue_type] = [];
+            if (r.symptom && !worklist[r.job_type][r.issue_type].includes(r.symptom)) {
+                worklist[r.job_type][r.issue_type].push(r.symptom);
+            }
+        }
+    });
+}
+
+// ===== Test Cases =====
+// Each case: { input, expected: { jobType, issueType?, symptom? } }
+// Only jobType is checked strictly — issueType + symptom are nice-to-have.
+const TEST_CASES = [
+    // ===== Computer hardware failure =====
+    { input: 'หน้าจอคอมดับ',                expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
+    { input: 'จอฟ้าระหว่างทำงาน',           expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC', symptom: 'หน้าจอฟ้า' } },
+    { input: 'blue screen',                 expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC', symptom: 'หน้าจอฟ้า' } },
+    { input: 'คอมเปิดไม่ติด',               expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
+    { input: 'notebook ค้าง',               expect: { jobType: 'คอมพิวเตอร์', issueType: 'Notebook' } },
+    { input: 'macbook ช้า',                 expect: { jobType: 'คอมพิวเตอร์', issueType: 'Macbook' } },
+    { input: 'iMac เปิดไม่ติด',             expect: { jobType: 'คอมพิวเตอร์', issueType: 'iMac' } },
+    { input: 'PC ล็อกอินไม่ได้',            expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
+    { input: 'รีสตาร์ทเองตลอด',             expect: { jobType: 'คอมพิวเตอร์', issueType: 'PC' } },
+
+    // ===== Printer =====
+    { input: 'ปริ้นไม่ออก',                  expect: { jobType: 'ปริ้นเตอร์', issueType: 'Printer แผนก' } },
+    { input: 'หมึกหมดครับ',                  expect: { jobType: 'ปริ้นเตอร์', issueType: 'Printer แผนก', symptom: 'หมึกหมด' } },
+    { input: 'printer แผนกพัง',              expect: { jobType: 'ปริ้นเตอร์', issueType: 'Printer แผนก' } },
+
+    // ===== Email =====
+    { input: 'อีเมลเต็ม',                    expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email', symptom: 'อีเมลเต็ม (แบ็คอัพอีเมล)' } },
+    { input: 'Outlook เปิดไม่ได้',           expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email', symptom: 'เปิดโปรแกรมไม่ได้' } },
+    { input: 'ส่งเมลไม่ออก',                  expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email' } },
+    { input: 'ภาษาเพี้ยนใน email',           expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Email', symptom: 'ภาษาเพี้ยน' } },
+
+    // ===== SAP / Express / VPN =====
+    { input: 'SAP รหัสหมดอายุ',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'SAP', symptom: 'รหัสหมดอายุ' } },
+    { input: 'SAP ล็อกอินไม่ได้',            expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'SAP', symptom: 'ล็อกอินไม่ได้' } },
+    { input: 'Express ปริ้นไม่ออก',          expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Express', symptom: 'ปริ้นไม่ออก' } },
+    { input: 'VPN ใช้งานไม่ได้',             expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'VPN' } },
+
+    // ===== Office =====
+    { input: 'Excel save ไม่ได้',            expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Office\n(Word, Excel, Power Point)', symptom: 'Save ไฟล์ไม่ได้' } },
+    { input: 'Word เปิดไม่ได้',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Office\n(Word, Excel, Power Point)' } },
+    { input: 'PowerPoint ไฟล์เสียหาย',       expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Office\n(Word, Excel, Power Point)' } },
+
+    // ===== Adobe / Power BI / PDF / Tigersoft =====
+    { input: 'Acrobat ค้าง',                 expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Adobe Acrobat Pro' } },
+    { input: 'Illustrator เปิดไม่ได้',       expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Adobe Illustrator' } },
+    { input: 'Creative Cloud license หมด',   expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Adobe Creative Cloud' } },
+    { input: 'Power BI เปิดไม่ได้',          expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Microsoft Power Bi' } },
+    { input: 'เปิด PDF ไม่ได้',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'PDF' } },
+    { input: 'Tigersoft error',              expect: { jobType: 'ปัญหาโปรแกรม', issueType: 'Tigersoft' } },
+
+    // ===== Network =====
+    { input: 'เน็ตช้า',                      expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'อินเทอร์เน็ต' } },
+    { input: 'wifi หลุดบ่อย',                expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'อินเทอร์เน็ต' } },
+    { input: 'ไฟล์กลางหาย',                  expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'Driveshare (ไฟล์กลาง)', symptom: 'ไดรฟ์ไฟล์กลางหาย' } },
+    { input: 'driveshare เข้าไม่ได้',        expect: { jobType: 'ปัญหาเครือข่าย และอินเทอร์เน็ต', issueType: 'Driveshare (ไฟล์กลาง)' } },
+
+    // ===== IT equipment =====
+    { input: 'เมาส์ไม่ติด',                  expect: { jobType: 'อุปกรณ์ไอที', issueType: 'เมาส์', symptom: 'เมาส์ไม่ติด' } },
+    { input: 'คีย์บอร์ดพิมพ์ไม่ติด',         expect: { jobType: 'อุปกรณ์ไอที', issueType: 'คีย์บอร์ด', symptom: 'พิมพ์ไม่ติด' } },
+    { input: 'ขอยืมสายชาร์จ',                 expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)' } },  // "ขอ" → permission
+    { input: 'จอแยกเปิดไม่ติด',              expect: { jobType: 'อุปกรณ์ไอที', issueType: 'จอคอมพิวเตอร์' } },
+    { input: 'TV ห้องประชุมเปิดไม่ติด',     expect: { jobType: 'อุปกรณ์ไอที', issueType: 'ทีวี' } },
+    { input: 'โปรเจคเตอร์ภาพไม่ขึ้น',        expect: { jobType: 'อุปกรณ์ไอที', issueType: 'โปรเจคเตอร์' } },
+    { input: 'ไมค์ไม่ติด',                    expect: { jobType: 'อุปกรณ์ไอที', issueType: 'ไมโครโฟน' } },
+    { input: 'กล้องวงจรปิดดูผ่านแอพไม่ได้', expect: { jobType: 'อุปกรณ์ไอที', issueType: 'กล้องวงจรปิด' } },
+    { input: 'เครื่องสแกนนิ้วไม่ติด',        expect: { jobType: 'อุปกรณ์ไอที', issueType: 'เครื่องสแกนหน้า / นิ้ว' } },
+    { input: 'UPS มีเสียงร้อง',              expect: { jobType: 'อุปกรณ์ไอที', issueType: 'เครื่องสำรองไฟ' } },
+
+    // ===== Permission requests =====
+    { input: 'ขอสิทธิ์ปริ้น',                expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)' } },
+    { input: 'ขอสิทธิ์ปริ้นสี',              expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)', symptom: 'ขอเพิ่มสิทธิ์ปริ้นเตอร์ (สี)' } },
+    { input: 'ขอเข้า SAP',                   expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'ขอสิทธิ์เข้าระบบ SAP' } },
+    { input: 'ขอลง Photoshop',              expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)' } },
+    { input: 'ขอเปลี่ยนคอม',                 expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (คอมพิวเตอร์)', symptom: 'ขอเปลี่ยนคอมพิวเตอร์' } },
+    { input: 'ขอใช้งาน VPN',                 expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'ขอใช้งาน VPN' } },
+    { input: 'ขอเพิ่มสิทธิ์ไฟล์กลาง',        expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (Driveshare)' } },
+    { input: 'พนักงานใหม่เซ็ทอัพคอม',         expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'พนักงานใหม่' } },
+    { input: 'อยากขอสิทธิ์ปริ้น',            expect: { jobType: 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)', issueType: 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)' } },
+];
+
+// ============================================================
+// COPY of heuristic functions from main app (keep in sync)
+// ============================================================
+
+function fuzzyMatch(target, candidates) {
+    if (!target) return null;
+    const t = String(target).toLowerCase().trim();
+    for (const c of candidates) if (c.toLowerCase() === t) return c;
+    for (const c of candidates) if (c.toLowerCase().includes(t) || t.includes(c.toLowerCase())) return c;
+    const tWords = t.split(/[\s()\/]+/).filter(w => w.length > 1);
+    for (const c of candidates) {
+        const cLower = c.toLowerCase();
+        for (const w of tWords) if (cLower.includes(w)) return c;
+    }
+    return null;
+}
+
+function heuristicExtract(history) {
+    const all = history.map(m => m.content || '').join('\n');
+    const userText = history.filter(m => m.role === 'user').map(m => m.content).join(' / ');
+    let priority = '';
+    if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(all)) priority = 'urgent';
+    else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(all)) priority = 'high';
+    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(all)) priority = 'medium';
+    else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(all)) priority = 'low';
+    const locs = ['Comets HQ','Comets FAC','ICT','JA'];
+    let location = '';
+    for (const l of locs) if (all.includes(l)) { location = l; break; }
+    let locationDetail = '';
+    const ldMatch = userText.match(/(โต๊ะ[฀-๿\w ]{0,20}|ชั้น\s*\d+[฀-๿\w ]{0,20}|ห้อง\s*[฀-๿\w]{0,20})/);
+    if (ldMatch) locationDetail = ldMatch[0].trim();
+    if (!locationDetail) {
+        const roomMatch = userText.match(/\b(?:PB)?\d{1,2}[A-Za-z]\d?\b/);
+        if (roomMatch) locationDetail = roomMatch[0].trim();
+    }
+    let vncNumber = '';
+    const vncMatch = userText.match(/\bvnc[:\s]*([0-9]{1,4})\b/i);
+    if (vncMatch) vncNumber = vncMatch[1].trim();
+    const skipPatterns = /^(ยืนยัน|ใช่|ตกลง|ok|okay|เปิด|เปิดเลย|จัดเลย|ข้าม|ไม่รู้|ไม่มี|ครับ|ค่ะ|ด่วน|ด่วนมาก|ไม่เร่ง|สำคัญ|ปกติ|urgent|high|medium|low)\s*ครับ?\s*$/i;
+    const userMsgs = history
+        .filter(m => m.role === 'user')
+        .map(m => (m.content || '').trim())
+        .filter(s => s && !skipPatterns.test(s));
+    const request = userMsgs[0] || '';
+    const haystack = (request + ' ' + all).toLowerCase();
+    const guess = guessIssueFromText(haystack);
+    return { request, priority, location, locationDetail, vncNumber, ...guess };
+}
+
+function guessIssueFromText(text) {
+    const empty = { jobType:'', issueType:'', symptom:'' };
+    if (!text) return empty;
+
+    const PERM_JT = 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)';
+
+    // Hard hardware-failure pre-check
+    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง/i;
+    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์'] && worklist['คอมพิวเตอร์']['PC']) {
+        const pcSyms = worklist['คอมพิวเตอร์']['PC'] || [];
+        let symptom = '';
+        if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && pcSyms.includes('หน้าจอฟ้า')) symptom='หน้าจอฟ้า';
+        else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && pcSyms.includes('เครื่องเปิดไม่ติด')) symptom='เครื่องเปิดไม่ติด';
+        else if (/ช้า/i.test(text) && pcSyms.includes('เครื่องช้า')) symptom='เครื่องช้า';
+        return { jobType:'คอมพิวเตอร์', issueType:'PC', symptom };
+    }
+
+    const isRequest = /(ขอสิทธิ์|ขอใช้|ขอเข้า|ขอเพิ่ม|ขอลบ|ขอลง|ขอติดตั้ง|ขอ\s*permission|ขอเปลี่ยน|ขอยืม|ขอ\s*account|ขอ\s*setup|ขอ\s*install|ขอ\s*key|ขอ\s*license|อยาก(ใช้|ลง|ติดตั้ง|ขอ|ได้)|ช่วย(ลง|ติดตั้ง|เพิ่มสิทธิ์)|รบกวน(ขอ|ลง|ติดตั้ง)|ติดตั้งโปรแกรม|พนักงานใหม่|new\s*employee|new\s*account)/i.test(text);
+    if (isRequest && worklist[PERM_JT]) {
+        const REQ_RULES = [
+            [/พนักงานใหม่|new\s*employee|onboard/i, 'พนักงานใหม่'],
+            [/express/i, 'ขอสิทธิ์เข้าระบบ Express'],
+            [/\bsap\b/i, 'ขอสิทธิ์เข้าระบบ SAP'],
+            [/\bvpn\b/i, 'ขอใช้งาน VPN'],
+            [/อีเมล|email|outlook/i, 'เปลี่ยนแปลงสิทธิ์ (Email)'],
+            [/driveshare|ไฟล์กลาง|drive\s*share/i, 'เปลี่ยนแปลงสิทธิ์ (Driveshare)'],
+            [/ปริ้น|printer|พริ้นต์|พริ้น/i, 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)'],
+            [/คอม|notebook|laptop|\bpc\b|imac|macbook/i, 'เปลี่ยนแปลงสิทธิ์ (คอมพิวเตอร์)'],
+        ];
+        for (const [kw, it] of REQ_RULES) {
+            if (kw.test(text) && worklist[PERM_JT][it]) {
+                let symptom = '';
+                const syms = worklist[PERM_JT][it] || [];
+                if (it === 'เปลี่ยนแปลงสิทธิ์ (ปริ้นเตอร์)') {
+                    if (/สี|color/i.test(text) && syms.includes('ขอเพิ่มสิทธิ์ปริ้นเตอร์ (สี)')) symptom='ขอเพิ่มสิทธิ์ปริ้นเตอร์ (สี)';
+                    else if (/ขาวดำ|ขาว-?ดำ|black/i.test(text) && syms.includes('ขอเพิ่มสิทธิ์ปริ้นเตอร์ (ขาว-ดำ)')) symptom='ขอเพิ่มสิทธิ์ปริ้นเตอร์ (ขาว-ดำ)';
+                } else if (it === 'เปลี่ยนแปลงสิทธิ์ (Driveshare)') {
+                    if (/เพิ่ม|add/i.test(text) && syms.includes('ขอเพิ่มสิทธิ์ไฟล์กลาง')) symptom='ขอเพิ่มสิทธิ์ไฟล์กลาง';
+                    else if (/ลบ|remove/i.test(text) && syms.includes('ขอลบสิทธิ์ไฟล์กลาง')) symptom='ขอลบสิทธิ์ไฟล์กลาง';
+                } else if (it === 'เปลี่ยนแปลงสิทธิ์ (คอมพิวเตอร์)') {
+                    if (/ยืม|borrow/i.test(text) && syms.includes('ขอยืมคอมพิวเตอร์')) symptom='ขอยืมคอมพิวเตอร์';
+                    else if (/เปลี่ยน|swap|new/i.test(text) && syms.includes('ขอเปลี่ยนคอมพิวเตอร์')) symptom='ขอเปลี่ยนคอมพิวเตอร์';
+                } else if (it === 'พนักงานใหม่') {
+                    if (/เซ็?ทอัพ|setup|set\s*up|คอม/i.test(text) && syms.includes('เซ็ทอัพคอมพิวเตอร์')) symptom='เซ็ทอัพคอมพิวเตอร์';
+                }
+                return { jobType: PERM_JT, issueType: it, symptom };
+            }
+        }
+        if (worklist[PERM_JT]['ขอใช้งานโปรแกรมอื่นๆ']) return { jobType: PERM_JT, issueType:'ขอใช้งานโปรแกรมอื่นๆ', symptom:'' };
+        return empty;
+    }
+
+    const RULES = [
+        { kw: /อีเมล|email|outlook|ส่งเมล|รับเมล/i, jt:'ปัญหาโปรแกรม', it:'Email', symKw:[
+            [/ภาษา.*เพี้ยน|font|encode|garbled/i,'ภาษาเพี้ยน'],
+            [/เต็ม|full|พื้นที่.*หมด|backup|แบ็?คอัพ/i,'อีเมลเต็ม (แบ็คอัพอีเมล)'],
+            [/ยกเลิก/i,'ยกเลิกอีเมล'],
+            [/เปิดใช้|เปิดใหม่|setup|new account/i,'เปิดใช้งานอีเมล'],
+            [/login|ล็อกอิน|เปิดไม่ได้|เปิดโปรแกรม/i,'เปิดโปรแกรมไม่ได้'],
+            [/ส่ง.*ไม่|รับ.*ไม่|ส่งไม่ออก|รับไม่|sync|ค้าง/i,'ไม่สามารถรับ / ส่งอีเมลได้'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /acrobat(\s*pro)?/i, jt:'ปัญหาโปรแกรม', it:'Adobe Acrobat Pro', symKw:[
+            [/เปิด.*ไม่ได้|เปิดโปรแกรม|launch/i,'เปิดโปรแกรมไม่ได้'],
+            [/ค้าง|hang|freeze/i,'โปรแกรมค้าง'],
+            [/license|ล็อกอิน|login|sign.*in/i,'ล็อกอิน License'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /creative\s*cloud|adobe\s*cc\b/i, jt:'ปัญหาโปรแกรม', it:'Adobe Creative Cloud', symKw:[
+            [/เปิด.*ไม่ได้|launch/i,'เปิดโปรแกรมไม่ได้'],
+            [/ค้าง|hang/i,'โปรแกรมค้าง'],
+            [/license|ล็อกอิน|login/i,'ล็อกอิน License'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /illustrator|photoshop|adobe\s*illust/i, jt:'ปัญหาโปรแกรม', it:'Adobe Illustrator', symKw:[
+            [/เปิด.*ไม่ได้|launch/i,'เปิดโปรแกรมไม่ได้'],
+            [/ค้าง|hang/i,'โปรแกรมค้าง'],
+            [/license|ล็อกอิน|login/i,'ล็อกอิน License'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /power\s*bi|powerbi|\bpbi\b/i, jt:'ปัญหาโปรแกรม', it:'Microsoft Power Bi', symKw:[
+            [/เปิด.*ไม่ได้|launch/i,'เปิดโปรแกรมไม่ได้'],
+            [/ค้าง|hang/i,'โปรแกรมค้าง'],
+            [/license|ล็อกอิน|login/i,'ล็อกอิน License'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /(?<!acrobat[^A-Za-z]{0,5})\bpdf\b/i, jt:'ปัญหาโปรแกรม', it:'PDF', symKw:[
+            [/เปิด.*ไม่ได้|เปิดไฟล์/i,'เปิดไฟล์ไม่ได้'],
+            [/ตั้งค่า/i,'ตั้งค่าโปรแกรม'],
+        ], defaultSym:'เปิดไฟล์ไม่ได้' },
+        { kw: /tigersoft|ไทเกอร์ซอฟต์|ไทเกอร์/i, jt:'ปัญหาโปรแกรม', it:'Tigersoft', symKw:[], defaultSym:'ระบุปัญหา' },
+        { kw: /word|excel|powerpoint|power\s*point|microsoft\s*office|\boffice\b/i, jt:'ปัญหาโปรแกรม', it:'Microsoft Office\n(Word, Excel, Power Point)', symKw:[
+            [/save|บันทึก/i,'Save ไฟล์ไม่ได้'],
+            [/เสียหาย|พัง|corrupt/i,'ไฟล์งานเสียหาย'],
+            [/เปิดไม่ได้/i,'เปิดโปรแกรมไม่ได้'],
+            [/ภาษา.*เพี้ยน|font|encode/i,'ภาษาเพี้ยน'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /ติดตั้ง.*ไม่ได้|install.*fail|install.*error|ลง.*โปรแกรม.*ไม่|ลง.*ไม่ขึ้น/i, jt:'ปัญหาโปรแกรม', it:'ติดตั้งโปรแกรม', symKw:[], defaultSym:'ระบุโปรแกรม' },
+        { kw: /\bsap\b/i, jt:'ปัญหาโปรแกรม', it:'SAP', symKw:[
+            [/หมดอายุ|expired/i,'รหัสหมดอายุ'],
+            [/เปลี่ยน.*รหัส/i,'เปลี่ยนรหัสผ่าน'],
+            [/ล็อกอิน|login|เข้าไม่ได้/i,'ล็อกอินไม่ได้'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /express/i, jt:'ปัญหาโปรแกรม', it:'Express', symKw:[
+            [/ปริ้น/i,'ปริ้นไม่ออก'],
+            [/หมดอายุ/i,'รหัสหมดอายุ'],
+            [/ล็อกอิน|login|เข้าไม่ได้/i,'ล็อกอินไม่ได้'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /\bvpn\b/i, jt:'ปัญหาโปรแกรม', it:'VPN', symKw:[
+            [/รหัส|password/i,'ขอรหัสผ่าน'],
+        ], defaultSym:'ใช้งานไม่ได้' },
+        { kw: /อินเทอร์เน็ต|internet|wifi|net ช้า|เน็ต/i, jt:'ปัญหาเครือข่าย และอินเทอร์เน็ต', it:'อินเทอร์เน็ต', symKw:[], defaultSym:'เข้าเว็บไซต์ไม่ได้' },
+        { kw: /driveshare|ไฟล์กลาง|drive\s*share/i, jt:'ปัญหาเครือข่าย และอินเทอร์เน็ต', it:'Driveshare (ไฟล์กลาง)', symKw:[
+            [/หาย|missing/i,'ไดรฟ์ไฟล์กลางหาย'],
+            [/กู้|recover/i,'กู้ข้อมูล'],
+        ], defaultSym:'เข้าไฟล์กลางไม่ได้' },
+        { kw: /notebook|โน้ตบุ๊ก|โน้ตบุ๊ค|laptop/i, jt:'คอมพิวเตอร์', it:'Notebook', symKw:[
+            [/หน้าจอฟ้า|blue screen/i,'หน้าจอฟ้า'],
+            [/เปิดไม่ติด|บูตไม่/i,'เครื่องเปิดไม่ติด'],
+            [/ช้า/i,'เครื่องช้า'],
+            [/ชาร์จ/i,'ชาร์จไฟไม่เข้า'],
+            [/ไม่เก็บไฟ/i,'Notebook ไม่เก็บไฟ'],
+            [/ล็อกอิน|login/i,'ล็อกอินไม่ได้'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /macbook|แมค/i, jt:'คอมพิวเตอร์', it:'Macbook', symKw:[
+            [/เปิดไม่ติด/i,'เครื่องเปิดไม่ติด'],
+            [/ช้า/i,'เครื่องช้า'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /imac/i, jt:'คอมพิวเตอร์', it:'iMac', symKw:[], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /\bpc\b|พีซี|คอมพิวเตอร์ตั้งโต๊ะ/i, jt:'คอมพิวเตอร์', it:'PC', symKw:[
+            [/หน้าจอฟ้า|blue screen/i,'หน้าจอฟ้า'],
+            [/เปิดไม่ติด/i,'เครื่องเปิดไม่ติด'],
+            [/ช้า/i,'เครื่องช้า'],
+            [/ล็อกอิน|login/i,'ล็อกอินไม่ได้'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|ไม่ทำงาน|blue\s*screen|หน้าจอฟ้า|จอฟ้า)|(?:ดับ|พัง|ค้าง|blue\s*screen).*คอม|หน้าจอคอม|จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|เครื่องค้าง|เครื่องดับ|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง/i, jt:'คอมพิวเตอร์', it:'PC', symKw:[
+            [/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i,'หน้าจอฟ้า'],
+            [/เปิดไม่ติด|ไม่บูต|ไม่เปิด/i,'เครื่องเปิดไม่ติด'],
+            [/ช้า/i,'เครื่องช้า'],
+            [/ดับ/i,'เครื่องเปิดไม่ติด'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /ปริ้นเตอร์|printer|ปริ้น|พริ้นต์/i, jt:'ปริ้นเตอร์', it:'Printer แผนก', symKw:[
+            [/หมึก|toner|ink/i,'หมึกหมด'],
+        ], defaultSym:'หมึกหมด' },
+        { kw: /คีย์บอร์ด|keyboard/i, jt:'อุปกรณ์ไอที', it:'คีย์บอร์ด', symKw:[
+            [/พิมพ์ไม่/i,'พิมพ์ไม่ติด'],
+            [/อักษร|ตัวอักษร/i,'พิมพ์แล้วอักษรไม่ตรง'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /เมาส์|mouse/i, jt:'อุปกรณ์ไอที', it:'เมาส์', symKw:[
+            [/คลิ๊กซ้าย|click left/i,'เมาส์กดคลิ๊กซ้ายไม่ได้'],
+            [/คลิ๊กขวา|click right/i,'เมาส์กดคลิ๊กขวาไม่ได้'],
+            [/ช้า/i,'ลากเมาส์แล้วช้า'],
+            [/ไม่ติด|ไม่ทำงาน/i,'เมาส์ไม่ติด'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /สายชาร์จ|charger|adapter/i, jt:'อุปกรณ์ไอที', it:'สายชาร์จ', symKw:[
+            [/ยืม/i,'ยืมสายชาร์จ'],
+            [/เปลี่ยน/i,'เปลี่ยนสายชาร์จใหม่'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /จอ|monitor|หน้าจอ/i, jt:'อุปกรณ์ไอที', it:'จอคอมพิวเตอร์', symKw:[
+            [/เปิดไม่ติด/i,'หน้าจอเปิดไม่ติด'],
+        ], defaultSym:'หน้าจอมีปัญหา' },
+        { kw: /\bทีวี\b|\btv\b|television/i, jt:'อุปกรณ์ไอที', it:'ทีวี', symKw:[
+            [/เปิดไม่ติด|เปิดไม่ได้/i,'เปิดไม่ติด'],
+            [/ไม่แสดงภาพ|ภาพไม่ขึ้น|ต่อ.*ไม่ได้/i,'ไม่แสดงภาพเมื่อต่อคอมฯ'],
+            [/ตั้งค่า/i,'ตั้งค่าการใช้งาน'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /projector|โปรเจ?ค?เ?ตอร์|โปรเจค|โปรเจคเตอร์/i, jt:'อุปกรณ์ไอที', it:'โปรเจคเตอร์', symKw:[
+            [/เปิดไม่ติด|เปิดไม่ได้/i,'เปิดไม่ติด'],
+            [/ไม่แสดงภาพ|ภาพไม่ขึ้น|ต่อ.*ไม่ได้/i,'ไม่แสดงภาพเมื่อต่อคอมฯ'],
+            [/ตั้งค่า/i,'ตั้งค่าการใช้งาน'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /ไมโครโฟน|ไมค์|microphone|\bmic\b/i, jt:'อุปกรณ์ไอที', it:'ไมโครโฟน', symKw:[
+            [/เปิดไม่ติด|ไม่ทำงาน|ไม่ติด/i,'เปิดไม่ติด'],
+            [/ตั้งค่า/i,'ตั้งค่าการใช้งาน'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /กล้อง.*วงจร|cctv|ip\s*cam|กล้อง.*ip/i, jt:'อุปกรณ์ไอที', it:'กล้องวงจรปิด', symKw:[
+            [/ไม่ติด|ไม่ทำงาน|เปิดไม่/i,'กล้องไม่ติด'],
+            [/แอพ|app|ดูผ่าน/i,'ดูผ่านแอพไม่ได้'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /สแกน(หน้า|นิ้ว)|fingerprint|biometric|เครื่อง.*สแกน/i, jt:'อุปกรณ์ไอที', it:'เครื่องสแกนหน้า / นิ้ว', symKw:[
+            [/ดับ/i,'เครื่องดับ'],
+            [/ไม่ติด|สแกนไม่/i,'สแกนไม่ติด'],
+            [/ดึง.*ข้อมูล|ดาวน์โหลด/i,'ดึงข้อมูลไม่ได้'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+        { kw: /สำรองไฟ|\bups\b/i, jt:'อุปกรณ์ไอที', it:'เครื่องสำรองไฟ', symKw:[
+            [/เปิดไม่ติด/i,'เครื่องเปิดไม่ติด'],
+            [/ไม่สำรอง/i,'เครื่องไม่สำรองไฟ'],
+            [/ร้อง|เสียง/i,'เครื่องมีเสียงร้อง'],
+        ], defaultSym:'อื่นๆ (โปรดระบุ)' },
+    ];
+    for (const r of RULES) {
+        if (!r.kw.test(text)) continue;
+        if (!worklist[r.jt] || !worklist[r.jt][r.it]) continue;
+        let symptom = '';
+        for (const [skw, sval] of (r.symKw || [])) {
+            if (skw.test(text) && worklist[r.jt][r.it].includes(sval)) { symptom=sval; break; }
+        }
+        if (!symptom && r.defaultSym && worklist[r.jt][r.it].includes(r.defaultSym)) symptom=r.defaultSym;
+        if (!symptom) symptom = (worklist[r.jt][r.it][0] || '');
+        return { jobType: r.jt, issueType: r.it, symptom };
+    }
+    return empty;
+}
+
+function validateDraftWorklist(draft) {
+    const out = { jobType:'', issueType:'', symptom:'' };
+    if (draft.symptom) {
+        const sym = String(draft.symptom).trim();
+        const matches = [];
+        for (const [j, issues] of Object.entries(worklist)) {
+            for (const [i, syms] of Object.entries(issues)) {
+                if ((syms || []).some(s => s === sym)) matches.push({ j, i, sym });
+            }
+        }
+        if (matches.length === 0) {
+            for (const [j, issues] of Object.entries(worklist)) {
+                for (const [i, syms] of Object.entries(issues)) {
+                    const m = fuzzyMatch(sym, syms || []);
+                    if (m) matches.push({ j, i, sym: m });
+                }
+            }
+        }
+        if (matches.length === 1) return { jobType:matches[0].j, issueType:matches[0].i, symptom:matches[0].sym };
+        if (matches.length > 1) {
+            const aiJt = fuzzyMatch(draft.jobType, Object.keys(worklist));
+            const aiIt = aiJt ? fuzzyMatch(draft.issueType, Object.keys(worklist[aiJt] || {})) : '';
+            const preferred = matches.find(m => m.j === aiJt && m.i === aiIt) || matches[0];
+            return { jobType:preferred.j, issueType:preferred.i, symptom:preferred.sym };
+        }
+    }
+    const jt = fuzzyMatch(draft.jobType, Object.keys(worklist));
+    if (!jt) {
+        const candidates = [];
+        for (const [j, issues] of Object.entries(worklist)) {
+            const i = fuzzyMatch(draft.issueType, Object.keys(issues));
+            if (i) candidates.push({ j, i });
+        }
+        if (candidates.length === 1) {
+            out.jobType = candidates[0].j;
+            out.issueType = candidates[0].i;
+            const syms = worklist[out.jobType][out.issueType] || [];
+            out.symptom = fuzzyMatch(draft.symptom, syms) || '';
+        }
+        return out;
+    }
+    out.jobType = jt;
+    const it = fuzzyMatch(draft.issueType, Object.keys(worklist[jt]));
+    if (!it) return out;
+    out.issueType = it;
+    out.symptom = fuzzyMatch(draft.symptom, worklist[jt][it] || []) || '';
+    return out;
+}
+
+// ===== Test runner =====
+function runOneCase(input, expected, aiDraft) {
+    // Simulate a chat history with just the user message (or, if AI run,
+    // include AI response so heuristic sees full context).
+    const history = [{ role:'user', content: input }];
+    const heur = heuristicExtract(history);
+    let aiOut = null, finalOut;
+    if (aiDraft) {
+        aiOut = aiDraft;
+        // Mimic merge logic from offerTicketDraft
+        const merged = { ...aiDraft };
+        for (const k of Object.keys(heur)) {
+            if (merged[k] === undefined || merged[k] === null || merged[k] === '') merged[k] = heur[k];
+        }
+        if (heur.jobType && heur.issueType
+            && worklist[heur.jobType] && worklist[heur.jobType][heur.issueType]) {
+            merged.jobType = heur.jobType;
+            merged.issueType = heur.issueType;
+        }
+        finalOut = validateDraftWorklist(merged);
+    } else {
+        // Heuristic-only: validate directly
+        finalOut = validateDraftWorklist({ jobType: heur.jobType, issueType: heur.issueType, symptom: heur.symptom });
+    }
+    const passed = finalOut.jobType === expected.jobType
+        && (!expected.issueType || finalOut.issueType === expected.issueType)
+        && (!expected.symptom || finalOut.symptom === expected.symptom);
+    return { input, expected, heur, ai: aiOut, final: finalOut, passed };
+}
+
+async function callAiDraft(input) {
+    try {
+        const worklistRows = [];
+        for (const jt of Object.keys(worklist)) {
+            for (const it of Object.keys(worklist[jt] || {})) {
+                worklistRows.push({ jobType: jt, issueType: it, symptom: (worklist[jt][it] || []).join(' | ') });
+            }
+        }
+        const r = await fetch('/api/chat', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+                messages:[{ role:'user', content: input }],
+                action:'draft',
+                worklist: worklistRows,
+            }),
+        });
+        const data = await r.json();
+        return data.draft || {};
+    } catch (e) {
+        return { _error: e.message };
+    }
+}
+
+function fmtCell(o) {
+    if (!o) return '<i style="color:#9CA3AF;">-</i>';
+    const j = o.jobType || '<i style="color:#DC2626;">[ว่าง]</i>';
+    const i = o.issueType || '<i style="color:#94A3B8;">-</i>';
+    const s = o.symptom || '<i style="color:#94A3B8;">-</i>';
+    return '<div class="field-row"><span class="field-label">jt:</span><span>' + j + '</span></div>'
+         + '<div class="field-row"><span class="field-label">it:</span><span>' + i + '</span></div>'
+         + '<div class="field-row"><span class="field-label">sym:</span><span>' + s + '</span></div>';
+}
+
+async function runAll(withAi) {
+    document.getElementById('aiCol').style.display = withAi ? '' : 'none';
+    const tbody = document.getElementById('resultBody');
+    tbody.innerHTML = '';
+    document.getElementById('results').style.display = '';
+    document.getElementById('summary').style.display = '';
+    document.getElementById('status').textContent = 'กำลังโหลด worklist...';
+    if (Object.keys(worklist).length === 0) await loadWorklist();
+    document.getElementById('status').textContent = withAi ? 'รัน AI ทุกเคส (อาจช้า ~30s+)...' : 'รัน heuristic...';
+    let pass = 0, fail = 0;
+    for (let i = 0; i < TEST_CASES.length; i++) {
+        const tc = TEST_CASES[i];
+        const aiDraft = withAi ? await callAiDraft(tc.input) : null;
+        const result = runOneCase(tc.input, tc.expect, aiDraft);
+        if (result.passed) pass++; else fail++;
+        const tr = document.createElement('tr');
+        tr.className = result.passed ? 'pass' : 'fail';
+        tr.innerHTML = `
+            <td>${i + 1}</td>
+            <td class="cell-input">${escHtml(tc.input)}</td>
+            <td class="cell-expected">${fmtCell({ jobType: tc.expect.jobType, issueType: tc.expect.issueType, symptom: tc.expect.symptom })}</td>
+            <td class="cell-actual">${fmtCell(result.heur)}</td>
+            ${withAi ? `<td class="cell-actual">${fmtCell(result.ai)}</td>` : ''}
+            <td class="cell-actual ${result.passed ? '' : 'fail'}">${fmtCell(result.final)}</td>
+            <td><span class="status ${result.passed ? 'pass' : 'fail'}">${result.passed ? 'PASS' : 'FAIL'}</span></td>
+        `;
+        tbody.appendChild(tr);
+        document.getElementById('pillTotal').textContent = `Total: ${i + 1}/${TEST_CASES.length}`;
+        document.getElementById('pillPass').textContent  = `✅ Pass: ${pass}`;
+        document.getElementById('pillFail').textContent  = `❌ Fail: ${fail}`;
+    }
+    document.getElementById('status').textContent = `เสร็จ ${pass}/${TEST_CASES.length} ผ่าน`;
+}
+
+function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+document.getElementById('runHeur').addEventListener('click', () => runAll(false));
+document.getElementById('runAi').addEventListener('click', () => runAll(true));
+</script>
+
+</body>
+</html>
