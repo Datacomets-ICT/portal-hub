@@ -685,6 +685,15 @@
         .chat-step.chat-step-clickable:hover { background: var(--primary-light); border-color: var(--primary); transform: translateX(2px); }
         .chat-step.chat-step-clickable:active { transform: translateX(0); }
         .chat-step.chat-step-clickable.is-disabled { pointer-events: none; opacity: 0.45; }
+
+        /* Yes/No confirm row — pair of buttons after a "เปิด Ticket ไหม?" prompt */
+        .chat-confirm-row { display: flex; gap: 8px; margin: 4px 0 4px 4px; align-self: flex-start; flex-wrap: wrap; }
+        .chat-confirm-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 999px; font: 700 13px/1 inherit; cursor: pointer; transition: transform .08s, background .12s, color .12s, box-shadow .12s; border: 1.5px solid transparent; }
+        .chat-confirm-yes { background: var(--primary); color: #fff; box-shadow: 0 4px 10px -3px rgba(249,115,22,.45); border-color: var(--primary); }
+        .chat-confirm-yes:hover:not(.is-disabled) { transform: translateY(-1px); box-shadow: 0 6px 14px -4px rgba(249,115,22,.6); }
+        .chat-confirm-no { background: var(--card); color: var(--text2); border-color: var(--border); }
+        .chat-confirm-no:hover:not(.is-disabled) { background: var(--bg); color: var(--text); }
+        .chat-confirm-btn.is-disabled { pointer-events: none; opacity: 0.4; box-shadow: none; }
         .chat-link { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; background: var(--primary-light); color: var(--primary) !important; border: 1px solid #C7D2FE; border-radius: 6px; text-decoration: none !important; font-size: 12px; font-weight: 600; margin: 2px 2px; transition: all .15s; word-break: break-all; }
         .chat-link:hover { background: var(--primary); color: #fff !important; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(79,70,229,.3); }
         .chat-link i { font-size: 10px; }
@@ -4541,7 +4550,7 @@ function appendChatMsg(role, text, images) {
     const body = document.getElementById('chatBody');
     // Disable quick-reply buttons from previous turns when ANY new message
     // arrives — old options aren't relevant once the conversation moves on.
-    body.querySelectorAll('.chat-step-clickable:not(.is-disabled)').forEach(s => s.classList.add('is-disabled'));
+    body.querySelectorAll('.chat-step-clickable:not(.is-disabled), .chat-confirm-btn:not(.is-disabled)').forEach(s => s.classList.add('is-disabled'));
 
     const div = document.createElement('div');
     div.className = `chat-msg ${role}`;
@@ -4588,6 +4597,27 @@ function appendChatMsg(role, text, images) {
                     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fire(); }
                 });
             });
+        }
+        // Yes/No confirm prompt — bot asks to open the ticket. Render a
+        // pair of chips below the bubble so user doesn't have to type
+        // "เปิดเลย" manually.
+        const isConfirmPrompt = /เปิด\s*Ticket\s*(ให้เลย)?\s*ไหม|เปิด\s*Ticket\s*ได้เลย\s*ไหม|ยืนยัน(เปิด)?\s*Ticket/i.test(text);
+        if (opts.length === 0 && isConfirmPrompt) {
+            const row = document.createElement('div');
+            row.className = 'chat-confirm-row';
+            const yes = document.createElement('button');
+            yes.type = 'button';
+            yes.className = 'chat-confirm-btn chat-confirm-yes';
+            yes.innerHTML = '<i class="fas fa-check"></i> เปิดเลย';
+            yes.addEventListener('click', () => sendQuickReply('เปิดเลย'));
+            const no = document.createElement('button');
+            no.type = 'button';
+            no.className = 'chat-confirm-btn chat-confirm-no';
+            no.innerHTML = '<i class="fas fa-times"></i> ยังก่อน';
+            no.addEventListener('click', () => sendQuickReply('ยังก่อน ขอแก้ข้อมูลก่อน'));
+            row.appendChild(yes);
+            row.appendChild(no);
+            body.appendChild(row);
         }
     }
 
@@ -4982,15 +5012,16 @@ function guessIssueFromText(text) {
               [/ช้า/i, 'เครื่องช้า'],
               [/ล็อกอิน|login/i, 'ล็อกอินไม่ได้'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
-        // Generic "คอม + อาการเสีย" — catches "หน้าจอคอมดับ", "คอมพัง",
-        // "คอมเปิดไม่ติด" etc. that don't say PC/Notebook explicitly.
-        // Defaults to PC since that's the most common in the office.
-        // Placed BEFORE the standalone monitor rule so it wins on
-        // "หน้าจอคอม*" (which means computer-screen-issue, not separate monitor).
-        { kw: /คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|ไม่ทำงาน|blue\s*screen|หน้าจอฟ้า)|(?:ดับ|พัง|ค้าง|blue\s*screen).*คอม|หน้าจอคอม/i,
+        // Generic computer hardware failure — catches "หน้าจอคอมดับ",
+        // "คอมพัง", "คอมเปิดไม่ติด", "จอฟ้า/blue screen ระหว่างทำงาน"
+        // (without the user saying PC/Notebook). Defaults to PC since
+        // that's the most common in the office. Placed BEFORE the
+        // standalone monitor rule so symptom phrases route here, not
+        // อุปกรณ์ไอที/จอคอมพิวเตอร์ (which is for separate monitors).
+        { kw: /คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|ไม่ทำงาน|blue\s*screen|หน้าจอฟ้า|จอฟ้า)|(?:ดับ|พัง|ค้าง|blue\s*screen).*คอม|หน้าจอคอม|จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|เครื่องค้าง|เครื่องดับ|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง/i,
           jt: 'คอมพิวเตอร์', it: 'PC', symKw: [
-              [/หน้าจอฟ้า|blue screen/i, 'หน้าจอฟ้า'],
-              [/เปิดไม่ติด|ไม่บูต/i, 'เครื่องเปิดไม่ติด'],
+              [/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i, 'หน้าจอฟ้า'],
+              [/เปิดไม่ติด|ไม่บูต|ไม่เปิด/i, 'เครื่องเปิดไม่ติด'],
               [/ช้า/i, 'เครื่องช้า'],
               [/ดับ/i, 'เครื่องเปิดไม่ติด'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
