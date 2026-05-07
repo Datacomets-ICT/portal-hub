@@ -4977,13 +4977,52 @@ function guessIssueFromText(text) {
               // can't send / receive
               [/ส่ง.*ไม่|รับ.*ไม่|ส่งไม่ออก|รับไม่|sync|ค้าง/i, 'ไม่สามารถรับ / ส่งอีเมลได้'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Adobe products — listed BEFORE generic Office to avoid "Adobe ... ไฟล์" being mismatched
+        { kw: /acrobat(\s*pro)?/i,
+          jt: 'ปัญหาโปรแกรม', it: 'Adobe Acrobat Pro', symKw: [
+              [/เปิด.*ไม่ได้|เปิดโปรแกรม|launch/i, 'เปิดโปรแกรมไม่ได้'],
+              [/ค้าง|hang|freeze/i, 'โปรแกรมค้าง'],
+              [/license|ล็อกอิน|login|sign.*in/i, 'ล็อกอิน License'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /creative\s*cloud|adobe\s*cc\b/i,
+          jt: 'ปัญหาโปรแกรม', it: 'Adobe Creative Cloud', symKw: [
+              [/เปิด.*ไม่ได้|launch/i, 'เปิดโปรแกรมไม่ได้'],
+              [/ค้าง|hang/i, 'โปรแกรมค้าง'],
+              [/license|ล็อกอิน|login/i, 'ล็อกอิน License'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        { kw: /illustrator|photoshop|adobe\s*illust/i,
+          jt: 'ปัญหาโปรแกรม', it: 'Adobe Illustrator', symKw: [
+              [/เปิด.*ไม่ได้|launch/i, 'เปิดโปรแกรมไม่ได้'],
+              [/ค้าง|hang/i, 'โปรแกรมค้าง'],
+              [/license|ล็อกอิน|login/i, 'ล็อกอิน License'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Power BI
+        { kw: /power\s*bi|powerbi|\bpbi\b/i,
+          jt: 'ปัญหาโปรแกรม', it: 'Microsoft Power Bi', symKw: [
+              [/เปิด.*ไม่ได้|launch/i, 'เปิดโปรแกรมไม่ได้'],
+              [/ค้าง|hang/i, 'โปรแกรมค้าง'],
+              [/license|ล็อกอิน|login/i, 'ล็อกอิน License'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // PDF (non-Acrobat) — only when user explicitly says PDF without "Acrobat"
+        { kw: /(?<!acrobat[^A-Za-z]{0,5})\bpdf\b/i,
+          jt: 'ปัญหาโปรแกรม', it: 'PDF', symKw: [
+              [/เปิด.*ไม่ได้|เปิดไฟล์/i, 'เปิดไฟล์ไม่ได้'],
+              [/ตั้งค่า/i, 'ตั้งค่าโปรแกรม'],
+          ], defaultSym: 'เปิดไฟล์ไม่ได้' },
+        // Tigersoft (HR/payroll system)
+        { kw: /tigersoft|ไทเกอร์ซอฟต์|ไทเกอร์/i,
+          jt: 'ปัญหาโปรแกรม', it: 'Tigersoft', symKw: [], defaultSym: 'ระบุปัญหา' },
         // Office
-        { kw: /word|excel|powerpoint|power\s*point|office|microsoft\s*office/i,
+        { kw: /word|excel|powerpoint|power\s*point|microsoft\s*office|\boffice\b/i,
           jt: 'ปัญหาโปรแกรม', it: 'Microsoft Office\n(Word, Excel, Power Point)', symKw: [
               [/save|บันทึก/i, 'Save ไฟล์ไม่ได้'],
               [/เสียหาย|พัง|corrupt/i, 'ไฟล์งานเสียหาย'],
               [/เปิดไม่ได้/i, 'เปิดโปรแกรมไม่ได้'],
+              [/ภาษา.*เพี้ยน|font|encode/i, 'ภาษาเพี้ยน'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // ติดตั้งโปรแกรม — when user reports install failure (not request)
+        { kw: /ติดตั้ง.*ไม่ได้|install.*fail|install.*error|ลง.*โปรแกรม.*ไม่|ลง.*ไม่ขึ้น/i,
+          jt: 'ปัญหาโปรแกรม', it: 'ติดตั้งโปรแกรม', symKw: [], defaultSym: 'ระบุโปรแกรม' },
         // SAP / Express
         { kw: /\bsap\b/i, jt: 'ปัญหาโปรแกรม', it: 'SAP', symKw: [
               [/หมดอายุ|expired/i, 'รหัสหมดอายุ'],
@@ -5065,6 +5104,46 @@ function guessIssueFromText(text) {
         { kw: /จอ|monitor|หน้าจอ/i, jt: 'อุปกรณ์ไอที', it: 'จอคอมพิวเตอร์', symKw: [
               [/เปิดไม่ติด/i, 'หน้าจอเปิดไม่ติด'],
           ], defaultSym: 'หน้าจอมีปัญหา' },
+        // TV (meeting rooms)
+        { kw: /\bทีวี\b|\btv\b|television/i,
+          jt: 'อุปกรณ์ไอที', it: 'ทีวี', symKw: [
+              [/เปิดไม่ติด|เปิดไม่ได้/i, 'เปิดไม่ติด'],
+              [/ไม่แสดงภาพ|ภาพไม่ขึ้น|ต่อ.*ไม่ได้/i, 'ไม่แสดงภาพเมื่อต่อคอมฯ'],
+              [/ตั้งค่า/i, 'ตั้งค่าการใช้งาน'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Projector
+        { kw: /projector|โปรเจ?ค?เ?ตอร์|โปรเจค|โปรเจคเตอร์/i,
+          jt: 'อุปกรณ์ไอที', it: 'โปรเจคเตอร์', symKw: [
+              [/เปิดไม่ติด|เปิดไม่ได้/i, 'เปิดไม่ติด'],
+              [/ไม่แสดงภาพ|ภาพไม่ขึ้น|ต่อ.*ไม่ได้/i, 'ไม่แสดงภาพเมื่อต่อคอมฯ'],
+              [/ตั้งค่า/i, 'ตั้งค่าการใช้งาน'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Microphone
+        { kw: /ไมโครโฟน|ไมค์|microphone|\bmic\b/i,
+          jt: 'อุปกรณ์ไอที', it: 'ไมโครโฟน', symKw: [
+              [/เปิดไม่ติด|ไม่ทำงาน|ไม่ติด/i, 'เปิดไม่ติด'],
+              [/ตั้งค่า/i, 'ตั้งค่าการใช้งาน'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // CCTV
+        { kw: /กล้อง.*วงจร|cctv|ip\s*cam|กล้อง.*ip/i,
+          jt: 'อุปกรณ์ไอที', it: 'กล้องวงจรปิด', symKw: [
+              [/ไม่ติด|ไม่ทำงาน|เปิดไม่/i, 'กล้องไม่ติด'],
+              [/แอพ|app|ดูผ่าน/i, 'ดูผ่านแอพไม่ได้'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // Face / fingerprint scanner
+        { kw: /สแกน(หน้า|นิ้ว)|fingerprint|biometric|เครื่อง.*สแกน/i,
+          jt: 'อุปกรณ์ไอที', it: 'เครื่องสแกนหน้า / นิ้ว', symKw: [
+              [/ดับ/i, 'เครื่องดับ'],
+              [/ไม่ติด|สแกนไม่/i, 'สแกนไม่ติด'],
+              [/ดึง.*ข้อมูล|ดาวน์โหลด/i, 'ดึงข้อมูลไม่ได้'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
+        // UPS — เครื่องสำรองไฟ
+        { kw: /สำรองไฟ|\bups\b/i,
+          jt: 'อุปกรณ์ไอที', it: 'เครื่องสำรองไฟ', symKw: [
+              [/เปิดไม่ติด/i, 'เครื่องเปิดไม่ติด'],
+              [/ไม่สำรอง/i, 'เครื่องไม่สำรองไฟ'],
+              [/ร้อง|เสียง/i, 'เครื่องมีเสียงร้อง'],
+          ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
     ];
 
     for (const r of RULES) {
