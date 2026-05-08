@@ -296,6 +296,12 @@ const SYSTEM_PROMPT = `คุณคือ "IT Support Assistant" ผู้ช่
 > User: "อีเมลเต็ม" → Bot: "เข้าใจครับ Email เต็ม 🙏 อยู่โลเคชั่นไหนครับ?"
 > (worklist มี "อีเมลเต็ม (แบ็คอัพอีเมล)" ตัวเดียว ไม่ต้องถาม)
 
+# 📷 รูปที่ user แนบ — ใช้ OCR text ที่ระบบ extract ให้
+ถ้าใน user message มีบรรทัด "[ข้อความที่อ่านได้จากรูปที่แนบ N รูป]:" → ระบบ run OCR แล้ว ข้อความหลังบรรทัดนั้นคือ error/text จากรูปที่ user เห็น
+- **ใช้เลย** ไม่ต้องถาม "error code อะไรครับ?" — มันอยู่ในข้อความให้แล้ว
+- **อ้างอิงในการสรุป** เช่น "เห็น error ว่า '0x80070005' ที่ส่งมา ฯ"
+- **ถ้า OCR ขึ้นว่า "[ไม่พบข้อความในรูป]"** = รูปไม่มี text (เป็น photo อุปกรณ์เสีย) — ใช้ image เป็น evidence เฉย ๆ ไม่ต้องอ้าง text
+
 # ห้ามแนะนำ technical step ที่เสี่ยง
 Registry/GPO/Services · format/chkdsk · uninstall โปรแกรมระบบ · แก้ config · reset network/Outlook profile/OST · flash firmware/BIOS · ลบ system cache · แก้ ERP/SAP/Drive ในทางที่พังได้
 
@@ -326,6 +332,53 @@ function sanitize(text) {
     // IPv4: not when followed by ".\d{2,}" (version strings like 10.0.19045.4651
     // or 192.168.1.100.5000 — error codes that include build numbers).
     .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b(?!\.\d{2,})/g, '[IP]');
+}
+
+// ---- Gemini Vision OCR ----
+// Pull error text/codes/messages out of attached screenshots so the chat
+// LLM can reason about them. Uses Gemini Flash's free tier (1500 req/day).
+// Cheap to fail — if no key or the call errors, we just skip OCR and
+// let the chat run without image context.
+async function ocrImages(dataUris) {
+  if (!Array.isArray(dataUris) || dataUris.length === 0) return '';
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return '';
+
+  const parts = [{
+    text: 'ดึงข้อความ/error code/message ที่เห็นในรูปทั้งหมดออกมา ตอบเป็นรายการที่ใช้แล้วเข้าใจง่าย เก็บคำเดิมตามที่เห็นในรูป (ไทย/อังกฤษ ตามต้นฉบับ) ห้ามแปล ห้ามสรุป ห้ามใส่คำพูดของคุณ ถ้าไม่เห็นข้อความใดในรูปให้ตอบว่า "[ไม่พบข้อความในรูป]"',
+  }];
+
+  for (const uri of dataUris) {
+    if (typeof uri !== 'string') continue;
+    const m = uri.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) continue;
+    parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
+  }
+  if (parts.length === 1) return ''; // no valid images parsed
+
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: { temperature: 0.0, maxOutputTokens: 1024 },
+  };
+
+  try {
+    const url = `${GEMINI_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      console.warn(`[OCR] Gemini Vision ${r.status}`);
+      return '';
+    }
+    const data = await r.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+    return text.trim();
+  } catch (err) {
+    console.warn('[OCR] error:', err.message);
+    return '';
+  }
 }
 
 // ---- Knowledge Base search ----
@@ -571,13 +624,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages = [], action = 'chat', worklist = null } = req.body || {};
+    const { messages = [], action = 'chat', worklist = null, images = [] } = req.body || {};
 
     // Sanitize user messages
     const safeMessages = messages.map(m => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: sanitize(m.content || ''),
     }));
+
+    // OCR — if the user attached screenshots, pull text out of them with
+    // Gemini Vision and append to the last user message so the chat LLM
+    // sees the actual error code/message instead of guessing from "[user
+    // attached N images]". Free tier (1500 req/day) — fail silent on error.
+    if (Array.isArray(images) && images.length > 0 && safeMessages.length > 0) {
+      const ocrText = await ocrImages(images);
+      if (ocrText && ocrText !== '[ไม่พบข้อความในรูป]') {
+        for (let i = safeMessages.length - 1; i >= 0; i--) {
+          if (safeMessages[i].role === 'user') {
+            safeMessages[i] = {
+              ...safeMessages[i],
+              content: safeMessages[i].content + `\n\n[ข้อความที่อ่านได้จากรูปที่แนบ ${images.length} รูป]:\n${ocrText}`,
+            };
+            break;
+          }
+        }
+      }
+    }
 
     if (action === 'draft') {
       const promptText = buildDraftPrompt(

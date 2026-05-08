@@ -4746,6 +4746,30 @@ function renderAIChatImagePreview() {
     ).join('');
 }
 
+// Resize + JPEG-encode an image to a base64 data URI before uploading to
+// /api/chat. The OCR Vision call works fine on small (≤1280px) images
+// and 25MB of raw upload would blow Vercel's 4.5MB request-body limit
+// for a 5-image batch.
+async function resizeImageToDataUri(file, maxDim = 1280, quality = 0.85) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            const ratio = Math.min(maxDim / img.width, maxDim / img.height, 1);
+            const canvas = document.createElement('canvas');
+            canvas.width  = Math.round(img.width  * ratio);
+            canvas.height = Math.round(img.height * ratio);
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            try { resolve(canvas.toDataURL('image/jpeg', quality)); }
+            catch { resolve(''); }
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+        img.src = url;
+    });
+}
+
 async function sendChat() {
     if (chatBusy) return;
     const input = document.getElementById('chatInput');
@@ -4788,6 +4812,18 @@ async function sendChat() {
         }
     }
 
+    // Resize + base64-encode any newly attached images so /api/chat can
+    // run Gemini Vision OCR on them and inject the extracted text into
+    // the user's message before sending to the LLM.
+    let imagePayload = [];
+    if (attachedImages.length > 0) {
+        try {
+            imagePayload = (await Promise.all(
+                attachedImages.map(f => resizeImageToDataUri(f, 1280, 0.85))
+            )).filter(Boolean);
+        } catch { imagePayload = []; }
+    }
+
     // Retry fetch up to 2 times on error (Groq rate limit ฯลฯ)
     async function tryChat(attempt = 0) {
         const res = await fetch('/api/chat', {
@@ -4798,6 +4834,7 @@ async function sendChat() {
                 sessionId: chatSessionId,
                 employeeId: currentUser ? currentUser.employeeId : '',
                 worklist: chatWorklist,
+                images: imagePayload,
             }),
         });
         // The /api/chat endpoint already walks Groq → Gemini → Groq-8b on
