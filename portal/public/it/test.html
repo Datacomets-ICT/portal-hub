@@ -322,6 +322,43 @@ const TEST_GROUPS = [
       cases:[
         { input:'ขอลง Photoshop' },
       ] },
+    // ===== Multi-turn regression tests (Bug B) =====
+    // Bot text contains all 4 device options. Heuristic must NOT pick
+    // device names from bot text — only from user messages.
+    { jobType:'คอมพิวเตอร์', issueType:'Notebook',
+      desc:'🐛 Bug B regression: bot lists devices, user picks Notebook — must not become Macbook',
+      cases:[
+        { input:[
+            { role:'user', content:'หน้าจอมีปัญหา' },
+            { role:'bot',  content:'เข้าใจครับ ใช้เครื่องอะไรครับ?\n1. **PC ตั้งโต๊ะ**\n2. **Notebook**\n3. **Macbook**\n4. **iMac**\n5. **อื่นๆ (ระบุเอง)**' },
+            { role:'user', content:'Notebook' },
+        ] },
+        { input:[
+            { role:'user', content:'จอดับ' },
+            { role:'bot',  content:'1. **PC ตั้งโต๊ะ**\n2. **Notebook**\n3. **Macbook**\n4. **iMac**' },
+            { role:'user', content:'notebook' },
+        ] },
+      ] },
+    { jobType:'คอมพิวเตอร์', issueType:'Macbook',
+      desc:'🐛 Bug B regression: bot lists devices, user picks Macbook',
+      cases:[
+        { input:[
+            { role:'user', content:'หน้าจอดับ' },
+            { role:'bot',  content:'1. **PC ตั้งโต๊ะ**\n2. **Notebook**\n3. **Macbook**\n4. **iMac**' },
+            { role:'user', content:'macbook' },
+        ] },
+      ] },
+    { jobType:'คอมพิวเตอร์', issueType:'PC',
+      desc:'🐛 Bug B regression: user changes mind (Notebook → PC) — pick latest',
+      cases:[
+        { input:[
+            { role:'user', content:'เครื่องค้าง' },
+            { role:'bot',  content:'ใช้เครื่องอะไรครับ?\n1. PC ตั้งโต๊ะ\n2. Notebook\n3. Macbook\n4. iMac' },
+            { role:'user', content:'Notebook' },
+            { role:'bot',  content:'เข้าใจครับ Notebook ค้าง...' },
+            { role:'user', content:'เปลี่ยนใจ PC ตั้งโต๊ะ' },
+        ] },
+      ] },
 ];
 
 // Flatten groups → flat list (for the runner) but keep group reference
@@ -378,7 +415,10 @@ function heuristicExtract(history) {
         .map(m => (m.content || '').trim())
         .filter(s => s && !skipPatterns.test(s));
     const request = userMsgs[0] || '';
-    const haystack = (request + ' ' + all).toLowerCase();
+    // User text only — never include bot text. Bot's device list
+    // ("1. PC ตั้งโต๊ะ 2. Notebook 3. Macbook 4. iMac") would otherwise
+    // contaminate device detection (Bug B).
+    const haystack = userText.toLowerCase();
     const guess = guessIssueFromText(haystack);
     return { request, priority, location, locationDetail, vncNumber, ...guess };
 }
@@ -392,11 +432,21 @@ function guessIssueFromText(text) {
     // Hard hardware-failure pre-check (mirror of index.html)
     const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|มีปัญหา|ปัญหา|รีสตาร์ทเอง|ช้า)|หน้าจอคอม|จอคอม|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|เครื่องช้า|รีสตาร์ทเอง|reboot.*เอง|(?:หน้าจอ|จอ).*(?:ดับ|ปัญหา|มีปัญหา|เพี้ยน|แตก|ไม่ติด|ไม่ทำงาน|ไม่บูต|ฟ้า)/i;
     if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์']) {
+        // Pick LAST-mentioned device (user's final answer if they changed mind)
+        const devicePatterns = [
+            { it:'Macbook',  re:/macbook|แมคบุ๊ก|แมคบุค/i },
+            { it:'iMac',     re:/\bimac\b/i },
+            { it:'Notebook', re:/notebook|laptop|โน้ตบุ๊ก|โน้ตบุค|โนตบุ๊ก/i },
+            { it:'PC',       re:/\bpc\b|ตั้งโต๊ะ|desktop/i },
+        ];
         let deviceIt = '';
-        if (/macbook|แมคบุ๊ก|แมคบุค/i.test(text)) deviceIt = 'Macbook';
-        else if (/\bimac\b/i.test(text)) deviceIt = 'iMac';
-        else if (/notebook|laptop|โน้ตบุ๊ก|โน้ตบุค|โนตบุ๊ก/i.test(text)) deviceIt = 'Notebook';
-        else if (/\bpc\b|ตั้งโต๊ะ|desktop/i.test(text)) deviceIt = 'PC';
+        let lastIdx = -1;
+        for (const { it, re } of devicePatterns) {
+            const matches = [...text.matchAll(new RegExp(re.source, re.flags + 'g'))];
+            if (matches.length === 0) continue;
+            const idx = matches[matches.length - 1].index;
+            if (idx > lastIdx) { lastIdx = idx; deviceIt = it; }
+        }
 
         if (deviceIt && worklist['คอมพิวเตอร์'][deviceIt]) {
             const syms = worklist['คอมพิวเตอร์'][deviceIt] || [];
@@ -646,9 +696,14 @@ function validateDraftWorklist(draft) {
 
 // ===== Test runner =====
 function runOneCase(input, expected, aiDraft) {
-    // Simulate a chat history with just the user message (or, if AI run,
-    // include AI response so heuristic sees full context).
-    const history = [{ role:'user', content: input }];
+    // input can be either:
+    //   - string: single user message (the common case)
+    //   - array of {role, content}: full multi-turn chat history (for
+    //     regression tests that need bot context, e.g., bot listing
+    //     device options that contaminate haystack — Bug B)
+    const history = Array.isArray(input)
+        ? input
+        : [{ role:'user', content: input }];
     const heur = heuristicExtract(history);
     let aiOut = null, finalOut;
     if (aiDraft) {
@@ -769,7 +824,9 @@ async function runAll(withAi) {
         tr.className = r.passed ? 'pass' : 'fail';
         tr.innerHTML = `
             <td>${rowNum}</td>
-            <td class="cell-input">${escHtml(tc.input)}</td>
+            <td class="cell-input">${Array.isArray(tc.input)
+                ? tc.input.map(m => `<div style="font-size:11px;color:${m.role==='user'?'#0F172A':'#94A3B8'};">${m.role==='user'?'👤':'🤖'} ${escHtml(m.content).slice(0,80)}</div>`).join('')
+                : escHtml(tc.input)}</td>
             <td class="cell-expected">${fmtCell({ jobType: tc.expect.jobType, issueType: tc.expect.issueType, symptom: tc.expect.symptom })}</td>
             <td class="cell-actual">${fmtCell(r.heur)}</td>
             ${withAi ? `<td class="cell-actual">${fmtCell(r.ai)}</td>` : ''}

@@ -4890,9 +4890,12 @@ function heuristicExtract(history) {
     // เอาแค่ข้อความแรก (ปัญหาหลัก) — ไม่รวม context หลัง
     const request = userMsgs[0] || '';
 
-    // Keyword-based fallback: scan request + history for common issue clues
-    // so we still pre-fill jobType/issueType/symptom even if Groq fails.
-    const haystack = (request + ' ' + all).toLowerCase();
+    // Keyword-based fallback: scan ONLY user messages for issue clues.
+    // Including bot text (`all`) caused Bug B: when the bot lists device
+    // options ("1. PC ตั้งโต๊ะ 2. Notebook 3. Macbook ..."), the word
+    // "Macbook" appears in haystack and the device check picks Macbook
+    // even though the user actually clicked Notebook. User text only.
+    const haystack = userText.toLowerCase();
     const guess = guessIssueFromText(haystack);
 
     return { request, priority, location, locationDetail, vncNumber, ...guess };
@@ -4928,11 +4931,23 @@ function guessIssueFromText(text) {
     if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์']) {
         // Pick device explicitly mentioned. If ambiguous → leave issueType
         // empty so the bot asks "ใช้เครื่องอะไร?" instead of defaulting to PC.
+        // When user mentions multiple devices (e.g., changed mind from PC to
+        // Notebook), pick the one they said LAST — that's their final answer.
+        const devicePatterns = [
+            { it: 'Macbook',  re: /macbook|แมคบุ๊ก|แมคบุค/i },
+            { it: 'iMac',     re: /\bimac\b/i },
+            { it: 'Notebook', re: /notebook|laptop|โน้ตบุ๊ก|โน้ตบุค|โนตบุ๊ก/i },
+            { it: 'PC',       re: /\bpc\b|ตั้งโต๊ะ|desktop/i },
+        ];
         let deviceIt = '';
-        if (/macbook|แมคบุ๊ก|แมคบุค/i.test(text)) deviceIt = 'Macbook';
-        else if (/\bimac\b/i.test(text)) deviceIt = 'iMac';
-        else if (/notebook|laptop|โน้ตบุ๊ก|โน้ตบุค|โนตบุ๊ก/i.test(text)) deviceIt = 'Notebook';
-        else if (/\bpc\b|ตั้งโต๊ะ|desktop/i.test(text)) deviceIt = 'PC';
+        let lastIdx = -1;
+        for (const { it, re } of devicePatterns) {
+            // Find the last occurrence of this device in the text
+            const matches = [...text.matchAll(new RegExp(re.source, re.flags + 'g'))];
+            if (matches.length === 0) continue;
+            const idx = matches[matches.length - 1].index;
+            if (idx > lastIdx) { lastIdx = idx; deviceIt = it; }
+        }
 
         if (deviceIt && worklist['คอมพิวเตอร์'][deviceIt]) {
             const syms = worklist['คอมพิวเตอร์'][deviceIt] || [];
