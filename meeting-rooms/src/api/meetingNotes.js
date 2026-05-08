@@ -87,16 +87,20 @@ export async function startMeetingSummary({ bookingId, file, createdBy, onProgre
     .single();
   if (insErr) throw insErr;
 
-  // 3) Try Gemini pipeline. On quota/rate-limit error → switch to
-  //    Groq Whisper fallback, which lives on a different quota pool.
+  // 3) Primary: Groq Whisper + Groq LLM (single call). Better Thai
+  //    transcription than Gemini and the free quota is far larger.
+  //    Fallback: Gemini Files API path if Groq has issues.
   try {
-    progress('upload', { note: row });
+    progress('process', { note: row });
+    await callApi('process', { note_id: row.id });
+  } catch (err) {
+    console.warn('[meetingNotes] Groq Whisper path failed — trying Gemini fallback', err);
+    progress('upload');
     const uploadRes = await callApi('upload', {
       note_id: row.id,
       audio_url: audioUrl,
       mime_type: file.type || 'audio/webm',
     });
-
     if (uploadRes.state !== 'ACTIVE') {
       progress('processing');
       const deadline = Date.now() + POLL_TIMEOUT_MS;
@@ -107,51 +111,34 @@ export async function startMeetingSummary({ bookingId, file, createdBy, onProgre
         if (pollRes.state === 'FAILED') throw new Error('Gemini file processing FAILED');
       }
     }
-
     progress('generate');
     await callApi('generate', { note_id: row.id });
-  } catch (err) {
-    if (!isQuotaError(err)) throw err;
-    console.warn('[meetingNotes] Gemini quota hit — falling back to Groq Whisper', err);
-    progress('fallback');
-    await callApi('fallback', { note_id: row.id });
   }
 
   progress('done');
   return await getNoteForBooking(bookingId);
 }
 
-// Resume from a partial note (e.g. user reloaded the page mid-pipeline).
+// Resume from a partial note (retry after failure or reload).
+// Same primary→fallback chain as startMeetingSummary.
 export async function resumeMeetingSummary(note, onProgress) {
   if (!note?.id) throw new Error('note required');
   const progress = onProgress || (() => {});
-
-  // If we're already in 'done' or 'error' there's nothing to do.
   if (note.status === 'done') return note;
 
   try {
-    // Need a Gemini handle before we can poll/generate. If we don't have
-    // one (status=uploading or status=processing without uri), start over
-    // by re-uploading from Supabase.
-    if (!note.gemini_file_name) {
-      if (!note.audio_url) throw new Error('No audio_url to re-upload');
-      progress('upload');
-      const r = await callApi('upload', {
-        note_id: note.id,
-        audio_url: note.audio_url,
-        mime_type: 'audio/webm',
-      });
-      if (r.state !== 'ACTIVE') {
-        progress('processing');
-        const deadline = Date.now() + POLL_TIMEOUT_MS;
-        while (Date.now() < deadline) {
-          await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
-          const pollRes = await callApi('poll', { note_id: note.id });
-          if (pollRes.state === 'ACTIVE') break;
-          if (pollRes.state === 'FAILED') throw new Error('Gemini processing FAILED');
-        }
-      }
-    } else if (note.status === 'processing' || note.status === 'uploading') {
+    progress('process');
+    await callApi('process', { note_id: note.id });
+  } catch (err) {
+    console.warn('[meetingNotes] resume: Groq Whisper failed, trying Gemini', err);
+    if (!note.audio_url) throw err;
+    progress('upload');
+    const r = await callApi('upload', {
+      note_id: note.id,
+      audio_url: note.audio_url,
+      mime_type: 'audio/webm',
+    });
+    if (r.state !== 'ACTIVE') {
       progress('processing');
       const deadline = Date.now() + POLL_TIMEOUT_MS;
       while (Date.now() < deadline) {
@@ -161,14 +148,8 @@ export async function resumeMeetingSummary(note, onProgress) {
         if (pollRes.state === 'FAILED') throw new Error('Gemini processing FAILED');
       }
     }
-
     progress('generate');
     await callApi('generate', { note_id: note.id });
-  } catch (err) {
-    if (!isQuotaError(err)) throw err;
-    console.warn('[meetingNotes] Gemini quota hit on resume — falling back to Groq Whisper', err);
-    progress('fallback');
-    await callApi('fallback', { note_id: note.id });
   }
 
   progress('done');

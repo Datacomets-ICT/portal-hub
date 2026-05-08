@@ -11,10 +11,10 @@ const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — matches v16 bucket limit
 
 const STAGE_LABEL = {
   storage:   '📤 อัปโหลดไฟล์เสียง...',
-  upload:    '🤖 ส่งไฟล์ไป AI (Gemini)...',
-  processing:'⏳ AI กำลังเตรียมประมวลผล... (ไฟล์ใหญ่อาจใช้เวลา 1-3 นาที)',
-  generate:  '✨ AI กำลังถอดเสียงและสรุป... (อาจใช้เวลา 30-90 วินาที)',
-  fallback:  '🔄 Gemini quota เต็ม — กำลังใช้ Groq Whisper สำรอง...',
+  process:   '✨ AI กำลังถอดเสียงและสรุป... (Whisper + Groq, ~30-90 วินาที)',
+  upload:    '🔄 Whisper ติดขัด — กำลังลอง Gemini สำรอง...',
+  processing:'⏳ Gemini กำลังเตรียมประมวลผล... (ไฟล์ใหญ่อาจใช้เวลา 1-3 นาที)',
+  generate:  '✨ Gemini กำลังสรุป...',
   done:      '✅ เสร็จแล้ว',
 };
 

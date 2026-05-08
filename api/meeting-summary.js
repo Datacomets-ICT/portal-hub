@@ -314,33 +314,32 @@ ${transcript.slice(0, 50000)}`;
   return (data?.choices?.[0]?.message?.content || '').trim();
 }
 
-async function stepFallback(_apiKey, body) {
+// === PRIMARY PATH: Groq Whisper + Groq LLM, single call ===
+// Faster + better Thai transcription than Gemini Files API. Free
+// quota (28k min/day on Whisper, 14k req/day on Groq LLM) is also
+// far larger than Gemini's 1500/day shared pool. Used as ?step=process.
+async function stepProcess(body) {
   const { note_id } = body || {};
   if (!note_id) throw new Error('note_id required');
 
   const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) throw new Error('GROQ_API_KEY not set — cannot run Whisper fallback');
+  if (!groqKey) throw new Error('GROQ_API_KEY not set');
 
   const note = await getNote(note_id);
   if (!note.audio_url) throw new Error('Note has no audio_url');
 
   await updateNote(note_id, { status: 'generating', error_message: null });
 
-  // 1) Download audio
   const audioRes = await fetch(note.audio_url);
   if (!audioRes.ok) throw new Error(`Failed to fetch audio (${audioRes.status})`);
   const audioBytes = new Uint8Array(await audioRes.arrayBuffer());
   const mime = audioRes.headers.get('content-type') || 'audio/webm';
 
-  // 2) Transcribe via Groq Whisper
   const transcript = await groqWhisperTranscribe(groqKey, audioBytes, mime, `note-${note_id}.webm`);
-
-  // 3) Summarise transcript via Groq LLM
   const summaryText = await groqSummarizeTranscript(groqKey, transcript);
   const parsed = parseSummary(summaryText);
   if (!parsed) throw new Error('Could not parse Groq summary as JSON');
 
-  // 4) Save to DB
   await updateNote(note_id, {
     status: 'done',
     transcript,
@@ -400,8 +399,8 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+  // Each step requires its own provider key — checked inside the step.
+  const apiKey = process.env.GEMINI_API_KEY || '';
 
   let body;
   try { body = req.body; if (typeof body === 'string') body = JSON.parse(body); }
@@ -412,16 +411,21 @@ export default async function handler(req, res) {
 
   try {
     let result;
-    if (step === 'upload') {
+    if (step === 'process') {
+      // Primary: Groq Whisper + Groq LLM in a single call
+      result = await stepProcess(body);
+    } else if (step === 'upload') {
       result = await stepUpload(apiKey, body);
     } else if (step === 'poll') {
       result = await stepPoll(apiKey, body);
     } else if (step === 'generate') {
       result = await stepGenerate(apiKey, body);
     } else if (step === 'fallback') {
-      result = await stepFallback(apiKey, body);
+      // Backwards-compat alias — frontend used to call ?step=fallback
+      // for the Whisper path; now process is canonical.
+      result = await stepProcess(body);
     } else {
-      return res.status(400).json({ error: 'step must be upload|poll|generate|fallback' });
+      return res.status(400).json({ error: 'step must be process|upload|poll|generate' });
     }
     return res.status(200).json(result);
   } catch (err) {
