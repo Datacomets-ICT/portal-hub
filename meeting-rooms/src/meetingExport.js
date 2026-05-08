@@ -26,12 +26,45 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// Pull bullet lines out of a "• line\n• line" summary blob
-function summaryToList(summary) {
+// Normalise a summary blob into a clean array of bullet lines.
+// AI sometimes returns the field as a JSON-stringified array
+// (e.g. `["• line 1","• line 2"]`) — clean that case too.
+export function summaryToList(summary) {
   if (!summary) return [];
-  return String(summary)
+
+  // Already an array? Just clean each item.
+  if (Array.isArray(summary)) {
+    return summary
+      .map(s => String(s).replace(/^[•\-*◦▪■]\s*/, '').trim())
+      .filter(Boolean);
+  }
+
+  let s = String(summary).trim();
+
+  // Strip a wrapping JSON array if AI returned one as a string
+  if (s.startsWith('[') && s.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(x => String(x).replace(/^[•\-*◦▪■]\s*/, '').trim())
+          .filter(Boolean);
+      }
+    } catch {
+      // Fall through to manual cleanup
+    }
+  }
+
+  // Crude cleanup for partially-malformed JSON: peel the outer
+  // brackets/quotes and split on `","` / newline / `","•`.
+  s = s
+    .replace(/^\[\s*"?/, '')      // leading [ "
+    .replace(/"?\s*\]$/, '')      // trailing " ]
+    .replace(/"\s*,\s*"/g, '\n'); // ","  → newline
+
+  return s
     .split(/\r?\n/)
-    .map(s => s.replace(/^[•\-*◦▪■]\s*/, '').trim())
+    .map(line => line.replace(/^[•\-*◦▪■]\s*/, '').trim())
     .filter(Boolean);
 }
 
@@ -71,7 +104,7 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
     }
     .doc-wrap { padding: 36px 40px 60px; }
     .hero {
-      background: linear-gradient(135deg, #F97316 0%, #EA580C 60%, #C2410C 100%);
+      background: linear-gradient(135deg, #1E3A8A 0%, #1E40AF 50%, #0F172A 100%);
       color: #FFF;
       padding: 38px 40px 32px;
       position: relative;
@@ -82,7 +115,15 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
       position: absolute;
       right: -60px; top: -60px;
       width: 260px; height: 260px;
-      background: radial-gradient(circle, rgba(255,255,255,0.15), transparent 70%);
+      background: radial-gradient(circle, rgba(255,255,255,0.18), transparent 70%);
+      pointer-events: none;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      left: -40px; bottom: -80px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(96,165,250,0.25), transparent 70%);
       pointer-events: none;
     }
     .hero-kicker {
@@ -116,8 +157,8 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
     .hero-meta-row span { display: inline-flex; align-items: center; gap: 6px; opacity: 0.95; }
     .section { margin-top: 26px; }
     .section-title {
-      background: #1F2937;
-      color: #FBBF24;
+      background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
+      color: #60A5FA;
       padding: 12px 18px;
       border-radius: 6px;
       font-weight: 800;
@@ -128,8 +169,8 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
       gap: 10px;
     }
     .section-title .num {
-      background: #FBBF24;
-      color: #1F2937;
+      background: #60A5FA;
+      color: #0F172A;
       width: 24px; height: 24px;
       border-radius: 50%;
       display: inline-flex;
@@ -150,14 +191,19 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
     .topic-block { margin-bottom: 14px; }
     .topic-head {
       font-weight: 700;
-      color: #1F2937;
+      color: #0F172A;
       font-size: 14.5px;
       margin-bottom: 4px;
-      border-left: 3px solid #F97316;
+      border-left: 3px solid #1E40AF;
       padding-left: 10px;
     }
-    .decisions-list { background: #FEF3C7; padding: 12px 14px 12px 32px; border-radius: 6px; border-left: 4px solid #F59E0B; }
-    .decisions-list li { color: #78350F; font-weight: 500; }
+    .decisions-list {
+      background: #DBEAFE;
+      padding: 12px 14px 12px 32px;
+      border-radius: 6px;
+      border-left: 4px solid #1E40AF;
+    }
+    .decisions-list li { color: #1E3A8A; font-weight: 500; }
     table.action {
       width: 100%;
       border-collapse: collapse;
@@ -165,8 +211,8 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
       margin-top: 4px;
     }
     table.action th {
-      background: #1F2937;
-      color: #FBBF24;
+      background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
+      color: #60A5FA;
       padding: 10px 12px;
       text-align: left;
       font-weight: 700;
@@ -179,17 +225,17 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
       border-bottom: 1px solid #E5E7EB;
       vertical-align: top;
     }
-    table.action tr:nth-child(even) td { background: #F9FAFB; }
+    table.action tr:nth-child(even) td { background: #F8FAFC; }
     table.action tr:last-child td { border-bottom: 0; }
     .col-task   { width: auto; font-weight: 600; }
-    .col-owner  { width: 25%; color: #C2410C; font-weight: 600; }
+    .col-owner  { width: 25%; color: #1E40AF; font-weight: 600; }
     .col-due    { width: 22%; color: #6B7280; }
     .next-meeting-box {
-      background: #DBEAFE;
+      background: #E0E7FF;
       padding: 14px 18px;
       border-radius: 6px;
-      border-left: 4px solid #2563EB;
-      color: #1E3A8A;
+      border-left: 4px solid #4338CA;
+      color: #312E81;
       font-weight: 500;
     }
     .empty { color: #9CA3AF; font-style: italic; font-size: 13px; }
@@ -330,21 +376,63 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
     : bodyHtml;
 }
 
-// ===== Print → user can save as PDF =====
-export function exportAsPdf(args) {
-  const html = buildReportHtml({ ...args, includeStyles: true });
-  const w = window.open('', '_blank', 'width=900,height=1000');
-  if (!w) {
-    alert('โปรดอนุญาตให้เว็บนี้เปิด popup เพื่อพิมพ์/บันทึก PDF');
-    return;
+// Lazy-load html2pdf.js from CDN so the bundle stays small.
+// Cached on window — second call is instant.
+async function loadHtml2Pdf() {
+  if (window.html2pdf) return window.html2pdf;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('โหลด html2pdf.js ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต'));
+    document.head.appendChild(s);
+  });
+  return window.html2pdf;
+}
+
+// Wait for Sarabun (and any other added fonts) to be ready in the
+// document we're rendering — html2canvas takes a snapshot, so missed
+// fonts mean Thai falls back to a generic system font in the PDF.
+async function waitForFonts(doc) {
+  if (doc?.fonts?.ready) {
+    try { await doc.fonts.ready; } catch {}
   }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  // Give web fonts a beat to load before printing
-  setTimeout(() => {
-    try { w.focus(); w.print(); } catch {}
-  }, 600);
+}
+
+// ===== Direct download as PDF (no print dialog) =====
+export async function exportAsPdf(args) {
+  const html = buildReportHtml({ ...args, includeStyles: true });
+  const html2pdf = await loadHtml2Pdf();
+
+  // Render in an off-screen iframe so styles don't leak into the host page.
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'position:fixed;left:-99999px;top:0;width:820px;height:1200px;border:0;visibility:hidden;';
+  document.body.appendChild(frame);
+  frame.srcdoc = html;
+  await new Promise(res => { frame.onload = res; setTimeout(res, 800); });
+  await waitForFonts(frame.contentDocument);
+
+  const safeTitle = (args.booking?.title || 'meeting').replace(/[^\w฀-๿-]+/g, '_').slice(0, 60);
+  const opt = {
+    margin: 0,
+    filename: `meeting-summary-${safeTitle}.pdf`,
+    image: { type: 'jpeg', quality: 0.96 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: 820,
+    },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+  };
+
+  try {
+    await html2pdf().set(opt).from(frame.contentDocument.body).save();
+  } finally {
+    setTimeout(() => frame.remove(), 100);
+  }
 }
 
 // ===== Download as Word (Word opens HTML payload as .doc) =====

@@ -199,12 +199,44 @@ function parseSummary(text) {
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
-  try { return JSON.parse(cleaned); } catch {}
-  const m = cleaned.match(/\{[\s\S]*\}/);
-  if (m) {
-    try { return JSON.parse(m[0]); } catch {}
+  let obj = null;
+  try { obj = JSON.parse(cleaned); } catch {}
+  if (!obj) {
+    const m = cleaned.match(/\{[\s\S]*\}/);
+    if (m) {
+      try { obj = JSON.parse(m[0]); } catch {}
+    }
   }
-  return null;
+  if (!obj) return null;
+
+  // Normalise summary to a plain "• line\n• line" string.
+  // AI sometimes returns an array, or a stringified JSON array — both
+  // render as garbage in the UI ([" line ", "line "]). Flatten here.
+  if (Array.isArray(obj.summary)) {
+    obj.summary = obj.summary
+      .map(s => {
+        const t = String(s).trim();
+        return t.startsWith('•') ? t : `• ${t}`;
+      })
+      .join('\n');
+  } else if (typeof obj.summary === 'string') {
+    const s = obj.summary.trim();
+    if (s.startsWith('[') && s.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+          obj.summary = parsed
+            .map(x => {
+              const t = String(x).trim();
+              return t.startsWith('•') ? t : `• ${t}`;
+            })
+            .join('\n');
+        }
+      } catch {}
+    }
+  }
+
+  return obj;
 }
 
 // ===== step handlers =====
@@ -290,9 +322,9 @@ async function groqSummarizeTranscript(groqKey, transcript) {
 ตอบเป็น JSON เท่านั้น ห้ามใส่ markdown ห้ามใส่ comment
 
 {
-  "summary": "ประเด็นหลัก 3-7 ข้อ บรรทัดละข้อ ขึ้นต้นด้วย • (เน้นเรื่องที่ตัดสินใจหรือสรุปได้แล้ว)",
+  "summary": "string เดียว — ประเด็นหลัก 3-7 ข้อ คั่นด้วย \\n บรรทัดละข้อ ขึ้นต้นด้วย • ห้ามเป็น array ห้ามใส่ [ \" , ] ห้ามใส่ JSON ให้เป็นข้อความล้วน",
   "discussion_topics": [
-    { "topic": "หัวข้อย่อย", "points": ["รายละเอียด/ข้อโต้แย้ง/มุมมอง 1", "...2"] }
+    { "topic": "หัวข้อย่อย", "points": ["รายละเอียด 1", "...2"] }
   ],
   "decisions": ["ข้อตัดสินใจที่ทุกคนเห็นด้วยแล้ว 1", "...2"],
   "action_items": [
@@ -303,6 +335,10 @@ async function groqSummarizeTranscript(groqKey, transcript) {
 
 กฎ:
 - ทุก field ใช้ภาษาไทย (ยกเว้นชื่อโปรแกรม/ตัวย่อภาษาอังกฤษคงเดิม)
+- "summary" ต้องเป็น string เดียวเท่านั้น — ห้ามเป็น array, ห้ามใส่เครื่องหมาย [ ] " , JSON
+  ถูก: "summary": "• ข้อ 1\\n• ข้อ 2\\n• ข้อ 3"
+  ผิด: "summary": "[\\"• ข้อ 1\\",\\"• ข้อ 2\\"]"
+  ผิด: "summary": ["• ข้อ 1","• ข้อ 2"]
 - "discussion_topics" คือบทสนทนาแยกตามหัวข้อ — แต่ละหัวข้อมี 2-5 bullet points
 - "decisions" ต่างจาก "summary" คือ เป็นข้อสรุปที่ทุกคน "ตกลง" แล้ว ไม่ใช่ข้อเสนอ
 - "action_items" คืองานที่มีคนรับผิดชอบ — ถ้าไม่ระบุชื่อคน ใส่แผนกหรือ ''

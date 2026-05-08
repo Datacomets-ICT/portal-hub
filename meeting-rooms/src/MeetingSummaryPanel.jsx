@@ -11,6 +11,7 @@ import {
   exportAsDoc,
   buildPlainText,
   copyToClipboard,
+  summaryToList,
 } from './meetingExport.js';
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — matches v16 bucket limit
@@ -360,12 +361,17 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             </div>
           )}
 
-          {note.summary && (
-            <div className="ms-section">
-              <div className="ms-section-title">💡 ประเด็นหลัก</div>
-              <pre className="ms-summary-text">{note.summary}</pre>
-            </div>
-          )}
+          {(() => {
+            const lines = summaryToList(note.summary);
+            return lines.length > 0 ? (
+              <div className="ms-section">
+                <div className="ms-section-title">💡 ประเด็นหลัก</div>
+                <ul className="ms-action-list">
+                  {lines.map((line, i) => <li key={i}>{line}</li>)}
+                </ul>
+              </div>
+            ) : null;
+          })()}
 
           {Array.isArray(note.decisions) && note.decisions.length > 0 && (
             <div className="ms-section">
