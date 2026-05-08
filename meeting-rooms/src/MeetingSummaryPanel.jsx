@@ -5,6 +5,7 @@ import {
   resumeMeetingSummary,
   deleteMeetingNote,
   purgeExpiredAudio,
+  getResumableUploadStatus,
 } from './api/meetingNotes.js';
 import { supabase } from './lib/supabase.js';
 import {
@@ -295,8 +296,15 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             อัดเสียงประชุมหรืออัปโหลดไฟล์เสียงที่อัดไว้แล้ว — AI จะถอดเสียงและสรุปประเด็น/action items ให้
             <br />
             <small style={{opacity:0.7}}>
-              รองรับไฟล์สูงสุด 500MB · ไฟล์ใหญ่จะอัปโหลดเป็นชิ้นๆ อัตโนมัติ
-              <br />ไฟล์เสียงจะถูก<b>ลบอัตโนมัติหลัง 24 ชม.</b> เพื่อประหยัดพื้นที่ (สรุปยังอยู่)
+              {(() => {
+                const s = getResumableUploadStatus();
+                return s.ok
+                  ? <>✅ Resumable upload พร้อม (สูงสุด 500MB) · ลบอัตโนมัติ 24 ชม.</>
+                  : <>⚠️ Resumable upload <b>ยังไม่พร้อม</b> — สูงสุด 50MB เท่านั้น<br />
+                     <span style={{color:'#B45309'}}>
+                       ตั้ง <code>VITE_SUPABASE_LEGACY_JWT</code> ใน Vercel เพื่อรองรับไฟล์ใหญ่กว่า
+                     </span></>;
+              })()}
             </small>
           </div>
           <div className="ms-empty-actions">

@@ -37,6 +37,26 @@ function tusAuthKey() {
   return null;
 }
 
+// Exposed so the UI can show "✓ Resumable upload พร้อมใช้" or warn
+// when the legacy JWT key wasn't baked into the build. Knowing this
+// up-front beats discovering it only after a 2-minute upload attempt.
+export function getResumableUploadStatus() {
+  const anonIsJwt = isJwtFormat(SUPABASE_ANON_KEY);
+  const legacyIsJwt = isJwtFormat(LEGACY_JWT);
+  if (legacyIsJwt) {
+    return { ok: true, source: 'legacy', preview: LEGACY_JWT.slice(0, 12) + '…' };
+  }
+  if (anonIsJwt) {
+    return { ok: true, source: 'anon', preview: SUPABASE_ANON_KEY.slice(0, 12) + '…' };
+  }
+  return {
+    ok: false,
+    source: null,
+    anonStart: SUPABASE_ANON_KEY ? SUPABASE_ANON_KEY.slice(0, 16) + '…' : '(empty)',
+    legacyStart: LEGACY_JWT ? LEGACY_JWT.slice(0, 16) + '…' : '(empty)',
+  };
+}
+
 // Upload `file` to Supabase Storage. Picks single-shot or TUS based on
 // size. `onProgress(percent, bytesUploaded, bytesTotal)` reports
 // upload progress (only meaningful for resumable uploads).
