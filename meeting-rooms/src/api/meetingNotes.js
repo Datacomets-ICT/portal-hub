@@ -35,9 +35,22 @@ async function callApi(step, body) {
   });
   if (!r.ok) {
     const errText = await r.text();
-    throw new Error(`step=${step} failed (${r.status}): ${errText.slice(0, 200)}`);
+    const err = new Error(`step=${step} failed (${r.status}): ${errText.slice(0, 200)}`);
+    err.status = r.status;
+    err.body = errText;
+    throw err;
   }
   return await r.json();
+}
+
+// "Quota exceeded" / "rate limit" — anything that's worth swapping
+// providers for. We treat both 429 from us and a Gemini 429 inside a
+// 500-from-us as the same trigger.
+function isQuotaError(err) {
+  if (!err) return false;
+  if (err.status === 429) return true;
+  const blob = (err.body || err.message || '').toString().toLowerCase();
+  return blob.includes('429') || blob.includes('quota') || blob.includes('rate limit');
 }
 
 // Drive the entire pipeline in one call. Returns the final note row.
@@ -74,31 +87,37 @@ export async function startMeetingSummary({ bookingId, file, createdBy, onProgre
     .single();
   if (insErr) throw insErr;
 
-  // 3) Step 1 — upload to Gemini Files API
-  progress('upload', { note: row });
-  const uploadRes = await callApi('upload', {
-    note_id: row.id,
-    audio_url: audioUrl,
-    mime_type: file.type || 'audio/webm',
-  });
+  // 3) Try Gemini pipeline. On quota/rate-limit error → switch to
+  //    Groq Whisper fallback, which lives on a different quota pool.
+  try {
+    progress('upload', { note: row });
+    const uploadRes = await callApi('upload', {
+      note_id: row.id,
+      audio_url: audioUrl,
+      mime_type: file.type || 'audio/webm',
+    });
 
-  // 4) Step 2 — poll until Gemini finishes ingesting
-  if (uploadRes.state !== 'ACTIVE') {
-    progress('processing');
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
-      const pollRes = await callApi('poll', { note_id: row.id });
-      if (pollRes.state === 'ACTIVE') break;
-      if (pollRes.state === 'FAILED') throw new Error('Gemini file processing FAILED');
+    if (uploadRes.state !== 'ACTIVE') {
+      progress('processing');
+      const deadline = Date.now() + POLL_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
+        const pollRes = await callApi('poll', { note_id: row.id });
+        if (pollRes.state === 'ACTIVE') break;
+        if (pollRes.state === 'FAILED') throw new Error('Gemini file processing FAILED');
+      }
     }
+
+    progress('generate');
+    await callApi('generate', { note_id: row.id });
+  } catch (err) {
+    if (!isQuotaError(err)) throw err;
+    console.warn('[meetingNotes] Gemini quota hit — falling back to Groq Whisper', err);
+    progress('fallback');
+    await callApi('fallback', { note_id: row.id });
   }
 
-  // 5) Step 3 — transcribe + summarise
-  progress('generate');
-  const result = await callApi('generate', { note_id: row.id });
-
-  progress('done', { result });
+  progress('done');
   return await getNoteForBooking(bookingId);
 }
 
@@ -108,20 +127,31 @@ export async function resumeMeetingSummary(note, onProgress) {
   const progress = onProgress || (() => {});
 
   // If we're already in 'done' or 'error' there's nothing to do.
-  if (note.status === 'done' || note.status === 'error') return note;
+  if (note.status === 'done') return note;
 
-  // Need a Gemini handle before we can poll/generate. If we don't have
-  // one (status=uploading or status=processing without uri), start over
-  // by re-uploading from Supabase.
-  if (!note.gemini_file_name) {
-    if (!note.audio_url) throw new Error('No audio_url to re-upload');
-    progress('upload');
-    const r = await callApi('upload', {
-      note_id: note.id,
-      audio_url: note.audio_url,
-      mime_type: 'audio/webm',
-    });
-    if (r.state !== 'ACTIVE') {
+  try {
+    // Need a Gemini handle before we can poll/generate. If we don't have
+    // one (status=uploading or status=processing without uri), start over
+    // by re-uploading from Supabase.
+    if (!note.gemini_file_name) {
+      if (!note.audio_url) throw new Error('No audio_url to re-upload');
+      progress('upload');
+      const r = await callApi('upload', {
+        note_id: note.id,
+        audio_url: note.audio_url,
+        mime_type: 'audio/webm',
+      });
+      if (r.state !== 'ACTIVE') {
+        progress('processing');
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        while (Date.now() < deadline) {
+          await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
+          const pollRes = await callApi('poll', { note_id: note.id });
+          if (pollRes.state === 'ACTIVE') break;
+          if (pollRes.state === 'FAILED') throw new Error('Gemini processing FAILED');
+        }
+      }
+    } else if (note.status === 'processing' || note.status === 'uploading') {
       progress('processing');
       const deadline = Date.now() + POLL_TIMEOUT_MS;
       while (Date.now() < deadline) {
@@ -131,19 +161,16 @@ export async function resumeMeetingSummary(note, onProgress) {
         if (pollRes.state === 'FAILED') throw new Error('Gemini processing FAILED');
       }
     }
-  } else if (note.status === 'processing' || note.status === 'uploading') {
-    progress('processing');
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
-      const pollRes = await callApi('poll', { note_id: note.id });
-      if (pollRes.state === 'ACTIVE') break;
-      if (pollRes.state === 'FAILED') throw new Error('Gemini processing FAILED');
-    }
+
+    progress('generate');
+    await callApi('generate', { note_id: note.id });
+  } catch (err) {
+    if (!isQuotaError(err)) throw err;
+    console.warn('[meetingNotes] Gemini quota hit on resume — falling back to Groq Whisper', err);
+    progress('fallback');
+    await callApi('fallback', { note_id: note.id });
   }
 
-  progress('generate');
-  await callApi('generate', { note_id: note.id });
   progress('done');
   return await getNoteForBooking(note.booking_id);
 }

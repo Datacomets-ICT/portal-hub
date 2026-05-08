@@ -250,6 +250,113 @@ async function stepPoll(apiKey, body) {
   return { state: file.state };
 }
 
+// ---- Groq Whisper fallback (used when Gemini hits quota) ----
+// Whisper transcribes audio (free tier ~28k min/day on Groq), then we
+// hand the transcript to a Groq LLM for the summary. End-to-end this
+// often beats the Gemini Files-API roundtrip on speed too.
+const GROQ_API_URL  = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_AUDIO_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const GROQ_WHISPER_MODEL = 'whisper-large-v3';
+const GROQ_LLM_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+async function groqWhisperTranscribe(groqKey, audioBytes, mimeType, fileName) {
+  const fd = new FormData();
+  // Node 18+ fetch supports Blob in FormData
+  const blob = new Blob([audioBytes], { type: mimeType || 'audio/webm' });
+  fd.append('file', blob, fileName || 'meeting.webm');
+  fd.append('model', GROQ_WHISPER_MODEL);
+  fd.append('language', 'th');
+  fd.append('response_format', 'text');
+
+  const r = await fetch(GROQ_AUDIO_URL, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${groqKey}` },
+    body: fd,
+  });
+  if (!r.ok) {
+    throw new Error(`Whisper ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  }
+  // response_format=text returns plain text body
+  return (await r.text()).trim();
+}
+
+async function groqSummarizeTranscript(groqKey, transcript) {
+  const prompt = `จาก transcript การประชุมด้านล่าง สรุปออกเป็น JSON เท่านั้น ห้ามใส่ markdown:
+
+{
+  "summary": "• ประเด็นหลัก 3-7 ข้อ — เน้นข้อที่ตัดสินใจได้แล้ว\\n• ใช้ bullet point ขึ้นต้นด้วย • ทุกบรรทัด",
+  "action_items": [
+    { "task": "...", "owner": "ชื่อคน/แผนก หรือ ''", "due": "เมื่อไหร่ หรือ ''" }
+  ]
+}
+
+Transcript:
+${transcript.slice(0, 50000)}`;
+
+  const r = await fetch(GROQ_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
+    body: JSON.stringify({
+      model: GROQ_LLM_MODEL,
+      messages: [
+        { role: 'system', content: 'You are an assistant that summarises Thai meeting transcripts. Output ONLY valid JSON.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.2,
+      max_tokens: 4096,
+      response_format: { type: 'json_object' },
+    }),
+  });
+  if (!r.ok) {
+    throw new Error(`Groq summary ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  }
+  const data = await r.json();
+  return (data?.choices?.[0]?.message?.content || '').trim();
+}
+
+async function stepFallback(_apiKey, body) {
+  const { note_id } = body || {};
+  if (!note_id) throw new Error('note_id required');
+
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) throw new Error('GROQ_API_KEY not set — cannot run Whisper fallback');
+
+  const note = await getNote(note_id);
+  if (!note.audio_url) throw new Error('Note has no audio_url');
+
+  await updateNote(note_id, { status: 'generating', error_message: null });
+
+  // 1) Download audio
+  const audioRes = await fetch(note.audio_url);
+  if (!audioRes.ok) throw new Error(`Failed to fetch audio (${audioRes.status})`);
+  const audioBytes = new Uint8Array(await audioRes.arrayBuffer());
+  const mime = audioRes.headers.get('content-type') || 'audio/webm';
+
+  // 2) Transcribe via Groq Whisper
+  const transcript = await groqWhisperTranscribe(groqKey, audioBytes, mime, `note-${note_id}.webm`);
+
+  // 3) Summarise transcript via Groq LLM
+  const summaryText = await groqSummarizeTranscript(groqKey, transcript);
+  const parsed = parseSummary(summaryText);
+  if (!parsed) throw new Error('Could not parse Groq summary as JSON');
+
+  // 4) Save to DB
+  await updateNote(note_id, {
+    status: 'done',
+    transcript,
+    summary: parsed.summary || '',
+    action_items: parsed.action_items || [],
+  });
+
+  return {
+    ok: true,
+    provider: 'groq-whisper',
+    transcript,
+    summary: parsed.summary || '',
+    action_items: parsed.action_items || [],
+  };
+}
+
 async function stepGenerate(apiKey, body) {
   const { note_id } = body || {};
   if (!note_id) throw new Error('note_id required');
@@ -311,8 +418,10 @@ export default async function handler(req, res) {
       result = await stepPoll(apiKey, body);
     } else if (step === 'generate') {
       result = await stepGenerate(apiKey, body);
+    } else if (step === 'fallback') {
+      result = await stepFallback(apiKey, body);
     } else {
-      return res.status(400).json({ error: 'step must be upload|poll|generate' });
+      return res.status(400).json({ error: 'step must be upload|poll|generate|fallback' });
     }
     return res.status(200).json(result);
   } catch (err) {

@@ -4857,8 +4857,9 @@ async function sendChat() {
         // (or that OCR failed). Helps debug + builds trust ("the bot
         // really did look at my screenshot").
         if (data.ocr) {
+            const providerTag = data.ocr.provider === 'groq' ? ' _(สำรองด้วย Groq)_' : '';
             if (data.ocr.status === 'ok' && data.ocr.text) {
-                appendChatMsg('system', '🔍 **AI อ่านได้จากรูป:**\n\n```\n' + data.ocr.text + '\n```');
+                appendChatMsg('system', '🔍 **AI อ่านได้จากรูป:**' + providerTag + '\n\n```\n' + data.ocr.text + '\n```');
             } else if (data.ocr.status === 'no-text') {
                 appendChatMsg('system', '🔍 AI อ่านรูปแล้ว แต่ในรูปไม่มีข้อความ (เป็นภาพถ่ายอุปกรณ์) — ลองพิมพ์อาการเพิ่มได้ครับ');
             } else if (data.ocr.status === 'no-key') {

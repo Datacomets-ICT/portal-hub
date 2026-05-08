@@ -464,6 +464,71 @@ async function ocrImages(dataUris) {
   }
 }
 
+// Groq llama-4-scout supports vision and lives on a different quota
+// pool than Gemini. Use it as a fallback when Gemini returns 429.
+async function ocrImagesGroq(dataUris) {
+  if (!Array.isArray(dataUris) || dataUris.length === 0) {
+    return { status: 'empty', text: '' };
+  }
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return { status: 'no-key', text: '' };
+
+  const content = [{
+    type: 'text',
+    text: 'อ่านข้อความทั้งหมดในรูปนี้ — error message, error code, ชื่อโปรแกรม, ปุ่ม, dialog, URL, ข้อความบนหน้าจอ ทุกอย่าง คงคำเดิมตามที่เห็น (ไทย/อังกฤษ) ห้ามแปลห้ามสรุป ตอบเป็นรายการสั้นๆ บรรทัดละข้อ ถ้าเป็นภาพถ่ายอุปกรณ์ที่ไม่มีข้อความเลย ตอบว่า "[ไม่พบข้อความในรูป]"',
+  }];
+  for (const uri of dataUris) {
+    if (typeof uri !== 'string' || !uri.startsWith('data:')) continue;
+    content.push({ type: 'image_url', image_url: { url: uri } });
+  }
+  if (content.length === 1) return { status: 'empty', text: '' };
+
+  const body = {
+    model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    messages: [{ role: 'user', content }],
+    temperature: 0.0,
+    max_tokens: 2048,
+  };
+
+  try {
+    const r = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      const errText = (await r.text()).slice(0, 200);
+      console.warn(`[OCR-fallback] Groq Vision ${r.status}: ${errText}`);
+      return { status: 'error', text: '', error: `Groq ${r.status}: ${errText}` };
+    }
+    const data = await r.json();
+    const text = (data?.choices?.[0]?.message?.content || '').trim();
+    console.log(`[OCR-fallback] Groq extracted ${text.length} chars`);
+    if (!text || text === '[ไม่พบข้อความในรูป]') {
+      return { status: 'no-text', text: '' };
+    }
+    return { status: 'ok', text };
+  } catch (err) {
+    console.warn('[OCR-fallback] error:', err.message);
+    return { status: 'error', text: '', error: err.message };
+  }
+}
+
+// Try Gemini first → fallback to Groq llama-4-scout vision on 429/error.
+async function ocrImagesWithFallback(dataUris) {
+  const primary = await ocrImages(dataUris);
+  if (primary.status === 'ok' || primary.status === 'no-text' || primary.status === 'empty') {
+    return primary; // success or definitive answer — no need to fallback
+  }
+  console.log(`[OCR] primary failed (${primary.status}), trying Groq fallback`);
+  const fallback = await ocrImagesGroq(dataUris);
+  if (fallback.status === 'ok' || fallback.status === 'no-text') {
+    return { ...fallback, provider: 'groq' };
+  }
+  // Both failed — return primary error so user sees the original Gemini msg
+  return primary;
+}
+
 // ---- Knowledge Base search ----
 async function searchKnowledge(query) {
   const supabaseUrl = process.env.SUPABASE_URL || 'https://rthsmtimvqjnfvgepqpk.supabase.co';
@@ -722,7 +787,7 @@ export default async function handler(req, res) {
     // the AI knows OCR was attempted and can act accordingly.
     let ocrResult = { status: 'empty', text: '' };
     if (Array.isArray(images) && images.length > 0 && safeMessages.length > 0) {
-      ocrResult = await ocrImages(images);
+      ocrResult = await ocrImagesWithFallback(images);
       let marker = '';
       if (ocrResult.status === 'ok') {
         marker = `\n\n[ข้อความที่ AI อ่านได้จากรูปที่แนบ ${images.length} รูป]:\n${ocrResult.text}`;
@@ -829,6 +894,7 @@ export default async function handler(req, res) {
         status: ocrResult.status,
         text: ocrResult.text || '',
         error: ocrResult.error || null,
+        provider: ocrResult.provider || 'gemini',
       },
     });
   } catch (err) {
