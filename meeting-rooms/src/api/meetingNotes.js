@@ -16,15 +16,33 @@ const POLL_TIMEOUT_MS  = 10 * 60 * 1000; // 10 min — long meetings can take a 
 // larger ones use TUS resumable so we don't hit Supabase's 50 MB
 // single-shot limit. 6 MB matches the standard TUS chunk size.
 const RESUMABLE_THRESHOLD = 6 * 1024 * 1024;
+const SDK_SINGLE_SHOT_LIMIT = 50 * 1024 * 1024;
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// TUS endpoint requires a JWT-format key (eyJ...). The newer
+// "publishable" keys (sb_publishable_*) fail with "Invalid Compact
+// JWS". Users who want big-file uploads must set VITE_SUPABASE_LEGACY_JWT
+// to the legacy JWT-format anon key (still available in Supabase
+// Dashboard → Settings → API → Legacy keys).
+const LEGACY_JWT = import.meta.env.VITE_SUPABASE_LEGACY_JWT || '';
+
+function isJwtFormat(key) {
+  return typeof key === 'string' && key.startsWith('eyJ');
+}
+
+// Pick the best key for a TUS Bearer header.
+function tusAuthKey() {
+  if (isJwtFormat(LEGACY_JWT)) return LEGACY_JWT;
+  if (isJwtFormat(SUPABASE_ANON_KEY)) return SUPABASE_ANON_KEY;
+  return null;
+}
 
 // Upload `file` to Supabase Storage. Picks single-shot or TUS based on
 // size. `onProgress(percent, bytesUploaded, bytesTotal)` reports
 // upload progress (only meaningful for resumable uploads).
 async function uploadAudioToStorage(path, file, onProgress) {
+  // Small file → SDK single-shot is fastest.
   if (file.size <= RESUMABLE_THRESHOLD) {
-    // Small file — fast single-shot upload via the SDK.
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, file, { upsert: true, contentType: file.type || 'audio/webm' });
@@ -33,14 +51,35 @@ async function uploadAudioToStorage(path, file, onProgress) {
     return;
   }
 
-  // Large file — TUS resumable upload. Each chunk is its own request,
-  // so any single one fits well under the 50 MB ceiling.
+  const jwtKey = tusAuthKey();
+
+  // Large file but no JWT available → try SDK single-shot if it'll fit
+  // (≤50 MB). Otherwise we have to ask the user to configure a JWT key.
+  if (!jwtKey) {
+    if (file.size <= SDK_SINGLE_SHOT_LIMIT) {
+      console.warn('[upload] no JWT key for TUS — using SDK single-shot');
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file, { upsert: true, contentType: file.type || 'audio/webm' });
+      if (error) throw error;
+      if (onProgress) onProgress(100, file.size, file.size);
+      return;
+    }
+    throw new Error(
+      `ไฟล์ใหญ่ ${(file.size / 1024 / 1024).toFixed(1)}MB ต้องใช้ resumable upload ` +
+      'ซึ่งต้องการ Legacy JWT key — กรุณาตั้ง VITE_SUPABASE_LEGACY_JWT ใน Vercel ' +
+      '(ดูคีย์ใน Supabase Dashboard → Settings → API → Legacy JWT keys → anon)'
+    );
+  }
+
+  // Large file + JWT available → TUS resumable upload.
   await new Promise((resolve, reject) => {
     const upload = new tus.Upload(file, {
       endpoint: `${SUPABASE_URL}/storage/v1/upload/resumable`,
       retryDelays: [0, 3000, 5000, 10000, 20000],
       headers: {
-        authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        authorization: `Bearer ${jwtKey}`,
+        apikey: SUPABASE_ANON_KEY,
         'x-upsert': 'true',
       },
       uploadDataDuringCreation: true,
@@ -52,7 +91,19 @@ async function uploadAudioToStorage(path, file, onProgress) {
         cacheControl: '3600',
       },
       chunkSize: 6 * 1024 * 1024,
-      onError: (err) => reject(err),
+      onError: (err) => {
+        // Friendlier message when Supabase rejects the JWT (expired,
+        // wrong project, etc.) — TUS surfaces a long technical blob
+        // otherwise.
+        const msg = String(err.message || err);
+        if (msg.includes('Invalid Compact JWS') || msg.includes('Unauthorized')) {
+          reject(new Error(
+            'TUS auth ล้มเหลว — VITE_SUPABASE_LEGACY_JWT อาจไม่ใช่ JWT ที่ถูกต้องของ project นี้'
+          ));
+        } else {
+          reject(err);
+        }
+      },
       onProgress: (uploaded, total) => {
         if (onProgress) onProgress(Math.round((uploaded / total) * 100), uploaded, total);
       },

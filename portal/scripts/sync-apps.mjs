@@ -109,6 +109,14 @@ async function syncMeeting() {
   const localEnv = await readDotenv(path.join(src, '.env.local'));
   const meetingUrl = process.env.VITE_MEETING_SUPABASE_URL || localEnv.VITE_SUPABASE_URL;
   const meetingKey = process.env.VITE_MEETING_SUPABASE_ANON_KEY || localEnv.VITE_SUPABASE_ANON_KEY;
+  // Optional — JWT-format anon key for resumable (TUS) uploads of large
+  // audio files in the meeting summary feature. Falls back to "" if not
+  // set, in which case files > 50 MB error with a friendly message.
+  const meetingLegacyJwt =
+    process.env.VITE_MEETING_SUPABASE_LEGACY_JWT
+    || process.env.VITE_SUPABASE_LEGACY_JWT
+    || localEnv.VITE_SUPABASE_LEGACY_JWT
+    || '';
   if (!meetingUrl || !meetingKey) {
     throw new Error(
       'Missing meeting-rooms Supabase env. Set VITE_MEETING_SUPABASE_URL + VITE_MEETING_SUPABASE_ANON_KEY on Vercel, or keep meeting-rooms/.env.local for local dev.'
@@ -120,7 +128,11 @@ async function syncMeeting() {
     'npm',
     ['run', 'build', '--', '--base=/meeting/'],
     src,
-    { VITE_SUPABASE_URL: meetingUrl, VITE_SUPABASE_ANON_KEY: meetingKey }
+    {
+      VITE_SUPABASE_URL: meetingUrl,
+      VITE_SUPABASE_ANON_KEY: meetingKey,
+      VITE_SUPABASE_LEGACY_JWT: meetingLegacyJwt,
+    }
   );
 
   await rm(dest, { recursive: true, force: true });
