@@ -1,15 +1,66 @@
-// Meeting summary helpers — orchestrate the 3-step async flow:
-//   1. upload audio to Supabase Storage
-//   2. POST /api/meeting-summary?step=upload   (≤45 s — ship file to Gemini)
-//   3. POST /api/meeting-summary?step=poll     (≤5 s — check Gemini state)
-//      …repeat every 3 s until state === ACTIVE
-//   4. POST /api/meeting-summary?step=generate (≤60 s — transcribe + summarise)
+// Meeting summary helpers — primary flow uses Groq Whisper + Groq LLM
+// in a single backend call; Gemini Files API is the fallback path.
+//
+//   1. upload audio to Supabase Storage (TUS resumable for files > 6 MB)
+//   2. POST /api/meeting-summary?step=process
+//   3. (on Groq failure) Gemini 3-step path
 
+import * as tus from 'tus-js-client';
 import { supabase } from '../lib/supabase.js';
 
 const BUCKET = 'mtg-audio';
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS  = 10 * 60 * 1000; // 10 min — long meetings can take a while
+
+// Files <= 6 MB go through the simple SDK upload (one HTTP request),
+// larger ones use TUS resumable so we don't hit Supabase's 50 MB
+// single-shot limit. 6 MB matches the standard TUS chunk size.
+const RESUMABLE_THRESHOLD = 6 * 1024 * 1024;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Upload `file` to Supabase Storage. Picks single-shot or TUS based on
+// size. `onProgress(percent, bytesUploaded, bytesTotal)` reports
+// upload progress (only meaningful for resumable uploads).
+async function uploadAudioToStorage(path, file, onProgress) {
+  if (file.size <= RESUMABLE_THRESHOLD) {
+    // Small file — fast single-shot upload via the SDK.
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, file, { upsert: true, contentType: file.type || 'audio/webm' });
+    if (error) throw error;
+    if (onProgress) onProgress(100, file.size, file.size);
+    return;
+  }
+
+  // Large file — TUS resumable upload. Each chunk is its own request,
+  // so any single one fits well under the 50 MB ceiling.
+  await new Promise((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: `${SUPABASE_URL}/storage/v1/upload/resumable`,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'x-upsert': 'true',
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: BUCKET,
+        objectName: path,
+        contentType: file.type || 'audio/webm',
+        cacheControl: '3600',
+      },
+      chunkSize: 6 * 1024 * 1024,
+      onError: (err) => reject(err),
+      onProgress: (uploaded, total) => {
+        if (onProgress) onProgress(Math.round((uploaded / total) * 100), uploaded, total);
+      },
+      onSuccess: () => resolve(),
+    });
+    upload.start();
+  });
+}
 
 export async function getNoteForBooking(bookingId) {
   if (!bookingId) return null;
@@ -61,15 +112,14 @@ export async function startMeetingSummary({ bookingId, file, createdBy, onProgre
   if (!bookingId || !file) throw new Error('bookingId and file required');
   const progress = onProgress || (() => {});
 
-  // 1) Upload to Supabase Storage
-  progress('storage');
+  // 1) Upload to Supabase Storage (TUS for large files, SDK for small)
+  progress('storage', { uploadPercent: 0 });
   const ext = (file.name?.split('.').pop() || 'webm').toLowerCase();
   const ts = Date.now();
   const path = `${bookingId}/${ts}.${ext}`;
-  const upload = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, { upsert: true, contentType: file.type || 'audio/webm' });
-  if (upload.error) throw upload.error;
+  await uploadAudioToStorage(path, file, (percent) => {
+    progress('storage', { uploadPercent: percent });
+  });
   const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
   const audioUrl = pub.publicUrl;
 
@@ -162,4 +212,24 @@ export async function deleteMeetingNote(note) {
     await supabase.storage.from(BUCKET).remove([note.audio_path]);
   }
   await supabase.from('mtg_meeting_notes').delete().eq('id', note.id);
+}
+
+// Drop just the audio file (keeps the summary text). Used by the
+// "audio expired" auto-cleanup so the row + transcript live forever
+// but the heavy MP3 doesn't sit in Supabase storage burning quota.
+export async function purgeExpiredAudio(note) {
+  if (!note?.id || !note?.audio_path) return;
+  try {
+    await supabase.storage.from(BUCKET).remove([note.audio_path]);
+  } catch (e) {
+    console.warn('[meetingNotes] purge storage failed', e);
+  }
+  await supabase
+    .from('mtg_meeting_notes')
+    .update({
+      audio_path: null,
+      audio_url: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', note.id);
 }

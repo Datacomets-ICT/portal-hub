@@ -7,6 +7,9 @@
   "functions": {
     "api/meeting-summary.js": { "maxDuration": 60 }
   },
+  "crons": [
+    { "path": "/api/meeting-cleanup", "schedule": "0 4 * * *" }
+  ],
   "rewrites": [
     { "source": "/((?!it/|meeting/|driver/|assets/|api/|_|sw\\.js|manifest\\.webmanifest|icon-).*)", "destination": "/index.html" }
   ]

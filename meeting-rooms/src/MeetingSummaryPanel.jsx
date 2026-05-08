@@ -4,6 +4,7 @@ import {
   startMeetingSummary,
   resumeMeetingSummary,
   deleteMeetingNote,
+  purgeExpiredAudio,
 } from './api/meetingNotes.js';
 import { supabase } from './lib/supabase.js';
 import {
@@ -14,7 +15,7 @@ import {
   summaryToList,
 } from './meetingExport.js';
 
-const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — matches v16 bucket limit
+const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB — matches v18 bucket limit
 
 const STAGE_LABEL = {
   storage:   '📤 อัปโหลดไฟล์เสียง...',
@@ -24,6 +25,20 @@ const STAGE_LABEL = {
   generate:  '✨ Gemini กำลังสรุป...',
   done:      '✅ เสร็จแล้ว',
 };
+
+// Format remaining time before audio_expires_at as "X ชม. Y นาที"
+// (or "หมดเวลาแล้ว" if past). Returns { label, expired }.
+function formatTimeLeft(expiresAt) {
+  if (!expiresAt) return { label: '', expired: false };
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (Number.isNaN(ms)) return { label: '', expired: false };
+  if (ms <= 0) return { label: 'หมดเวลาแล้ว', expired: true };
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return { label: `${h} ชม. ${m} นาที`, expired: false };
+  return { label: `${m} นาที`, expired: false };
+}
 
 function fmtDuration(sec) {
   if (!sec || sec < 0) return '';
@@ -39,6 +54,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordedSec, setRecordedSec] = useState(0);
   const [stage, setStage] = useState('');     // storage | upload | processing | generate | done
+  const [uploadPercent, setUploadPercent] = useState(0);
   const [err, setErr] = useState('');
   const [tickHack, setTickHack] = useState(0); // re-render to update recording timer
 
@@ -53,8 +69,14 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const n = await getNoteForBooking(booking.id);
+      let n = await getNoteForBooking(booking.id);
       if (!cancelled) {
+        // Auto-purge audio if expired (cron may not have fired yet)
+        if (n && n.audio_path && n.audio_expires_at &&
+            new Date(n.audio_expires_at).getTime() < Date.now()) {
+          try { await purgeExpiredAudio(n); } catch {}
+          n = await getNoteForBooking(booking.id);
+        }
         setNote(n);
         setLoading(false);
         // If we caught a note mid-pipeline (e.g. user reloaded), resume.
@@ -65,6 +87,14 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
     })();
     return () => { cancelled = true; };
   }, [booking?.id]);
+
+  // Tick once a minute to keep the countdown fresh (cheap)
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!note?.audio_expires_at || !note?.audio_path) return;
+    const id = setInterval(() => forceTick(t => t + 1), 60000);
+    return () => clearInterval(id);
+  }, [note?.audio_expires_at, note?.audio_path]);
 
   // Tick the recording timer while recording
   useEffect(() => {
@@ -153,6 +183,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
         onProgress: (s, info) => {
           setStage(s);
           if (info?.note) setNote(info.note);
+          if (typeof info?.uploadPercent === 'number') setUploadPercent(info.uploadPercent);
         },
       });
       // Patch duration_sec for recordings
@@ -249,6 +280,12 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
       {isProcessing && (
         <div className="ms-status ms-status-processing">
           {STAGE_LABEL[stage] || 'กำลังประมวลผล...'}
+          {stage === 'storage' && uploadPercent > 0 && uploadPercent < 100 && (
+            <div className="ms-upload-progress">
+              <div className="ms-upload-bar" style={{ width: `${uploadPercent}%` }} />
+              <div className="ms-upload-pct">{uploadPercent}%</div>
+            </div>
+          )}
         </div>
       )}
 
@@ -257,7 +294,10 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
           <div className="ms-empty-hint">
             อัดเสียงประชุมหรืออัปโหลดไฟล์เสียงที่อัดไว้แล้ว — AI จะถอดเสียงและสรุปประเด็น/action items ให้
             <br />
-            <small style={{opacity:0.7}}>รองรับไฟล์สูงสุด 100MB · 1-3 ชม. (24kbps opus ≈ 10MB/hr)</small>
+            <small style={{opacity:0.7}}>
+              รองรับไฟล์สูงสุด 500MB · ไฟล์ใหญ่จะอัปโหลดเป็นชิ้นๆ อัตโนมัติ
+              <br />ไฟล์เสียงจะถูก<b>ลบอัตโนมัติหลัง 24 ชม.</b> เพื่อประหยัดพื้นที่ (สรุปยังอยู่)
+            </small>
           </div>
           <div className="ms-empty-actions">
             {!recording && !recordedBlob && (
@@ -323,12 +363,27 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
 
       {note && note.status === 'done' && !isProcessing && (
         <div className="ms-result">
-          {note.audio_url && (
-            <div className="ms-audio">
-              <audio controls src={note.audio_url} style={{ width: '100%' }} />
-              {note.duration_sec > 0 && (
-                <div className="ms-audio-meta">⏱ {fmtDuration(note.duration_sec)}</div>
-              )}
+          {note.audio_url && (() => {
+            const tl = formatTimeLeft(note.audio_expires_at);
+            return (
+              <div className="ms-audio">
+                <audio controls src={note.audio_url} style={{ width: '100%' }} />
+                <div className="ms-audio-meta">
+                  {note.duration_sec > 0 && <>⏱ {fmtDuration(note.duration_sec)}</>}
+                  {tl.label && (
+                    <span className={`ms-audio-expiry ${tl.expired ? 'expired' : ''}`}>
+                      {tl.expired
+                        ? '🕒 ไฟล์เสียงหมดอายุแล้ว — สรุปยังอยู่'
+                        : <>🕒 ไฟล์เสียงจะถูกลบใน <b>{tl.label}</b> — โหลดเป็น PDF/Word เก็บไว้ได้</>}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          {!note.audio_url && (
+            <div className="ms-audio-meta ms-audio-purged">
+              🗑 ไฟล์เสียงถูกลบอัตโนมัติแล้ว (เก็บไว้แค่ 24 ชม.) — สรุปด้านล่างยังใช้ได้
             </div>
           )}
 

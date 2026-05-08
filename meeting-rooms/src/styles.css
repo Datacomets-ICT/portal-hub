@@ -2782,3 +2782,53 @@ tr.rr-clickable:hover { background: var(--bg-2); }
   font-size: 12.5px;
   font-weight: 500;
 }
+
+/* ========= Upload progress + audio expiry countdown ========= */
+.ms-upload-progress {
+  position: relative;
+  height: 8px;
+  background: rgba(30, 64, 175, 0.15);
+  border-radius: 4px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.ms-upload-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #3B82F6, #2563EB);
+  border-radius: 4px;
+  transition: width 0.25s ease;
+}
+.ms-upload-pct {
+  position: absolute;
+  inset: -2px 0 0 0;
+  text-align: right;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1E40AF;
+  margin-top: 10px;
+}
+.ms-audio-expiry {
+  margin-left: 12px;
+  color: #92400E;
+  font-weight: 500;
+  font-size: 11.5px;
+  background: #FEF3C7;
+  padding: 2px 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.ms-audio-expiry.expired {
+  color: #6B7280;
+  background: #F3F4F6;
+}
+.ms-audio-expiry b { color: #78350F; font-weight: 700; }
+.ms-audio-purged {
+  color: var(--fg-3);
+  font-style: italic;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px dashed var(--line-2);
+  border-radius: 6px;
+  font-size: 12.5px;
+}
