@@ -4591,7 +4591,16 @@ function appendChatMsg(role, text, images) {
     // already produced get an onclick + button styling.
     if (role === 'bot') {
         const opts = extractNumberedOptions(text);
-        const isPickPrompt = /[?？]\s*$/.test(text.trim()) || /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด/i.test(text);
+        // A bot bubble with 2+ numbered options + a "?" anywhere in the
+        // message is always a pick prompt — even if the "?" is on an early
+        // line and the list comes after. The old check only looked at the
+        // tail of text.trim(), which misses the common pattern:
+        //   "เข้าใจครับ Email ติดอะไรครับ?\n1. ...\n2. ...\n3. ..."
+        // because trim() leaves "...อื่นๆ (ระบุเอง)**" at the end, not "?".
+        const isPickPrompt = opts.length >= 2 && (
+            /[?？]/.test(text) ||
+            /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด|อะไรครับ|อะไรคะ|อะไรบ้าง/i.test(text)
+        );
         if (opts.length >= 2 && isPickPrompt) {
             const steps = div.querySelectorAll('.chat-step');
             steps.forEach((step, i) => {
@@ -4909,7 +4918,13 @@ function guessIssueFromText(text) {
     // over the permission classifier because the bot's own reply often
     // contains "ขอ..." (e.g. "ขอข้อมูลเพิ่ม") which used to flip isRequest
     // and route the whole conversation to ขอสิทธิ์เข้าระบบ.
-    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง|จอดับ|หน้าจอดับ|จอไม่ติด|หน้าจอไม่ติด/i;
+    // Catches every common phrasing for "computer/screen has a problem":
+    // dead screen, BSOD, freeze, won't boot, slow, restarts on its own, plus
+    // generic "หน้าจอ/จอคอม + (ปัญหา|มีปัญหา|เพี้ยน|แตก|ไม่ติด|ไม่ทำงาน|ดับ|...)".
+    // We deliberately catch "หน้าจอคอม[anything]" so the bot asks
+    // device type instead of falling through to the จอคอมพิวเตอร์ rule
+    // (which is for separate external monitors).
+    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|มีปัญหา|ปัญหา|รีสตาร์ทเอง|ช้า)|หน้าจอคอม|จอคอม|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|เครื่องช้า|รีสตาร์ทเอง|reboot.*เอง|(?:หน้าจอ|จอ).*(?:ดับ|ปัญหา|มีปัญหา|เพี้ยน|แตก|ไม่ติด|ไม่ทำงาน|ไม่บูต|ฟ้า)/i;
     if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์']) {
         // Pick device explicitly mentioned. If ambiguous → leave issueType
         // empty so the bot asks "ใช้เครื่องอะไร?" instead of defaulting to PC.
@@ -5125,7 +5140,11 @@ function guessIssueFromText(text) {
               [/ยืม/i, 'ยืมสายชาร์จ'],
               [/เปลี่ยน/i, 'เปลี่ยนสายชาร์จใหม่'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
-        { kw: /จอ|monitor|หน้าจอ/i, jt: 'อุปกรณ์ไอที', it: 'จอคอมพิวเตอร์', symKw: [
+        // Standalone external monitor only — must be explicit ("จอแยก",
+        // "จอเสริม", "monitor", "จอที่ต่อ", "จอเสริม"). Generic "หน้าจอ"/"จอ"
+        // is handled by HARD_FAIL_RE above, which asks device type first.
+        { kw: /จอแยก|จอเสริม|จอที่ต่อ|external\s*monitor|\bmonitor\b/i,
+          jt: 'อุปกรณ์ไอที', it: 'จอคอมพิวเตอร์', symKw: [
               [/เปิดไม่ติด/i, 'หน้าจอเปิดไม่ติด'],
           ], defaultSym: 'หน้าจอมีปัญหา' },
         // TV (meeting rooms)

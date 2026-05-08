@@ -116,11 +116,17 @@ const TEST_GROUPS = [
       cases:[
         { input:'หน้าจอดับ' },
         { input:'หน้าจอคอมดับ' },
+        { input:'หน้าจอคอมมีปัญหา' },
+        { input:'หน้าจอมีปัญหา' },
+        { input:'จอเพี้ยน' },
+        { input:'จอแตก' },
         { input:'จอฟ้าระหว่างทำงาน' },
         { input:'blue screen' },
         { input:'เครื่องค้างตลอด' },
         { input:'รีสตาร์ทเองตลอด' },
         { input:'คอมเปิดไม่ติด' },
+        { input:'คอมช้ามาก' },
+        { input:'คอมพัง' },
       ] },
     { jobType:'คอมพิวเตอร์', issueType:'PC',
       desc:'PC ตั้งโต๊ะ — user ระบุ device ชัดเจน',
@@ -242,9 +248,11 @@ const TEST_GROUPS = [
         { input:'คีย์บอร์ดพิมพ์ไม่ติด', sym:'พิมพ์ไม่ติด' },
       ] },
     { jobType:'อุปกรณ์ไอที', issueType:'จอคอมพิวเตอร์',
-      desc:'จอแยก (ไม่ใช่ของ notebook)',
+      desc:'จอแยก / external monitor (ต้องระบุชัดว่า "จอแยก"/"monitor")',
       cases:[
         { input:'จอแยกเปิดไม่ติด' },
+        { input:'monitor เปิดไม่ติด' },
+        { input:'จอเสริมไม่แสดงภาพ' },
       ] },
     { jobType:'อุปกรณ์ไอที', issueType:'ทีวี',
       desc:'TV ห้องประชุม',
@@ -381,8 +389,8 @@ function guessIssueFromText(text) {
 
     const PERM_JT = 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)';
 
-    // Hard hardware-failure pre-check
-    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง|จอดับ|หน้าจอดับ|จอไม่ติด|หน้าจอไม่ติด/i;
+    // Hard hardware-failure pre-check (mirror of index.html)
+    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|มีปัญหา|ปัญหา|รีสตาร์ทเอง|ช้า)|หน้าจอคอม|จอคอม|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|เครื่องช้า|รีสตาร์ทเอง|reboot.*เอง|(?:หน้าจอ|จอ).*(?:ดับ|ปัญหา|มีปัญหา|เพี้ยน|แตก|ไม่ติด|ไม่ทำงาน|ไม่บูต|ฟ้า)/i;
     if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์']) {
         let deviceIt = '';
         if (/macbook|แมคบุ๊ก|แมคบุค/i.test(text)) deviceIt = 'Macbook';
@@ -539,7 +547,9 @@ function guessIssueFromText(text) {
             [/ยืม/i,'ยืมสายชาร์จ'],
             [/เปลี่ยน/i,'เปลี่ยนสายชาร์จใหม่'],
         ], defaultSym:'อื่นๆ (โปรดระบุ)' },
-        { kw: /จอ|monitor|หน้าจอ/i, jt:'อุปกรณ์ไอที', it:'จอคอมพิวเตอร์', symKw:[
+        // External monitor only — must be explicit
+        { kw: /จอแยก|จอเสริม|จอที่ต่อ|external\s*monitor|\bmonitor\b/i,
+          jt:'อุปกรณ์ไอที', it:'จอคอมพิวเตอร์', symKw:[
             [/เปิดไม่ติด/i,'หน้าจอเปิดไม่ติด'],
         ], defaultSym:'หน้าจอมีปัญหา' },
         { kw: /\bทีวี\b|\btv\b|television/i, jt:'อุปกรณ์ไอที', it:'ทีวี', symKw:[
