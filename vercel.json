@@ -4,6 +4,9 @@
   "buildCommand": "cd portal && npm run build",
   "outputDirectory": "portal/dist",
   "framework": null,
+  "functions": {
+    "api/meeting-summary.js": { "maxDuration": 60 }
+  },
   "rewrites": [
     { "source": "/((?!it/|meeting/|driver/|assets/|api/|_|sw\\.js|manifest\\.webmanifest|icon-).*)", "destination": "/index.html" }
   ]

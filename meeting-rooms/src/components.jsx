@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
 
 export const DAY_START = 8 * 60 + 30;   // 08:30
 export const DAY_END = 20 * 60 + 30;    // 20:30
@@ -366,7 +367,7 @@ function ModalTimeline({
 }
 
 // Click an existing booking in the modal timeline → render this inline card
-function BookingDetailsCard({ booking, employee, onClose }) {
+function BookingDetailsCard({ booking, employee, onClose, currentUser }) {
   return (
     <div className="mt-details">
       <div className="mt-details-head">
@@ -414,11 +415,13 @@ function BookingDetailsCard({ booking, employee, onClose }) {
           </div>
         </div>
       )}
+
+      <MeetingSummaryPanel booking={booking} currentUser={currentUser} />
     </div>
   );
 }
 
-export function BookingModal({ open, onClose, onSave, room, date, initial, employees = [], roomBookings = [] }) {
+export function BookingModal({ open, onClose, onSave, room, date, initial, employees = [], roomBookings = [], currentUser = null }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [start, setStart] = useState(initial?.start ?? 9 * 60);
   const [end, setEnd] = useState(initial?.end ?? 10 * 60);
@@ -536,6 +539,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
             <BookingDetailsCard
               booking={detailsBooking}
               employee={employees.find((e) => e.name === detailsBooking.booker)}
+              currentUser={currentUser}
               onClose={() => setDetailsBooking(null)}
             />
           )}

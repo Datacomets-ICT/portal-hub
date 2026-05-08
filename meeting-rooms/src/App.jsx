@@ -624,6 +624,7 @@ export default function App() {
         date={currentDate}
         initial={modal?.initial}
         employees={employees}
+        currentUser={currentUser}
         roomBookings={
           modal
             ? bookings.filter(
