@@ -694,6 +694,17 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
               โปรดเลือกเวลาใหม่
             </div>
           )}
+
+          {/* Meeting summary panel — only for existing bookings (has an id).
+              The previous version only showed it when the user clicked a
+              different booking in the timeline (BookingDetailsCard); from
+              their own edit screen the panel was unreachable. */}
+          {initial?.id && (
+            <MeetingSummaryPanel
+              booking={{ id: initial.id, ...initial }}
+              currentUser={currentUser}
+            />
+          )}
         </div>
 
         <div className="modal-foot">
