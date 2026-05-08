@@ -82,9 +82,39 @@ async function updateNote(noteId, patch) {
   }
 }
 
+// Retry transient Gemini failures (429/5xx) with exponential backoff.
+// Free tier is 15 RPM and the meeting pipeline burns 3+ calls per file,
+// so brief bursts hit 429 even though we're nowhere near the daily cap.
+// Total wait stays under 30 s so we still finish within the 60 s
+// Vercel function ceiling.
+async function geminiRetry(fn, { maxAttempts = 3, baseMs = 4000 } = {}) {
+  let lastErr;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fn();
+      if (res.ok) return res;
+      const status = res.status;
+      if (status !== 429 && status !== 500 && status !== 502 && status !== 503 && status !== 504) {
+        return res;
+      }
+      const errText = (await res.text()).slice(0, 200);
+      lastErr = new Error(`Gemini ${status}: ${errText}`);
+      lastErr.status = status;
+    } catch (err) {
+      lastErr = err;
+    }
+    if (i < maxAttempts - 1) {
+      const wait = baseMs * Math.pow(2, i); // 4s, 8s, 16s
+      console.warn(`[gemini-retry] attempt ${i + 1}/${maxAttempts} failed (${lastErr?.status || lastErr?.message}); waiting ${wait}ms`);
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  throw lastErr || new Error('All Gemini retries failed');
+}
+
 // Resumable upload to Gemini Files API.
 async function geminiUploadFile(apiKey, audioBytes, mimeType, displayName) {
-  const startRes = await fetch(
+  const startRes = await geminiRetry(() => fetch(
     `${GEMINI_BASE}/upload/v1beta/files?key=${apiKey}`,
     {
       method: 'POST',
@@ -97,13 +127,14 @@ async function geminiUploadFile(apiKey, audioBytes, mimeType, displayName) {
       },
       body: JSON.stringify({ file: { display_name: displayName || 'meeting-audio' } }),
     }
-  );
+  ));
   if (!startRes.ok) {
     throw new Error(`Files API start ${startRes.status}: ${(await startRes.text()).slice(0, 300)}`);
   }
   const uploadUrl = startRes.headers.get('x-goog-upload-url');
   if (!uploadUrl) throw new Error('No upload URL returned by Files API');
 
+  // Don't retry the binary upload itself — that means resending megabytes.
   const finalRes = await fetch(uploadUrl, {
     method: 'POST',
     headers: {
@@ -121,7 +152,7 @@ async function geminiUploadFile(apiKey, audioBytes, mimeType, displayName) {
 }
 
 async function geminiGetFile(apiKey, fileName) {
-  const r = await fetch(`${GEMINI_BASE}/v1beta/${fileName}?key=${apiKey}`);
+  const r = await geminiRetry(() => fetch(`${GEMINI_BASE}/v1beta/${fileName}?key=${apiKey}`));
   if (!r.ok) throw new Error(`Files API get ${r.status}`);
   return await r.json();
 }
@@ -141,14 +172,14 @@ async function geminiGenerate(apiKey, fileUri, mimeType) {
       responseMimeType: 'application/json',
     },
   };
-  const r = await fetch(
+  const r = await geminiRetry(() => fetch(
     `${GEMINI_BASE}/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }
-  );
+  ));
   if (!r.ok) {
     throw new Error(`generateContent ${r.status}: ${(await r.text()).slice(0, 300)}`);
   }

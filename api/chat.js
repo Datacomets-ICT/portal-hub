@@ -365,6 +365,38 @@ function sanitize(text) {
     .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b(?!\.\d{2,})/g, '[IP]');
 }
 
+// ---- Gemini retry helper ----
+// Free tier is 15 RPM — bursty usage hits 429 fast. Wrap any Gemini
+// fetch in geminiRetry so 429 (and 5xx) get a couple of waits before
+// surfacing as an error. Total wait stays under 30 s so we don't blow
+// the 60 s Vercel function ceiling.
+async function geminiRetry(fn, { maxAttempts = 3, baseMs = 4000 } = {}) {
+  let lastErr;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const res = await fn();
+      if (res.ok) return res;
+      const status = res.status;
+      // Only retry transient failures
+      if (status !== 429 && status !== 500 && status !== 502 && status !== 503 && status !== 504) {
+        return res;
+      }
+      const errText = (await res.text()).slice(0, 200);
+      lastErr = new Error(`Gemini ${status}: ${errText}`);
+      lastErr.status = status;
+      lastErr.body = errText;
+    } catch (err) {
+      lastErr = err;
+    }
+    if (i < maxAttempts - 1) {
+      const wait = baseMs * Math.pow(2, i); // 4s, 8s, 16s
+      console.warn(`[gemini-retry] attempt ${i + 1}/${maxAttempts} failed (${lastErr?.status || lastErr?.message}); waiting ${wait}ms`);
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+  throw lastErr || new Error('All Gemini retries failed');
+}
+
 // ---- Gemini Vision OCR ----
 // Pull error text/codes/messages out of attached screenshots so the chat
 // LLM can reason about them. Uses Gemini Flash 2.0 (free tier, 1500 req/day).
@@ -409,11 +441,11 @@ async function ocrImages(dataUris) {
 
   try {
     const url = `${GEMINI_URL}/${OCR_MODEL}:generateContent?key=${apiKey}`;
-    const r = await fetch(url, {
+    const r = await geminiRetry(() => fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    });
+    }));
     if (!r.ok) {
       const errText = (await r.text()).slice(0, 200);
       console.warn(`[OCR] Gemini Vision ${r.status}: ${errText}`);
