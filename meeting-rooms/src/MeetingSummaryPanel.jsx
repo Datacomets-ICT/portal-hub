@@ -2,12 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import {
   getNoteForBooking,
   startMeetingSummary,
-  retryMeetingSummary,
+  resumeMeetingSummary,
   deleteMeetingNote,
 } from './api/meetingNotes.js';
 import { supabase } from './lib/supabase.js';
 
-const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB — matches storage bucket limit
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — matches v16 bucket limit
+
+const STAGE_LABEL = {
+  storage:   '📤 อัปโหลดไฟล์เสียง...',
+  upload:    '🤖 ส่งไฟล์ไป AI...',
+  processing:'⏳ AI กำลังเตรียมประมวลผล... (ไฟล์ใหญ่อาจใช้เวลา 1-3 นาที)',
+  generate:  '✨ AI กำลังถอดเสียงและสรุป... (อาจใช้เวลา 30-90 วินาที)',
+  done:      '✅ เสร็จแล้ว',
+};
 
 function fmtDuration(sec) {
   if (!sec || sec < 0) return '';
@@ -22,12 +30,14 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
   const [recording, setRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordedSec, setRecordedSec] = useState(0);
-  const [uploading, setUploading] = useState(false);
+  const [stage, setStage] = useState('');     // storage | upload | processing | generate | done
   const [err, setErr] = useState('');
+  const [tickHack, setTickHack] = useState(0); // re-render to update recording timer
+
   const mediaRecRef = useRef(null);
   const recStartRef = useRef(0);
   const fileInputRef = useRef(null);
-  const pollRef = useRef(null);
+  const tickIntervalRef = useRef(null);
 
   // Initial load
   useEffect(() => {
@@ -39,40 +49,47 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
       if (!cancelled) {
         setNote(n);
         setLoading(false);
+        // If we caught a note mid-pipeline (e.g. user reloaded), resume.
+        if (n && n.status !== 'done' && n.status !== 'error') {
+          handleResume(n);
+        }
       }
     })();
     return () => { cancelled = true; };
   }, [booking?.id]);
 
-  // Poll while processing
+  // Tick the recording timer while recording
   useEffect(() => {
-    if (!note || note.status !== 'processing') {
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (!recording) {
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+      tickIntervalRef.current = null;
       return;
     }
-    pollRef.current = setInterval(async () => {
-      const fresh = await getNoteForBooking(booking.id);
-      if (fresh && fresh.status !== 'processing') {
-        setNote(fresh);
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      } else if (fresh) {
-        setNote(fresh);
-      }
-    }, 4000);
+    tickIntervalRef.current = setInterval(() => setTickHack(t => t + 1), 1000);
     return () => {
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+      tickIntervalRef.current = null;
     };
-  }, [note?.status, booking?.id]);
+  }, [recording]);
 
   async function handleStartRecording() {
     setErr('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          // Voice-grade settings keep file small enough for long meetings.
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+      // 24 kbps opus → ~10 MB/hr → 100 MB bucket fits ~10 hrs of meeting
       const mr = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
           : 'audio/webm',
+        audioBitsPerSecond: 24000,
       });
       const chunks = [];
       mr.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
@@ -101,12 +118,12 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
     fileInputRef.current?.click();
   }
 
-  async function handleFileChange(e) {
+  function handleFileChange(e) {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
     if (f.size > MAX_FILE_BYTES) {
-      setErr(`ไฟล์ใหญ่เกิน 25MB (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
+      setErr(`ไฟล์ใหญ่เกิน 100MB (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
       return;
     }
     setRecordedBlob(f);
@@ -115,40 +132,57 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
 
   async function handleSubmit() {
     if (!recordedBlob || !booking?.id) return;
-    setUploading(true);
+    setStage('storage');
     setErr('');
     try {
       const file = recordedBlob instanceof File
         ? recordedBlob
         : new File([recordedBlob], `meeting-${Date.now()}.webm`, { type: recordedBlob.type || 'audio/webm' });
-      const row = await startMeetingSummary({
+      const finalNote = await startMeetingSummary({
         bookingId: booking.id,
         file,
         createdBy: currentUser?.code || null,
+        onProgress: (s, info) => {
+          setStage(s);
+          if (info?.note) setNote(info.note);
+        },
       });
       // Patch duration_sec for recordings
-      if (recordedSec > 0) {
+      if (finalNote && recordedSec > 0) {
         await supabase
           .from('mtg_meeting_notes')
           .update({ duration_sec: recordedSec })
-          .eq('id', row.id);
+          .eq('id', finalNote.id);
+        finalNote.duration_sec = recordedSec;
       }
-      setNote({ ...row, duration_sec: recordedSec });
+      setNote(finalNote);
       setRecordedBlob(null);
       setRecordedSec(0);
+      setStage('done');
     } catch (e) {
-      setErr('อัปโหลดไม่สำเร็จ: ' + (e.message || e));
-    } finally {
-      setUploading(false);
+      console.error('[MeetingSummary]', e);
+      setErr(String(e.message || e));
+      setStage('');
+      // Refresh note state from DB so the user can see status=error if applicable
+      const fresh = await getNoteForBooking(booking.id);
+      if (fresh) setNote(fresh);
     }
   }
 
-  async function handleRetry() {
-    if (!note) return;
+  async function handleResume(noteToResume) {
+    setStage(noteToResume.gemini_file_name ? 'processing' : 'upload');
     setErr('');
-    setNote({ ...note, status: 'processing', error_message: null });
-    try { await retryMeetingSummary(note); }
-    catch (e) { setErr(String(e.message || e)); }
+    try {
+      const fresh = await resumeMeetingSummary(noteToResume, (s) => setStage(s));
+      setNote(fresh);
+      setStage('done');
+    } catch (e) {
+      console.error('[MeetingSummary] resume', e);
+      setErr(String(e.message || e));
+      setStage('');
+      const fresh = await getNoteForBooking(booking.id);
+      if (fresh) setNote(fresh);
+    }
   }
 
   async function handleDelete() {
@@ -157,6 +191,7 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
     try {
       await deleteMeetingNote(note);
       setNote(null);
+      setStage('');
     } catch (e) {
       setErr('ลบไม่สำเร็จ: ' + (e.message || e));
     }
@@ -166,28 +201,39 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
     return <div className="ms-panel ms-panel-loading">กำลังโหลด...</div>;
   }
 
+  const isProcessing = !!stage && stage !== 'done';
+
   return (
     <div className="ms-panel">
       <div className="ms-panel-head">
         <div className="ms-panel-title">📝 สรุปการประชุม (AI)</div>
-        {note && (
+        {note && !isProcessing && (
           <button type="button" className="ms-btn-ghost" onClick={handleDelete} title="ลบ">🗑️</button>
         )}
       </div>
 
-      {!note && (
+      {/* In-progress UI — covers fresh starts AND resumed pipelines */}
+      {isProcessing && (
+        <div className="ms-status ms-status-processing">
+          {STAGE_LABEL[stage] || 'กำลังประมวลผล...'}
+        </div>
+      )}
+
+      {!note && !isProcessing && (
         <div className="ms-empty">
           <div className="ms-empty-hint">
             อัดเสียงประชุมหรืออัปโหลดไฟล์เสียงที่อัดไว้แล้ว — AI จะถอดเสียงและสรุปประเด็น/action items ให้
+            <br />
+            <small style={{opacity:0.7}}>รองรับไฟล์สูงสุด 100MB · 1-3 ชม. (24kbps opus ≈ 10MB/hr)</small>
           </div>
           <div className="ms-empty-actions">
             {!recording && !recordedBlob && (
               <>
                 <button type="button" className="ms-btn-primary" onClick={handleStartRecording}>
-                  🎤 บันทึกเสียงเริ่มประชุม
+                  🎤 บันทึกเสียง
                 </button>
                 <button type="button" className="ms-btn-secondary" onClick={handleFilePick}>
-                  📁 อัปโหลดไฟล์เสียง
+                  📁 อัปโหลดไฟล์
                 </button>
                 <input
                   ref={fileInputRef}
@@ -210,14 +256,13 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
                   {recordedSec > 0 && <> · {fmtDuration(recordedSec)}</>}
                   <span className="ms-blob-size"> · {(recordedBlob.size / 1024 / 1024).toFixed(1)}MB</span>
                 </div>
-                <button type="button" className="ms-btn-primary" onClick={handleSubmit} disabled={uploading}>
-                  {uploading ? 'กำลังอัปโหลด...' : '🚀 ส่งให้ AI สรุป'}
+                <button type="button" className="ms-btn-primary" onClick={handleSubmit}>
+                  🚀 ส่งให้ AI สรุป
                 </button>
                 <button
                   type="button"
                   className="ms-btn-ghost"
                   onClick={() => { setRecordedBlob(null); setRecordedSec(0); }}
-                  disabled={uploading}
                 >
                   ยกเลิก
                 </button>
@@ -228,21 +273,22 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
         </div>
       )}
 
-      {note && note.status === 'processing' && (
-        <div className="ms-status ms-status-processing">
-          ⏳ AI กำลังถอดเสียงและสรุปประชุม... (อาจใช้เวลา 20-60 วินาที)
-        </div>
-      )}
-
-      {note && note.status === 'error' && (
+      {note && note.status === 'error' && !isProcessing && (
         <div className="ms-status ms-status-error">
           ❌ ประมวลผลไม่สำเร็จ
           {note.error_message && <div className="ms-error-msg">{note.error_message}</div>}
-          <button type="button" className="ms-btn-secondary" onClick={handleRetry}>ลองใหม่</button>
+          <div className="ms-empty-actions">
+            <button type="button" className="ms-btn-secondary" onClick={() => handleResume(note)}>
+              🔄 ลองใหม่
+            </button>
+            <button type="button" className="ms-btn-ghost" onClick={handleDelete}>
+              ลบทิ้ง
+            </button>
+          </div>
         </div>
       )}
 
-      {note && note.status === 'done' && (
+      {note && note.status === 'done' && !isProcessing && (
         <div className="ms-result">
           {note.audio_url && (
             <div className="ms-audio">

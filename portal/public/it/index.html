@@ -4889,16 +4889,21 @@ function heuristicExtract(history) {
     // Returning '' when nothing matched lets the draft modal stay empty
     // until the user actually picks one (B3: was defaulting to 'medium'
     // which bypassed the "no priority guessing" guardrail end-to-end).
+    // SCAN USER TEXT ONLY: bot's priority chooser lists the labels
+    // ("🟠 สำคัญ (ต้องใช้วันนี้)") which used to trigger this regex
+    // and pre-fill priority before the user had picked anything.
     let priority = '';
-    if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(all)) priority = 'urgent';
-    else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(all)) priority = 'high';
-    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(all)) priority = 'medium';
-    else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(all)) priority = 'low';
+    if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(userText)) priority = 'urgent';
+    else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(userText)) priority = 'high';
+    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(userText)) priority = 'medium';
+    else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(userText)) priority = 'low';
 
-    // Location
+    // Location — same fix: bot lists "1. Comets HQ 2. Comets FAC ..."
+    // so any of those names appear in `all` regardless of what the user
+    // typed. User text only.
     const locs = ['Comets HQ', 'Comets FAC', 'ICT', 'JA'];
     let location = '';
-    for (const l of locs) if (all.includes(l)) { location = l; break; }
+    for (const l of locs) if (userText.includes(l)) { location = l; break; }
 
     // Location detail (โต๊ะ/ชั้น/ห้อง)
     let locationDetail = '';

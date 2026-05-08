@@ -391,14 +391,15 @@ function fuzzyMatch(target, candidates) {
 function heuristicExtract(history) {
     const all = history.map(m => m.content || '').join('\n');
     const userText = history.filter(m => m.role === 'user').map(m => m.content).join(' / ');
+    // User text only — bot's priority/location list contaminates `all`
     let priority = '';
-    if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(all)) priority = 'urgent';
-    else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(all)) priority = 'high';
-    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(all)) priority = 'medium';
-    else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(all)) priority = 'low';
+    if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(userText)) priority = 'urgent';
+    else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(userText)) priority = 'high';
+    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(userText)) priority = 'medium';
+    else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(userText)) priority = 'low';
     const locs = ['Comets HQ','Comets FAC','ICT','JA'];
     let location = '';
-    for (const l of locs) if (all.includes(l)) { location = l; break; }
+    for (const l of locs) if (userText.includes(l)) { location = l; break; }
     let locationDetail = '';
     const ldMatch = userText.match(/(โต๊ะ[฀-๿\w ]{0,20}|ชั้น\s*\d+[฀-๿\w ]{0,20}|ห้อง\s*[฀-๿\w]{0,20})/);
     if (ldMatch) locationDetail = ldMatch[0].trim();

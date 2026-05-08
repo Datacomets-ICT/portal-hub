@@ -1,18 +1,31 @@
 // Vercel serverless function — Meeting summary via Gemini Flash audio.
 //
-// Flow:
-//   1. Frontend uploads audio to Supabase Storage (bucket "mtg-audio").
-//   2. Frontend inserts a `mtg_meeting_notes` row (status=pending).
-//   3. Frontend POSTs { note_id, audio_url, mime_type } here.
-//   4. We fetch the audio from Supabase, ship it to the Gemini Files
-//      API, wait for it to become ACTIVE, then call generateContent
-//      with the file URI and a Thai-language summarisation prompt.
-//   5. We update the note row with transcript / summary / action_items.
+// 3-step flow (each step ≤60 s so we fit Vercel Hobby):
 //
-// Why Files API over inline_data: meetings can run 30 min to 2 hours;
-// even at low bitrate that's well over the 4.5 MB Vercel POST body
-// limit and beyond what Gemini accepts inline. Files API takes up to
-// 2 GB and the file URI lives 48 hours.
+//   POST /api/meeting-summary?step=upload    body: { note_id, audio_url, mime_type }
+//   POST /api/meeting-summary?step=poll      body: { note_id }
+//   POST /api/meeting-summary?step=generate  body: { note_id }
+//
+// step=upload    fetches audio from Supabase Storage, ships it to the
+//                Gemini Files API (resumable), saves the returned
+//                file_uri to mtg_meeting_notes.gemini_file_uri,
+//                returns { state: 'PROCESSING' | 'ACTIVE' }.
+//                Long meetings can take 30-90 s on Gemini's side just
+//                to ingest; we don't block on that here.
+//
+// step=poll      checks the Files API state once and writes it back.
+//                Frontend calls this every 3 s until state === 'ACTIVE'
+//                or 'FAILED'. Returns under 5 s.
+//
+// step=generate  calls generateContent with the file_uri + the Thai
+//                summarisation prompt, parses the JSON, writes
+//                transcript / summary / action_items to the row.
+//                Long audio (~2 h) generation can hit ~60 s; that's
+//                why we don't include the upload step here.
+//
+// The note row goes through statuses:
+//   pending → uploading → processing → ready → generating → done
+//   (or ... → error at any point, with error_message recorded)
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 const GEMINI_MODEL = 'gemini-2.0-flash';
@@ -49,6 +62,14 @@ async function fetchSupabase(path, init = {}) {
   return r;
 }
 
+async function getNote(noteId) {
+  const r = await fetchSupabase(`/rest/v1/mtg_meeting_notes?id=eq.${encodeURIComponent(noteId)}&select=*`);
+  if (!r.ok) throw new Error(`getNote ${r.status}`);
+  const rows = await r.json();
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error('Note not found');
+  return rows[0];
+}
+
 async function updateNote(noteId, patch) {
   try {
     await fetchSupabase(`/rest/v1/mtg_meeting_notes?id=eq.${encodeURIComponent(noteId)}`, {
@@ -61,8 +82,7 @@ async function updateNote(noteId, patch) {
   }
 }
 
-// Upload bytes to Gemini Files API using the simple "media" upload.
-// Returns the file resource — { name, uri, mimeType, state }.
+// Resumable upload to Gemini Files API.
 async function geminiUploadFile(apiKey, audioBytes, mimeType, displayName) {
   const startRes = await fetch(
     `${GEMINI_BASE}/upload/v1beta/files?key=${apiKey}`,
@@ -100,19 +120,10 @@ async function geminiUploadFile(apiKey, audioBytes, mimeType, displayName) {
   return data.file;
 }
 
-// Poll Files API until the file's state leaves PROCESSING.
-async function waitForFileActive(apiKey, fileName, timeoutMs = 45000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const r = await fetch(`${GEMINI_BASE}/v1beta/${fileName}?key=${apiKey}`);
-    if (r.ok) {
-      const f = await r.json();
-      if (f.state === 'ACTIVE') return f;
-      if (f.state === 'FAILED') throw new Error('Gemini file processing FAILED');
-    }
-    await new Promise(res => setTimeout(res, 1500));
-  }
-  throw new Error('Timed out waiting for Gemini to process audio');
+async function geminiGetFile(apiKey, fileName) {
+  const r = await fetch(`${GEMINI_BASE}/v1beta/${fileName}?key=${apiKey}`);
+  if (!r.ok) throw new Error(`Files API get ${r.status}`);
+  return await r.json();
 }
 
 async function geminiGenerate(apiKey, fileUri, mimeType) {
@@ -148,21 +159,96 @@ async function geminiGenerate(apiKey, fileUri, mimeType) {
 
 function parseSummary(text) {
   if (!text) return null;
-  // Strip code fences just in case
   const cleaned = text
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    // Try to extract the first {...} block
-    const m = cleaned.match(/\{[\s\S]*\}/);
-    if (m) {
-      try { return JSON.parse(m[0]); } catch {}
-    }
-    return null;
+  try { return JSON.parse(cleaned); } catch {}
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (m) {
+    try { return JSON.parse(m[0]); } catch {}
   }
+  return null;
+}
+
+// ===== step handlers =====
+
+async function stepUpload(apiKey, body) {
+  const { note_id, audio_url, mime_type } = body || {};
+  if (!note_id || !audio_url) throw new Error('note_id + audio_url required');
+
+  await updateNote(note_id, { status: 'uploading', error_message: null });
+
+  // Pull audio from Supabase Storage
+  const audioRes = await fetch(audio_url);
+  if (!audioRes.ok) throw new Error(`Failed to fetch audio (${audioRes.status})`);
+  const audioBytes = new Uint8Array(await audioRes.arrayBuffer());
+  const detectedMime = mime_type || audioRes.headers.get('content-type') || 'audio/webm';
+
+  // Upload to Gemini Files API
+  const file = await geminiUploadFile(apiKey, audioBytes, detectedMime, `note-${note_id}`);
+
+  await updateNote(note_id, {
+    status: file.state === 'ACTIVE' ? 'ready' : 'processing',
+    gemini_file_uri:  file.uri,
+    gemini_file_name: file.name,
+    gemini_mime_type: file.mimeType || detectedMime,
+  });
+
+  return { state: file.state, file_name: file.name, file_uri: file.uri };
+}
+
+async function stepPoll(apiKey, body) {
+  const { note_id } = body || {};
+  if (!note_id) throw new Error('note_id required');
+
+  const note = await getNote(note_id);
+  if (!note.gemini_file_name) throw new Error('No Gemini file linked yet — call step=upload first');
+
+  const file = await geminiGetFile(apiKey, note.gemini_file_name);
+
+  if (file.state === 'ACTIVE') {
+    await updateNote(note_id, { status: 'ready' });
+  } else if (file.state === 'FAILED') {
+    await updateNote(note_id, {
+      status: 'error',
+      error_message: 'Gemini file processing FAILED',
+    });
+  }
+
+  return { state: file.state };
+}
+
+async function stepGenerate(apiKey, body) {
+  const { note_id } = body || {};
+  if (!note_id) throw new Error('note_id required');
+
+  const note = await getNote(note_id);
+  if (!note.gemini_file_uri) throw new Error('No Gemini file URI — call step=upload first');
+
+  await updateNote(note_id, { status: 'generating', error_message: null });
+
+  const text = await geminiGenerate(
+    apiKey,
+    note.gemini_file_uri,
+    note.gemini_mime_type || 'audio/webm'
+  );
+  const parsed = parseSummary(text);
+  if (!parsed) throw new Error('Could not parse Gemini response as JSON');
+
+  await updateNote(note_id, {
+    status: 'done',
+    transcript: parsed.transcript || '',
+    summary: parsed.summary || '',
+    action_items: parsed.action_items || [],
+  });
+
+  return {
+    ok: true,
+    transcript: parsed.transcript || '',
+    summary: parsed.summary || '',
+    action_items: parsed.action_items || [],
+  };
 }
 
 export const config = {
@@ -183,52 +269,29 @@ export default async function handler(req, res) {
   try { body = req.body; if (typeof body === 'string') body = JSON.parse(body); }
   catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
 
-  const { note_id, audio_url, mime_type } = body || {};
-  if (!note_id || !audio_url) {
-    return res.status(400).json({ error: 'note_id and audio_url required' });
-  }
-
-  // Mark as processing so the UI can show a spinner if it polls
-  await updateNote(note_id, { status: 'processing', error_message: null });
+  // Step routing — query string OR body field
+  const step = (req.query?.step || body?.step || '').toLowerCase();
 
   try {
-    // 1) Pull audio from storage
-    const audioRes = await fetch(audio_url);
-    if (!audioRes.ok) throw new Error(`Failed to fetch audio (${audioRes.status})`);
-    const audioBytes = new Uint8Array(await audioRes.arrayBuffer());
-    const detectedMime = mime_type || audioRes.headers.get('content-type') || 'audio/webm';
-
-    // 2) Upload to Gemini Files API
-    const file = await geminiUploadFile(apiKey, audioBytes, detectedMime, `note-${note_id}`);
-
-    // 3) Wait for processing
-    const ready = await waitForFileActive(apiKey, file.name);
-
-    // 4) Summarise
-    const text = await geminiGenerate(apiKey, ready.uri, ready.mimeType || detectedMime);
-    const parsed = parseSummary(text);
-    if (!parsed) throw new Error('Could not parse Gemini response as JSON');
-
-    // 5) Save to DB
-    await updateNote(note_id, {
-      status: 'done',
-      transcript: parsed.transcript || '',
-      summary: parsed.summary || '',
-      action_items: parsed.action_items || [],
-    });
-
-    return res.status(200).json({
-      ok: true,
-      transcript: parsed.transcript || '',
-      summary: parsed.summary || '',
-      action_items: parsed.action_items || [],
-    });
+    let result;
+    if (step === 'upload') {
+      result = await stepUpload(apiKey, body);
+    } else if (step === 'poll') {
+      result = await stepPoll(apiKey, body);
+    } else if (step === 'generate') {
+      result = await stepGenerate(apiKey, body);
+    } else {
+      return res.status(400).json({ error: 'step must be upload|poll|generate' });
+    }
+    return res.status(200).json(result);
   } catch (err) {
-    console.error('[meeting-summary] error:', err);
-    await updateNote(note_id, {
-      status: 'error',
-      error_message: String(err.message || err).slice(0, 500),
-    });
+    console.error('[meeting-summary]', step, err);
+    if (body?.note_id) {
+      await updateNote(body.note_id, {
+        status: 'error',
+        error_message: String(err.message || err).slice(0, 500),
+      });
+    }
     return res.status(500).json({ error: String(err.message || err) });
   }
 }
