@@ -367,7 +367,7 @@ function ModalTimeline({
 }
 
 // Click an existing booking in the modal timeline → render this inline card
-function BookingDetailsCard({ booking, employee, onClose, currentUser }) {
+function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
   return (
     <div className="mt-details">
       <div className="mt-details-head">
@@ -416,7 +416,7 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser }) {
         </div>
       )}
 
-      <MeetingSummaryPanel booking={booking} currentUser={currentUser} />
+      <MeetingSummaryPanel booking={booking} currentUser={currentUser} room={room} employee={employee} />
     </div>
   );
 }
@@ -540,6 +540,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
               booking={detailsBooking}
               employee={employees.find((e) => e.name === detailsBooking.booker)}
               currentUser={currentUser}
+              room={room}
               onClose={() => setDetailsBooking(null)}
             />
           )}
@@ -701,8 +702,10 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
               their own edit screen the panel was unreachable. */}
           {initial?.id && (
             <MeetingSummaryPanel
-              booking={{ id: initial.id, ...initial }}
+              booking={{ id: initial.id, bookingDate: initial.bookingDate, ...initial }}
               currentUser={currentUser}
+              room={room}
+              employee={employees.find((e) => e.name === (initial?.booker || booker))}
             />
           )}
         </div>

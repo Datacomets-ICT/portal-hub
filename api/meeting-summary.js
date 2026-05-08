@@ -30,21 +30,26 @@
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 
-const SUMMARY_PROMPT = `คุณเป็น AI ผู้ช่วยสรุปประชุม
-1. ฟังเสียงประชุมนี้ทั้งหมด
-2. ถอดเสียงเป็นภาษาไทย (transcript) — แยกผู้พูดได้เท่าที่ทำได้ (Speaker A / Speaker B)
-3. สรุปประเด็นหลัก 3-7 ข้อ — เน้นข้อที่ตัดสินใจได้แล้ว ไม่ใช่ความเห็น
-4. หา action items — ใครต้องทำอะไร (ถ้าระบุชื่อ/แผนกได้ให้ระบุ)
-
-ตอบเป็น JSON เท่านั้น ห้ามใส่ markdown code fence ห้ามใส่ comment:
+const SUMMARY_PROMPT = `คุณเป็น AI ผู้ช่วยสรุปประชุม วิเคราะห์เสียงประชุมนี้ออกเป็น meeting minutes แบบครบถ้วน
+ตอบเป็น JSON เท่านั้น ห้ามใส่ markdown ห้ามใส่ comment
 
 {
-  "transcript": "ถอดเสียงเต็ม...",
-  "summary": "• ประเด็นที่ 1\\n• ประเด็นที่ 2\\n• ...",
+  "transcript": "ถอดเสียงเต็ม ภาษาไทย แยกผู้พูดเท่าที่ได้ (Speaker A / Speaker B)",
+  "summary": "ประเด็นหลัก 3-7 ข้อ บรรทัดละข้อ ขึ้นต้นด้วย • (เน้นเรื่องที่ตัดสินใจหรือสรุปได้)",
+  "discussion_topics": [
+    { "topic": "หัวข้อย่อย", "points": ["รายละเอียด 1", "...2"] }
+  ],
+  "decisions": ["ข้อตัดสินใจที่ทุกคนตกลงแล้ว 1", "...2"],
   "action_items": [
-    { "task": "...", "owner": "ชื่อคน/แผนก", "due": "เมื่อไหร่ หรือ ''" }
-  ]
-}`;
+    { "task": "งานที่ต้องทำ", "owner": "ชื่อคน/แผนก หรือ ''", "due": "เมื่อไหร่ หรือ ''" }
+  ],
+  "next_meeting": "ถ้ามีนัดประชุมต่อ ระบุวัน/เวลา/หัวข้อ — ไม่มีก็ ''"
+}
+
+กฎ:
+- ทุก field ภาษาไทย (ยกเว้นตัวย่อ/ชื่อโปรแกรม)
+- decisions ต่างจาก summary — ต้องเป็นข้อสรุปที่ตกลงแล้ว ไม่ใช่ข้อเสนอ
+- ห้ามแต่งข้อมูล ถ้าไม่มีใน audio ให้เว้น`;
 
 async function fetchSupabase(path, init = {}) {
   const url = process.env.SUPABASE_URL || 'https://dixechuojsfaypagbfqu.supabase.co';
@@ -281,14 +286,27 @@ async function groqWhisperTranscribe(groqKey, audioBytes, mimeType, fileName) {
 }
 
 async function groqSummarizeTranscript(groqKey, transcript) {
-  const prompt = `จาก transcript การประชุมด้านล่าง สรุปออกเป็น JSON เท่านั้น ห้ามใส่ markdown:
+  const prompt = `วิเคราะห์ transcript การประชุมนี้ออกเป็น meeting minutes แบบครบถ้วน
+ตอบเป็น JSON เท่านั้น ห้ามใส่ markdown ห้ามใส่ comment
 
 {
-  "summary": "• ประเด็นหลัก 3-7 ข้อ — เน้นข้อที่ตัดสินใจได้แล้ว\\n• ใช้ bullet point ขึ้นต้นด้วย • ทุกบรรทัด",
+  "summary": "ประเด็นหลัก 3-7 ข้อ บรรทัดละข้อ ขึ้นต้นด้วย • (เน้นเรื่องที่ตัดสินใจหรือสรุปได้แล้ว)",
+  "discussion_topics": [
+    { "topic": "หัวข้อย่อย", "points": ["รายละเอียด/ข้อโต้แย้ง/มุมมอง 1", "...2"] }
+  ],
+  "decisions": ["ข้อตัดสินใจที่ทุกคนเห็นด้วยแล้ว 1", "...2"],
   "action_items": [
-    { "task": "...", "owner": "ชื่อคน/แผนก หรือ ''", "due": "เมื่อไหร่ หรือ ''" }
-  ]
+    { "task": "งานที่ต้องทำ", "owner": "ชื่อคน/แผนก หรือ ''", "due": "วันกำหนดเสร็จ หรือ ''" }
+  ],
+  "next_meeting": "ถ้ามีการนัดประชุมครั้งหน้า ระบุวัน/เวลา/หัวข้อ — ถ้าไม่มีให้เว้นว่าง ''"
 }
+
+กฎ:
+- ทุก field ใช้ภาษาไทย (ยกเว้นชื่อโปรแกรม/ตัวย่อภาษาอังกฤษคงเดิม)
+- "discussion_topics" คือบทสนทนาแยกตามหัวข้อ — แต่ละหัวข้อมี 2-5 bullet points
+- "decisions" ต่างจาก "summary" คือ เป็นข้อสรุปที่ทุกคน "ตกลง" แล้ว ไม่ใช่ข้อเสนอ
+- "action_items" คืองานที่มีคนรับผิดชอบ — ถ้าไม่ระบุชื่อคน ใส่แผนกหรือ ''
+- ห้ามแต่งข้อมูลที่ไม่อยู่ใน transcript
 
 Transcript:
 ${transcript.slice(0, 50000)}`;
@@ -345,6 +363,9 @@ async function stepProcess(body) {
     transcript,
     summary: parsed.summary || '',
     action_items: parsed.action_items || [],
+    decisions: parsed.decisions || [],
+    discussion_topics: parsed.discussion_topics || [],
+    next_meeting: parsed.next_meeting || '',
   });
 
   return {
@@ -353,6 +374,9 @@ async function stepProcess(body) {
     transcript,
     summary: parsed.summary || '',
     action_items: parsed.action_items || [],
+    decisions: parsed.decisions || [],
+    discussion_topics: parsed.discussion_topics || [],
+    next_meeting: parsed.next_meeting || '',
   };
 }
 
@@ -378,6 +402,9 @@ async function stepGenerate(apiKey, body) {
     transcript: parsed.transcript || '',
     summary: parsed.summary || '',
     action_items: parsed.action_items || [],
+    decisions: parsed.decisions || [],
+    discussion_topics: parsed.discussion_topics || [],
+    next_meeting: parsed.next_meeting || '',
   });
 
   return {
@@ -385,6 +412,9 @@ async function stepGenerate(apiKey, body) {
     transcript: parsed.transcript || '',
     summary: parsed.summary || '',
     action_items: parsed.action_items || [],
+    decisions: parsed.decisions || [],
+    discussion_topics: parsed.discussion_topics || [],
+    next_meeting: parsed.next_meeting || '',
   };
 }
 

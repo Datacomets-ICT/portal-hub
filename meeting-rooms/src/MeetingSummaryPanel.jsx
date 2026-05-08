@@ -6,6 +6,12 @@ import {
   deleteMeetingNote,
 } from './api/meetingNotes.js';
 import { supabase } from './lib/supabase.js';
+import {
+  exportAsPdf,
+  exportAsDoc,
+  buildPlainText,
+  copyToClipboard,
+} from './meetingExport.js';
 
 const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — matches v16 bucket limit
 
@@ -25,7 +31,7 @@ function fmtDuration(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function MeetingSummaryPanel({ booking, currentUser }) {
+export default function MeetingSummaryPanel({ booking, currentUser, room = null, employee = null }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recording, setRecording] = useState(false);
@@ -198,6 +204,31 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
     }
   }
 
+  // ===== Export handlers =====
+  function exportArgs() {
+    return { booking, room, employee, note };
+  }
+
+  function handleExportPdf() {
+    if (!note) return;
+    exportAsPdf(exportArgs());
+  }
+
+  function handleExportDoc() {
+    if (!note) return;
+    exportAsDoc(exportArgs());
+  }
+
+  const [copiedAt, setCopiedAt] = useState(0);
+  async function handleCopy() {
+    if (!note) return;
+    const text = buildPlainText(exportArgs());
+    const ok = await copyToClipboard(text);
+    if (ok) setCopiedAt(Date.now());
+    else setErr('คัดลอกไม่สำเร็จ — เบราว์เซอร์ไม่อนุญาตให้เข้าถึง clipboard');
+  }
+  const justCopied = Date.now() - copiedAt < 2000;
+
   if (loading) {
     return <div className="ms-panel ms-panel-loading">กำลังโหลด...</div>;
   }
@@ -299,12 +330,52 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
               )}
             </div>
           )}
+
+          {/* Export toolbar */}
+          <div className="ms-export-bar">
+            <button type="button" className="ms-export-btn ms-export-pdf" onClick={handleExportPdf}>
+              📄 บันทึกเป็น PDF
+            </button>
+            <button type="button" className="ms-export-btn ms-export-doc" onClick={handleExportDoc}>
+              📝 ดาวน์โหลด Word
+            </button>
+            <button type="button" className={`ms-export-btn ms-export-copy ${justCopied ? 'is-copied' : ''}`} onClick={handleCopy}>
+              {justCopied ? '✓ คัดลอกแล้ว' : '📋 คัดลอกข้อความ'}
+            </button>
+          </div>
+
+          {Array.isArray(note.discussion_topics) && note.discussion_topics.length > 0 && (
+            <div className="ms-section">
+              <div className="ms-section-title">💬 ประเด็นการประชุม</div>
+              {note.discussion_topics.map((t, i) => (
+                <div key={i} className="ms-topic">
+                  <div className="ms-topic-head">{t.topic}</div>
+                  {Array.isArray(t.points) && t.points.length > 0 && (
+                    <ul className="ms-topic-points">
+                      {t.points.map((p, j) => <li key={j}>{p}</li>)}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {note.summary && (
             <div className="ms-section">
               <div className="ms-section-title">💡 ประเด็นหลัก</div>
               <pre className="ms-summary-text">{note.summary}</pre>
             </div>
           )}
+
+          {Array.isArray(note.decisions) && note.decisions.length > 0 && (
+            <div className="ms-section">
+              <div className="ms-section-title">⚖️ ข้อตัดสินใจ</div>
+              <ul className="ms-decisions">
+                {note.decisions.map((d, i) => <li key={i}>{d}</li>)}
+              </ul>
+            </div>
+          )}
+
           {Array.isArray(note.action_items) && note.action_items.length > 0 && (
             <div className="ms-section">
               <div className="ms-section-title">✅ Action Items</div>
@@ -319,6 +390,14 @@ export default function MeetingSummaryPanel({ booking, currentUser }) {
               </ul>
             </div>
           )}
+
+          {note.next_meeting && (
+            <div className="ms-section">
+              <div className="ms-section-title">📅 การประชุมครั้งถัดไป</div>
+              <div className="ms-next-meeting">{note.next_meeting}</div>
+            </div>
+          )}
+
           {note.transcript && (
             <details className="ms-section ms-transcript">
               <summary>📜 ดู transcript เต็ม</summary>
