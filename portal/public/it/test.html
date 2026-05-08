@@ -111,33 +111,44 @@ async function loadWorklist() {
 // แต่ละ group = 1 หมวดใน worklist พร้อม inputs ที่ user น่าจะพิมพ์
 // แล้วต้องไปลงหมวดนี้ (jobType + issueType ของ group)
 const TEST_GROUPS = [
-    { jobType:'คอมพิวเตอร์', issueType:'PC',
-      desc:'PC ตั้งโต๊ะเสีย / ค้าง / blue screen — เครื่องพังต้องซ่อม',
+    { jobType:'คอมพิวเตอร์', issueType:'',
+      desc:'⚠️ Hardware fail แบบกำกวม (ไม่บอกเครื่อง) — ต้องไม่เดา issueType ให้ bot ถาม',
       cases:[
+        { input:'หน้าจอดับ' },
         { input:'หน้าจอคอมดับ' },
-        { input:'จอฟ้าระหว่างทำงาน', sym:'หน้าจอฟ้า' },
-        { input:'blue screen', sym:'หน้าจอฟ้า' },
-        { input:'คอมเปิดไม่ติด' },
-        { input:'PC ล็อกอินไม่ได้' },
+        { input:'จอฟ้าระหว่างทำงาน' },
+        { input:'blue screen' },
+        { input:'เครื่องค้างตลอด' },
         { input:'รีสตาร์ทเองตลอด' },
+        { input:'คอมเปิดไม่ติด' },
+      ] },
+    { jobType:'คอมพิวเตอร์', issueType:'PC',
+      desc:'PC ตั้งโต๊ะ — user ระบุ device ชัดเจน',
+      cases:[
+        { input:'PC blue screen', sym:'หน้าจอฟ้า' },
+        { input:'PC ตั้งโต๊ะเปิดไม่ติด', sym:'เครื่องเปิดไม่ติด' },
+        { input:'desktop ช้ามาก', sym:'เครื่องช้า' },
       ] },
     { jobType:'คอมพิวเตอร์', issueType:'Notebook',
       desc:'Notebook / โน้ตบุ๊ก เสีย',
       cases:[
         { input:'notebook ค้าง' },
-        { input:'โน้ตบุ๊กเปิดไม่ติด' },
+        { input:'โน้ตบุ๊กเปิดไม่ติด', sym:'เครื่องเปิดไม่ติด' },
         { input:'notebook ชาร์จไฟไม่เข้า', sym:'ชาร์จไฟไม่เข้า' },
+        { input:'laptop จอฟ้า', sym:'หน้าจอฟ้า' },
       ] },
     { jobType:'คอมพิวเตอร์', issueType:'Macbook',
       desc:'Macbook เสีย',
       cases:[
-        { input:'macbook ช้า' },
-        { input:'macbook เปิดไม่ติด' },
+        { input:'macbook ช้า', sym:'เครื่องช้า' },
+        { input:'macbook เปิดไม่ติด', sym:'เครื่องเปิดไม่ติด' },
+        { input:'macbook หน้าจอดับ' },
       ] },
     { jobType:'คอมพิวเตอร์', issueType:'iMac',
       desc:'iMac เสีย',
       cases:[
-        { input:'iMac เปิดไม่ติด' },
+        { input:'iMac เปิดไม่ติด', sym:'เครื่องเปิดไม่ติด' },
+        { input:'iMac จอฟ้า', sym:'หน้าจอฟ้า' },
       ] },
     { jobType:'ปริ้นเตอร์', issueType:'Printer แผนก',
       desc:'ปริ้นเตอร์เสีย / ไม่ออก / หมึกหมด',
@@ -371,14 +382,25 @@ function guessIssueFromText(text) {
     const PERM_JT = 'ขอสิทธิ์เข้าระบบ (ทำใบขอสิทธิ์)';
 
     // Hard hardware-failure pre-check
-    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง/i;
-    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์'] && worklist['คอมพิวเตอร์']['PC']) {
-        const pcSyms = worklist['คอมพิวเตอร์']['PC'] || [];
-        let symptom = '';
-        if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && pcSyms.includes('หน้าจอฟ้า')) symptom='หน้าจอฟ้า';
-        else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && pcSyms.includes('เครื่องเปิดไม่ติด')) symptom='เครื่องเปิดไม่ติด';
-        else if (/ช้า/i.test(text) && pcSyms.includes('เครื่องช้า')) symptom='เครื่องช้า';
-        return { jobType:'คอมพิวเตอร์', issueType:'PC', symptom };
+    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง|จอดับ|หน้าจอดับ|จอไม่ติด|หน้าจอไม่ติด/i;
+    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์']) {
+        let deviceIt = '';
+        if (/macbook|แมคบุ๊ก|แมคบุค/i.test(text)) deviceIt = 'Macbook';
+        else if (/\bimac\b/i.test(text)) deviceIt = 'iMac';
+        else if (/notebook|laptop|โน้ตบุ๊ก|โน้ตบุค|โนตบุ๊ก/i.test(text)) deviceIt = 'Notebook';
+        else if (/\bpc\b|ตั้งโต๊ะ|desktop/i.test(text)) deviceIt = 'PC';
+
+        if (deviceIt && worklist['คอมพิวเตอร์'][deviceIt]) {
+            const syms = worklist['คอมพิวเตอร์'][deviceIt] || [];
+            let symptom = '';
+            if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && syms.includes('หน้าจอฟ้า')) symptom='หน้าจอฟ้า';
+            else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && syms.includes('เครื่องเปิดไม่ติด')) symptom='เครื่องเปิดไม่ติด';
+            else if (/ช้า/i.test(text) && syms.includes('เครื่องช้า')) symptom='เครื่องช้า';
+            else if (/ชาร์จไฟไม่เข้า|ชาร์จไม่เข้า/i.test(text) && syms.includes('ชาร์จไฟไม่เข้า')) symptom='ชาร์จไฟไม่เข้า';
+            return { jobType:'คอมพิวเตอร์', issueType:deviceIt, symptom };
+        }
+        // Ambiguous device — let bot ask
+        return { jobType:'คอมพิวเตอร์', issueType:'', symptom:'' };
     }
 
     const isRequest = /(ขอสิทธิ์|ขอใช้|ขอเข้า|ขอเพิ่ม|ขอลบ|ขอลง|ขอติดตั้ง|ขอ\s*permission|ขอเปลี่ยน|ขอยืม|ขอ\s*account|ขอ\s*setup|ขอ\s*install|ขอ\s*key|ขอ\s*license|อยาก(ใช้|ลง|ติดตั้ง|ขอ|ได้)|ช่วย(ลง|ติดตั้ง|เพิ่มสิทธิ์)|รบกวน(ขอ|ลง|ติดตั้ง)|ติดตั้งโปรแกรม|พนักงานใหม่|new\s*employee|new\s*account)/i.test(text);
@@ -636,8 +658,14 @@ function runOneCase(input, expected, aiDraft) {
         // Heuristic-only: validate directly
         finalOut = validateDraftWorklist({ jobType: heur.jobType, issueType: heur.issueType, symptom: heur.symptom });
     }
+    // expected.issueType === '' is a strict assertion: heuristic must NOT guess.
+    // (Used for ambiguous cases like "หน้าจอดับ" where bot should ask the
+    //  user which device they're on instead of defaulting to PC.)
+    const issuePassed = expected.issueType === ''
+        ? (finalOut.issueType === '' || !finalOut.issueType)
+        : finalOut.issueType === expected.issueType;
     const passed = finalOut.jobType === expected.jobType
-        && (!expected.issueType || finalOut.issueType === expected.issueType)
+        && issuePassed
         && (!expected.symptom || finalOut.symptom === expected.symptom);
     return { input, expected, heur, ai: aiOut, final: finalOut, passed };
 }

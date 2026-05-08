@@ -4909,14 +4909,29 @@ function guessIssueFromText(text) {
     // over the permission classifier because the bot's own reply often
     // contains "ขอ..." (e.g. "ขอข้อมูลเพิ่ม") which used to flip isRequest
     // and route the whole conversation to ขอสิทธิ์เข้าระบบ.
-    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง/i;
-    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์'] && worklist['คอมพิวเตอร์']['PC']) {
-        const pcSyms = worklist['คอมพิวเตอร์']['PC'] || [];
-        let symptom = '';
-        if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && pcSyms.includes('หน้าจอฟ้า')) symptom = 'หน้าจอฟ้า';
-        else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && pcSyms.includes('เครื่องเปิดไม่ติด')) symptom = 'เครื่องเปิดไม่ติด';
-        else if (/ช้า/i.test(text) && pcSyms.includes('เครื่องช้า')) symptom = 'เครื่องช้า';
-        return { jobType: 'คอมพิวเตอร์', issueType: 'PC', symptom };
+    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง|จอดับ|หน้าจอดับ|จอไม่ติด|หน้าจอไม่ติด/i;
+    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์']) {
+        // Pick device explicitly mentioned. If ambiguous → leave issueType
+        // empty so the bot asks "ใช้เครื่องอะไร?" instead of defaulting to PC.
+        let deviceIt = '';
+        if (/macbook|แมคบุ๊ก|แมคบุค/i.test(text)) deviceIt = 'Macbook';
+        else if (/\bimac\b/i.test(text)) deviceIt = 'iMac';
+        else if (/notebook|laptop|โน้ตบุ๊ก|โน้ตบุค|โนตบุ๊ก/i.test(text)) deviceIt = 'Notebook';
+        else if (/\bpc\b|ตั้งโต๊ะ|desktop/i.test(text)) deviceIt = 'PC';
+
+        if (deviceIt && worklist['คอมพิวเตอร์'][deviceIt]) {
+            const syms = worklist['คอมพิวเตอร์'][deviceIt] || [];
+            let symptom = '';
+            if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && syms.includes('หน้าจอฟ้า')) symptom = 'หน้าจอฟ้า';
+            else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && syms.includes('เครื่องเปิดไม่ติด')) symptom = 'เครื่องเปิดไม่ติด';
+            else if (/ช้า/i.test(text) && syms.includes('เครื่องช้า')) symptom = 'เครื่องช้า';
+            else if (/ชาร์จไฟไม่เข้า|ชาร์จไม่เข้า/i.test(text) && syms.includes('ชาร์จไฟไม่เข้า')) symptom = 'ชาร์จไฟไม่เข้า';
+            return { jobType: 'คอมพิวเตอร์', issueType: deviceIt, symptom };
+        }
+        // Ambiguous — only know it's a computer hardware failure. Let the
+        // bot ask "ใช้เครื่องอะไร? PC / Notebook / Macbook / iMac" instead
+        // of mis-routing to PC.
+        return { jobType: 'คอมพิวเตอร์', issueType: '', symptom: '' };
     }
 
     // Drop the leading word-boundary so phrasings like "อยากขอสิทธิ์ปริ้น"
