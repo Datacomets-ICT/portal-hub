@@ -367,16 +367,28 @@ function sanitize(text) {
 
 // ---- Gemini Vision OCR ----
 // Pull error text/codes/messages out of attached screenshots so the chat
-// LLM can reason about them. Uses Gemini Flash's free tier (1500 req/day).
-// Cheap to fail — if no key or the call errors, we just skip OCR and
-// let the chat run without image context.
+// LLM can reason about them. Uses Gemini Flash 2.0 (free tier, 1500 req/day).
+//
+// Returns a tagged status object so callers can distinguish:
+//   { status: 'ok',       text }   ← OCR ran, found text
+//   { status: 'no-text',  text:'' } ← OCR ran, image had no text (photo)
+//   { status: 'no-key',   text:'' } ← GEMINI_API_KEY missing
+//   { status: 'error',    text:'', error } ← Gemini call failed
+//   { status: 'empty',    text:'' } ← No usable images in payload
+const OCR_MODEL = 'gemini-2.0-flash';
+
 async function ocrImages(dataUris) {
-  if (!Array.isArray(dataUris) || dataUris.length === 0) return '';
+  if (!Array.isArray(dataUris) || dataUris.length === 0) {
+    return { status: 'empty', text: '' };
+  }
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return '';
+  if (!apiKey) {
+    console.warn('[OCR] GEMINI_API_KEY not set — image analysis disabled');
+    return { status: 'no-key', text: '' };
+  }
 
   const parts = [{
-    text: 'ดึงข้อความ/error code/message ที่เห็นในรูปทั้งหมดออกมา ตอบเป็นรายการที่ใช้แล้วเข้าใจง่าย เก็บคำเดิมตามที่เห็นในรูป (ไทย/อังกฤษ ตามต้นฉบับ) ห้ามแปล ห้ามสรุป ห้ามใส่คำพูดของคุณ ถ้าไม่เห็นข้อความใดในรูปให้ตอบว่า "[ไม่พบข้อความในรูป]"',
+    text: 'อ่านข้อความทั้งหมดในรูปนี้ — error message, error code, ชื่อโปรแกรม, ปุ่ม, dialog, URL, ข้อความบนหน้าจอ ทุกอย่าง คงคำเดิมตามที่เห็น (ไทย/อังกฤษ) ห้ามแปลห้ามสรุป ตอบเป็นรายการสั้นๆ บรรทัดละข้อ ถ้าเป็นภาพถ่ายอุปกรณ์ที่ไม่มีข้อความเลย ตอบว่า "[ไม่พบข้อความในรูป]"',
   }];
 
   for (const uri of dataUris) {
@@ -385,30 +397,38 @@ async function ocrImages(dataUris) {
     if (!m) continue;
     parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
   }
-  if (parts.length === 1) return ''; // no valid images parsed
+  if (parts.length === 1) {
+    console.warn('[OCR] No valid base64 images in payload');
+    return { status: 'empty', text: '' };
+  }
 
   const body = {
     contents: [{ role: 'user', parts }],
-    generationConfig: { temperature: 0.0, maxOutputTokens: 1024 },
+    generationConfig: { temperature: 0.0, maxOutputTokens: 2048 },
   };
 
   try {
-    const url = `${GEMINI_URL}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+    const url = `${GEMINI_URL}/${OCR_MODEL}:generateContent?key=${apiKey}`;
     const r = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!r.ok) {
-      console.warn(`[OCR] Gemini Vision ${r.status}`);
-      return '';
+      const errText = (await r.text()).slice(0, 200);
+      console.warn(`[OCR] Gemini Vision ${r.status}: ${errText}`);
+      return { status: 'error', text: '', error: `Gemini ${r.status}: ${errText}` };
     }
     const data = await r.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-    return text.trim();
+    const text = (data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '').trim();
+    console.log(`[OCR] extracted ${text.length} chars from ${parts.length - 1} image(s)`);
+    if (!text || text === '[ไม่พบข้อความในรูป]') {
+      return { status: 'no-text', text: '' };
+    }
+    return { status: 'ok', text };
   } catch (err) {
     console.warn('[OCR] error:', err.message);
-    return '';
+    return { status: 'error', text: '', error: err.message };
   }
 }
 
@@ -666,15 +686,27 @@ export default async function handler(req, res) {
     // OCR — if the user attached screenshots, pull text out of them with
     // Gemini Vision and append to the last user message so the chat LLM
     // sees the actual error code/message instead of guessing from "[user
-    // attached N images]". Free tier (1500 req/day) — fail silent on error.
+    // attached N images]". Always inject a marker (even on failure) so
+    // the AI knows OCR was attempted and can act accordingly.
+    let ocrResult = { status: 'empty', text: '' };
     if (Array.isArray(images) && images.length > 0 && safeMessages.length > 0) {
-      const ocrText = await ocrImages(images);
-      if (ocrText && ocrText !== '[ไม่พบข้อความในรูป]') {
+      ocrResult = await ocrImages(images);
+      let marker = '';
+      if (ocrResult.status === 'ok') {
+        marker = `\n\n[ข้อความที่ AI อ่านได้จากรูปที่แนบ ${images.length} รูป]:\n${ocrResult.text}`;
+      } else if (ocrResult.status === 'no-text') {
+        marker = `\n\n[AI อ่านรูปแล้ว ${images.length} รูป — เป็นภาพถ่ายอุปกรณ์ ไม่มีข้อความ error ให้ดู — ถาม user เพิ่มเรื่องอาการ]`;
+      } else if (ocrResult.status === 'no-key') {
+        marker = `\n\n[ระบบ OCR ปิดอยู่ — ขอให้ user พิมพ์ error code/message ที่เห็นในรูปลงมาให้]`;
+      } else if (ocrResult.status === 'error') {
+        marker = `\n\n[OCR error: ${ocrResult.error || 'unknown'} — ขอให้ user พิมพ์ error code/message ลงมาให้]`;
+      }
+      if (marker) {
         for (let i = safeMessages.length - 1; i >= 0; i--) {
           if (safeMessages[i].role === 'user') {
             safeMessages[i] = {
               ...safeMessages[i],
-              content: safeMessages[i].content + `\n\n[ข้อความที่อ่านได้จากรูปที่แนบ ${images.length} รูป]:\n${ocrText}`,
+              content: safeMessages[i].content + marker,
             };
             break;
           }
@@ -758,7 +790,15 @@ export default async function handler(req, res) {
       saveMsg('assistant', cleanReply);
     }
 
-    return res.status(200).json({ reply: cleanReply, wantsTicket });
+    return res.status(200).json({
+      reply: cleanReply,
+      wantsTicket,
+      ocr: ocrResult.status === 'empty' ? null : {
+        status: ocrResult.status,
+        text: ocrResult.text || '',
+        error: ocrResult.error || null,
+      },
+    });
   } catch (err) {
     console.error('chat error:', err);
     return res.status(500).json({ error: err.message || 'Internal error' });

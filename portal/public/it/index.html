@@ -4853,6 +4853,21 @@ async function sendChat() {
         const data = await tryChat();
         removeTyping();
 
+        // Show OCR result first so user can SEE the AI read their image
+        // (or that OCR failed). Helps debug + builds trust ("the bot
+        // really did look at my screenshot").
+        if (data.ocr) {
+            if (data.ocr.status === 'ok' && data.ocr.text) {
+                appendChatMsg('system', '🔍 **AI อ่านได้จากรูป:**\n\n```\n' + data.ocr.text + '\n```');
+            } else if (data.ocr.status === 'no-text') {
+                appendChatMsg('system', '🔍 AI อ่านรูปแล้ว แต่ในรูปไม่มีข้อความ (เป็นภาพถ่ายอุปกรณ์) — ลองพิมพ์อาการเพิ่มได้ครับ');
+            } else if (data.ocr.status === 'no-key') {
+                appendChatMsg('system', '⚠️ ระบบ OCR ปิดอยู่ (admin ยังไม่ได้ตั้ง GEMINI_API_KEY) — กรุณาพิมพ์ error ที่เห็นในรูปลงมาให้ครับ');
+            } else if (data.ocr.status === 'error') {
+                appendChatMsg('system', '⚠️ AI อ่านรูปไม่สำเร็จ: ' + (data.ocr.error || 'unknown') + ' — กรุณาพิมพ์ error ที่เห็นลงมาแทน');
+            }
+        }
+
         appendChatMsg('bot', data.reply);
         chatHistory.push({ role: 'assistant', content: data.reply });
 
