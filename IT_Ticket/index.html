@@ -4830,7 +4830,10 @@ async function sendChat() {
             appendChatMsg('bot', 'AI ติดขัดนิดนึงครับ แต่ไม่เป็นไร เปิด Ticket ให้เลยนะครับ 🙏');
             await offerTicketDraft();
         } else {
-            appendChatMsg('bot', 'เอ๊ะ AI ติดขัดนิดนึงครับ ลองพิมพ์ใหม่อีกครั้งได้ไหมครับ 🙏\n\nหรือกดปุ่ม **"เปิด Ticket"** ด้านบนเพื่อกรอกฟอร์มเองก็ได้ครับ');
+            // TEMP DEBUG (remove after diagnosis): expose the actual provider
+            // error so we can see which one in the cascade is failing.
+            const dbg = (err && err.message) ? `\n\n*[debug: ${err.message.slice(0, 280)}]*` : '';
+            appendChatMsg('bot', 'เอ๊ะ AI ติดขัดนิดนึงครับ ลองพิมพ์ใหม่อีกครั้งได้ไหมครับ 🙏\n\nหรือกดปุ่ม **"เปิด Ticket"** ด้านบนเพื่อกรอกฟอร์มเองก็ได้ครับ' + dbg);
         }
     } finally {
         chatBusy = false;
