@@ -2832,3 +2832,11 @@ tr.rr-clickable:hover { background: var(--bg-2); }
   border-radius: 6px;
   font-size: 12.5px;
 }
+
+/* ========= Email export button + modal ========= */
+.ms-export-email:hover { color: #1E40AF; }
+.modal-email .field { margin-bottom: 14px; }
+.modal-email .field-input {
+  font-size: 13px;
+  padding: 8px 10px;
+}

@@ -15,6 +15,7 @@ import {
   copyToClipboard,
   summaryToList,
 } from './meetingExport.js';
+import MeetingEmailModal from './MeetingEmailModal.jsx';
 
 const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB — matches v18 bucket limit
 
@@ -278,6 +279,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
     }
   }
 
+  const [emailOpen, setEmailOpen] = useState(false);
   const [copiedAt, setCopiedAt] = useState(0);
   async function handleCopy() {
     if (!note) return;
@@ -432,8 +434,25 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             <button type="button" className={`ms-export-btn ms-export-copy ${justCopied ? 'is-copied' : ''}`} onClick={handleCopy} disabled={!!exporting}>
               {justCopied ? '✓ คัดลอกแล้ว' : '📋 คัดลอกข้อความ'}
             </button>
+            <button type="button" className="ms-export-btn ms-export-email" onClick={() => setEmailOpen(true)} disabled={!!exporting}>
+              📧 ส่ง Email
+            </button>
           </div>
           {err && <div className="ms-error">{err}</div>}
+
+          <MeetingEmailModal
+            open={emailOpen}
+            onClose={() => setEmailOpen(false)}
+            note={note}
+            booking={booking}
+            defaultSubject={(() => {
+              const t = booking?.title || 'ประชุม';
+              const d = booking?.bookingDate ? new Date(booking.bookingDate) : null;
+              const dateStr = d ? `${d.getDate()}/${d.getMonth() + 1}/${(d.getFullYear() + 543).toString().slice(-2)}` : '';
+              return `[สรุปการประชุม] ${t}${dateStr ? ' - ' + dateStr : ''}`;
+            })()}
+          />
+
 
           {Array.isArray(note.discussion_topics) && note.discussion_topics.length > 0 && (
             <div className="ms-section">
