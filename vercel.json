@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install && cd portal && npm install",
-  "buildCommand": "cd portal && npm run build",
+  "installCommand": "npm install && cd portal && npm install && cd ../meeting-rooms && npm install",
+  "buildCommand": "cd portal && npm run sync:meeting && npm run build",
   "outputDirectory": "portal/dist",
   "framework": null,
   "functions": {

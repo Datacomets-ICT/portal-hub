@@ -107,20 +107,45 @@ async function syncMeeting() {
   // Without this, the portal's VITE_SUPABASE_URL (IT's project) would leak
   // into the meeting build and queries hit the wrong schema.
   const localEnv = await readDotenv(path.join(src, '.env.local'));
-  const meetingUrl = process.env.VITE_MEETING_SUPABASE_URL || localEnv.VITE_SUPABASE_URL;
-  const meetingKey = process.env.VITE_MEETING_SUPABASE_ANON_KEY || localEnv.VITE_SUPABASE_ANON_KEY;
-  // Optional — JWT-format anon key for resumable (TUS) uploads of large
-  // audio files in the meeting summary feature. Falls back to "" if not
-  // set, in which case files > 50 MB error with a friendly message.
+  // Resolve each var with a generous fallback chain so the same Vercel
+  // env vars used by /api routes (no VITE_ prefix) also drive the
+  // meeting build:
+  //   1. project-scoped Vercel var (VITE_MEETING_*)
+  //   2. shared Vercel var (VITE_SUPABASE_*)
+  //   3. server-side Vercel var (SUPABASE_*) — used by /api routes
+  //   4. local .env.local (dev only)
+  const meetingUrl =
+    process.env.VITE_MEETING_SUPABASE_URL
+    || process.env.VITE_SUPABASE_URL
+    || process.env.SUPABASE_URL
+    || localEnv.VITE_SUPABASE_URL;
+  const meetingKey =
+    process.env.VITE_MEETING_SUPABASE_ANON_KEY
+    || process.env.VITE_SUPABASE_ANON_KEY
+    || process.env.SUPABASE_ANON_KEY
+    || localEnv.VITE_SUPABASE_ANON_KEY;
+  // JWT-format anon key for resumable (TUS) uploads of large audio
+  // files. Falls back to "" if not set, in which case files > 50 MB
+  // error with a friendly message.
   const meetingLegacyJwt =
     process.env.VITE_MEETING_SUPABASE_LEGACY_JWT
     || process.env.VITE_SUPABASE_LEGACY_JWT
+    || process.env.SUPABASE_LEGACY_JWT
     || localEnv.VITE_SUPABASE_LEGACY_JWT
     || '';
+  console.log('  legacy JWT key for TUS:',
+    meetingLegacyJwt
+      ? `set (${meetingLegacyJwt.slice(0, 12)}…)`
+      : 'NOT SET — uploads > 50MB will fall back to error');
   if (!meetingUrl || !meetingKey) {
-    throw new Error(
-      'Missing meeting-rooms Supabase env. Set VITE_MEETING_SUPABASE_URL + VITE_MEETING_SUPABASE_ANON_KEY on Vercel, or keep meeting-rooms/.env.local for local dev.'
+    // Don't break the whole portal build — there's a pre-built copy
+    // already committed at portal/public/meeting/. Just warn and skip.
+    console.warn(
+      '  ⚠  meeting-rooms Supabase env missing — keeping the pre-built bundle.\n' +
+      '     To rebuild on Vercel set VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY\n' +
+      '     (or VITE_MEETING_SUPABASE_URL + ..._ANON_KEY for a separate project).'
     );
+    return;
   }
 
   console.log('  building meeting-rooms with base=/meeting/ and its own Supabase creds…');
