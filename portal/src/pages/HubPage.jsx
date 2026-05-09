@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import ProfileModal from '../components/ProfileModal.jsx';
+import InstallAppButton from '../components/InstallAppButton.jsx';
 
 const APPS = [
   {
@@ -166,6 +167,7 @@ export default function HubPage() {
           <div className="brand-name">Workspace</div>
         </div>
         <div className="spacer" />
+        <InstallAppButton />
         <div className="nav-time">
           <span className="nav-time-day">{dateStr}</span>
           <span className="nav-time-clock">{timeStr}</span>
