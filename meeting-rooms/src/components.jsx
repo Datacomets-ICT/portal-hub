@@ -472,7 +472,26 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
   );
   const hasConflict = conflicts.length > 0;
 
-  const canSave = title.trim() && booker.trim() && end > start && !hasConflict;
+  // Past bookings can't be edited or cancelled — only the meeting summary
+  // panel stays interactive. Compare the booking's end time (date + end_min)
+  // to "now". For new bookings (no initial.id) this is always false.
+  const isPast = (() => {
+    if (!initial?.id || !date) return false;
+    try {
+      const baseDate = new Date(date);
+      const initialEnd = initial.end ?? end;
+      const endTime = new Date(
+        baseDate.getFullYear(),
+        baseDate.getMonth(),
+        baseDate.getDate(),
+        Math.floor(initialEnd / 60),
+        initialEnd % 60
+      );
+      return endTime.getTime() < Date.now();
+    } catch { return false; }
+  })();
+
+  const canSave = title.trim() && booker.trim() && end > start && !hasConflict && !isPast;
 
   const filteredEmp = employees
     .filter((e) => {
@@ -500,6 +519,12 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
         </div>
 
         <div className="modal-body">
+          {isPast && (
+            <div className="past-meeting-banner">
+              ⏱ <b>ประชุมผ่านไปแล้ว</b> — แก้ไขรายละเอียดไม่ได้ ใช้ได้แค่ "สรุปการประชุม" ด้านล่าง
+            </div>
+          )}
+          <fieldset className="booking-form-fields" disabled={isPast}>
           <label className="field field-full">
             <span className="field-label">หัวข้อการประชุม</span>
             <input className="field-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น Weekly Sync, Product Review" autoFocus />
@@ -696,10 +721,11 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
             </div>
           )}
 
-          {/* Meeting summary panel — only for existing bookings (has an id).
-              The previous version only showed it when the user clicked a
-              different booking in the timeline (BookingDetailsCard); from
-              their own edit screen the panel was unreachable. */}
+          </fieldset>
+
+          {/* Meeting summary panel — outside the disabled fieldset so it
+              stays interactive even when the meeting has already ended.
+              Only shown for existing bookings (has an id). */}
           {initial?.id && (
             <MeetingSummaryPanel
               booking={{ id: initial.id, bookingDate: initial.bookingDate, ...initial }}
@@ -711,34 +737,47 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
         </div>
 
         <div className="modal-foot">
-          {initial?.id && (
-            <button className="btn-ghost danger" onClick={() => onSave({ _delete: true, id: initial.id })}>
-              ลบการจอง
-            </button>
+          {isPast ? (
+            // Meeting already ended — only summary stays editable.
+            // Single "Close" button instead of save/delete/cancel.
+            <>
+              <div style={{ flex: 1, fontSize: '12.5px', color: 'var(--fg-3)' }}>
+                ⏱ ประชุมผ่านไปแล้ว — แก้ไขรายละเอียดไม่ได้ ใช้ได้แค่สรุปการประชุม
+              </div>
+              <button className="btn-primary" onClick={onClose}>ปิด</button>
+            </>
+          ) : (
+            <>
+              {initial?.id && (
+                <button className="btn-ghost danger" onClick={() => onSave({ _delete: true, id: initial.id })}>
+                  ลบการจอง
+                </button>
+              )}
+              <div style={{ flex: 1 }} />
+              <button className="btn-ghost" onClick={onClose}>ยกเลิก</button>
+              <button
+                className="btn-primary"
+                disabled={!canSave}
+                onClick={() =>
+                  onSave({
+                    id: initial?.id,
+                    title: title.trim(),
+                    start,
+                    end,
+                    booker,
+                    attendees,
+                    purpose,
+                    company,
+                    customerCount,
+                    equipment,
+                    refreshments,
+                  })
+                }
+              >
+                {initial?.id ? 'บันทึกการเปลี่ยนแปลง' : 'ยืนยันการจอง'}
+              </button>
+            </>
           )}
-          <div style={{ flex: 1 }} />
-          <button className="btn-ghost" onClick={onClose}>ยกเลิก</button>
-          <button
-            className="btn-primary"
-            disabled={!canSave}
-            onClick={() =>
-              onSave({
-                id: initial?.id,
-                title: title.trim(),
-                start,
-                end,
-                booker,
-                attendees,
-                purpose,
-                company,
-                customerCount,
-                equipment,
-                refreshments,
-              })
-            }
-          >
-            {initial?.id ? 'บันทึกการเปลี่ยนแปลง' : 'ยืนยันการจอง'}
-          </button>
         </div>
       </div>
     </div>

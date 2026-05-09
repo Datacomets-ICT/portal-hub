@@ -2978,3 +2978,35 @@ body.ms-preview-open .modal-backdrop {
   border-top: 1px solid var(--line);
   margin-top: 4px;
 }
+
+/* ========= Past meeting indicator ========= */
+.past-meeting-banner {
+  background: #FEF3C7;
+  border-left: 4px solid #F59E0B;
+  color: #78350F;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.past-meeting-banner b { font-weight: 700; }
+
+.booking-form-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: contents;   /* let children inherit modal-body's grid/flow */
+}
+.booking-form-fields[disabled] .field-input,
+.booking-form-fields[disabled] select,
+.booking-form-fields[disabled] textarea,
+.booking-form-fields[disabled] input {
+  background: var(--bg-2);
+  color: var(--fg-3);
+  cursor: not-allowed;
+}
+.booking-form-fields[disabled] .chip {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.booking-form-fields[disabled] .combo-menu { display: none; }
