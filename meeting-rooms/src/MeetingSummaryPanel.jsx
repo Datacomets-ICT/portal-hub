@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   getNoteForBooking,
   startMeetingSummary,
@@ -14,7 +15,7 @@ import {
   buildPlainText,
   copyToClipboard,
   summaryToList,
-  buildReportHtml,
+  buildEmailHtml,
 } from './meetingExport.js';
 import MeetingEmailModal from './MeetingEmailModal.jsx';
 
@@ -573,53 +574,50 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             })()}
           />
 
-          {/* Two-column layout when editing OR previewing.
-              Left = read-only display or edit form. Right = live preview iframe. */}
-          {(editMode || previewOpen) && (
-            <div className="ms-edit-preview-grid">
-              <div className="ms-edit-pane">
-                {editMode && editedNote ? (
-                  <EditForm
-                    edited={editedNote}
-                    update={updateField}
-                    updateActionItem={updateActionItem}
-                    addActionItem={addActionItem}
-                    removeActionItem={removeActionItem}
-                    updateDecision={updateDecision}
-                    addDecision={addDecision}
-                    removeDecision={removeDecision}
-                    onSave={handleSaveEdit}
-                    onCancel={handleCancelEdit}
-                    saving={savingEdit}
-                  />
-                ) : (
-                  <ReadOnlyView note={note} />
-                )}
+          {/* Edit form takes the full panel width when active.
+              Preview is rendered separately as a floating portal
+              so it lives outside this modal — see PreviewPortal below. */}
+          {editMode && editedNote && (
+            <EditForm
+              edited={editedNote}
+              update={updateField}
+              updateActionItem={updateActionItem}
+              addActionItem={addActionItem}
+              removeActionItem={removeActionItem}
+              updateDecision={updateDecision}
+              addDecision={addDecision}
+              removeDecision={removeDecision}
+              onSave={handleSaveEdit}
+              onCancel={handleCancelEdit}
+              saving={savingEdit}
+            />
+          )}
+
+          {/* Floating preview pane on the right side of the viewport */}
+          {(editMode || previewOpen) && previewNote && createPortal(
+            <div className="ms-preview-floating">
+              <div className="ms-preview-head">
+                <span>📧 ตัวอย่าง Email</span>
+                <button
+                  type="button"
+                  className="ms-btn-ghost"
+                  onClick={() => { if (!editMode) setPreviewOpen(false); }}
+                  disabled={editMode}
+                  title={editMode ? 'ปิดได้หลังจากบันทึก/ยกเลิก' : 'ปิด preview'}
+                >✕</button>
               </div>
-              <div className="ms-preview-pane">
-                <div className="ms-preview-head">
-                  <span>👁️ ตัวอย่างที่จะส่ง / โหลด</span>
-                  <button
-                    type="button"
-                    className="ms-btn-ghost"
-                    onClick={() => { if (!editMode) setPreviewOpen(false); }}
-                    disabled={editMode}
-                    title={editMode ? 'ปิดได้หลังจากบันทึก/ยกเลิก' : 'ปิด preview'}
-                  >✕</button>
-                </div>
-                <iframe
-                  className="ms-preview-iframe"
-                  title="meeting summary preview"
-                  srcDoc={buildReportHtml({
-                    booking,
-                    room,
-                    employee,
-                    note: previewNote,
-                    includeStyles: true,
-                  })}
-                />
-              </div>
-            </div>
+              <iframe
+                className="ms-preview-iframe"
+                title="meeting summary email preview"
+                srcDoc={buildEmailHtml({
+                  booking,
+                  room,
+                  employee,
+                  note: previewNote,
+                })}
+              />
+            </div>,
+            document.body
           )}
 
           {/* Inline read-only display — only when not in edit/preview mode */}

@@ -2841,39 +2841,36 @@ tr.rr-clickable:hover { background: var(--bg-2); }
   padding: 8px 10px;
 }
 
-/* ========= Edit + Preview grid ========= */
-.ms-edit-preview-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 4px 0 8px;
-  align-items: start;
-}
-@media (max-width: 900px) {
-  .ms-edit-preview-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.ms-edit-pane {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 14px;
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.ms-preview-pane {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  overflow: hidden;
+/* ========= Floating Preview Panel (right side of viewport) =========
+   Rendered via React.createPortal to document.body so it lives
+   outside the booking modal's stacking context. Fixed-positioned
+   on the right edge of the viewport — the booking modal stays
+   centred, the preview slides in beside it. */
+.ms-preview-floating {
+  position: fixed;
+  right: 24px;
+  top: 60px;
+  bottom: 60px;
+  width: 540px;
+  max-width: calc(100vw - 48px);
+  z-index: 1100;            /* above the booking modal (z ≈ 1000) */
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25), 0 4px 12px rgba(15, 23, 42, 0.1);
   display: flex;
   flex-direction: column;
-  height: 600px;
-  position: sticky;
-  top: 12px;
+  overflow: hidden;
+  animation: ms-slide-in 0.2s ease-out;
+}
+@keyframes ms-slide-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@media (max-width: 1280px) {
+  .ms-preview-floating { width: 460px; right: 16px; }
+}
+@media (max-width: 1024px) {
+  .ms-preview-floating { width: 400px; right: 12px; top: 80px; bottom: 80px; }
 }
 .ms-preview-head {
   display: flex;
