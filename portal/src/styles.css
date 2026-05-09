@@ -1662,3 +1662,97 @@ a { color: var(--accent); text-decoration: none; }
     margin-top: 4px;
   }
 }
+
+/* =========================================================
+   MOBILE POLISH — Workspace Hub (Round 4)
+   Targeted gaps the existing breakpoints didn't cover.
+   ========================================================= */
+@media (max-width: 768px) {
+  /* Hub container — looser side padding eats the viewport */
+  .hub-wrap {
+    padding: 18px 14px 64px;
+  }
+
+  /* Sticky nav — tighter on phones, with iPhone notch safe-area */
+  .shell-nav {
+    padding: 10px 14px;
+    gap: 10px;
+    padding-top: max(10px, env(safe-area-inset-top, 0px));
+  }
+  .nav-time {
+    padding: 6px 10px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  /* User pill — keep avatar visible, hide the secondary id text */
+  .user-btn { padding: 4px 10px 4px 4px; font-size: 13px; }
+  .user-btn .user-id { display: none; }
+  .user-btn .caret { display: none; }
+
+  /* Popover menu — anchor full-width so it doesn't run off-screen */
+  .menu-pop {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    min-width: 0;
+  }
+
+  /* Inputs — bump to 16px on phones to stop iOS auto-zoom */
+  .field input,
+  .field select,
+  .field textarea {
+    font-size: 16px;
+    padding: 12px 14px;
+    min-height: 44px;
+  }
+
+  /* Login / Register card padding */
+  .login-card { padding: 24px 18px; }
+  .register-card { padding: 24px 16px; }
+
+  /* Buttons — touch-friendly height (matches Apple/Google HIG 44px) */
+  .btn { padding: 11px 16px; min-height: 44px; }
+
+  /* App grid — single column for easier one-handed tapping */
+  .app-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .app-card { padding: 18px 18px 16px; }
+
+  /* Profile modal — full-screen sheet instead of floating box */
+  .modal-backdrop { padding: 0; place-items: stretch; }
+  .profile-modal {
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+  }
+
+  /* Hub footer — leave room for iPhone home indicator */
+  .hub-footer {
+    margin-top: 32px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Tap feedback on cards (replaces hover, which doesn't fire on touch) */
+  .app-card:active {
+    transform: scale(0.98);
+    transition: transform .08s;
+  }
+}
+
+/* Entry-level phones (≤ 380px) — squeeze nav further */
+@media (max-width: 380px) {
+  .shell-nav { padding-left: 10px; padding-right: 10px; gap: 6px; }
+  .brand-name { display: none; }
+  .nav-time { display: none; }
+  .hub-wrap { padding: 14px 10px 64px; }
+}
+
+/* Touch-only devices — hide the oneko cat on phones (it's a desktop easter
+   egg and can interfere with taps near the bottom of the viewport) */
+@media (pointer: coarse) {
+  #oneko { display: none !important; }
+}
