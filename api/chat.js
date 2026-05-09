@@ -654,12 +654,19 @@ export default async function handler(req, res) {
     }
 
     // Worklist (~2-5K tokens) — only needed while the AI is still
-    // matching the user's words to an issueType. After ~3 user turns the
-    // symptom is locked and the conversation is just collecting
-    // location / floor / department / priority — none of which need the
-    // worklist. Drop it to save the bulk of the per-request tokens.
+    // matching the user's words to an issueType. After ~4 user turns the
+    // symptom is almost always locked and the conversation is just
+    // collecting location / floor / department / priority — none of which
+    // need the worklist. Drop it to save the bulk of the per-request
+    // tokens.
+    //
+    // Threshold = 4 (not 3) to cover the "ask device first" 2-step flow:
+    //   t1 user: "หน้าจอดับ"
+    //   t2 user: "PC"             ← still need worklist to list PC's symptoms
+    //   t3 user: "หน้าจอฟ้า"      ← still need worklist to confirm
+    //   t4 user: "Comets HQ"      ← safe to drop, location onwards
     const userTurns = safeMessages.filter(m => m.role === 'user').length;
-    const symptomLikelyLocked = userTurns >= 3;
+    const symptomLikelyLocked = userTurns >= 4;
     if (!symptomLikelyLocked && Array.isArray(worklist) && worklist.length > 0) {
       const byJob = {};
       for (const r of worklist) {
