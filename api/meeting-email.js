@@ -1,5 +1,5 @@
 // Vercel serverless function — send a meeting summary as a formal
-// HTML email via the Resend API.
+// HTML email via Gmail SMTP (nodemailer).
 //
 // Body shape:
 //   {
@@ -10,10 +10,15 @@
 //     message: "..."                             // optional intro paragraph
 //   }
 //
-// Reads RESEND_API_KEY + EMAIL_FROM from env. EMAIL_FROM defaults to
-// the Resend onboarding sandbox sender so the feature works as soon
-// as the key is set (with the caveat that the sandbox can only send
-// to the account holder until a domain is verified).
+// Required env vars:
+//   GMAIL_USER          — the gmail address that does the sending
+//   GMAIL_APP_PASSWORD  — 16-char app password (NOT the gmail password)
+//                         created at https://myaccount.google.com/apppasswords
+//                         (requires 2-step verification enabled first)
+//   EMAIL_FROM (opt)    — display name + address shown to recipients,
+//                         defaults to "Teamdata <${GMAIL_USER}>"
+
+import nodemailer from 'nodemailer';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://dixechuojsfaypagbfqu.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
@@ -245,28 +250,34 @@ function buildEmailHtml({ booking, room, note, message }) {
 </body></html>`;
 }
 
-// ===== Resend send helper =====
-async function sendViaResend({ from, to, cc, subject, html, replyTo }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error('RESEND_API_KEY not set');
-
-  const body = { from, to, subject, html };
-  if (cc && cc.length) body.cc = cc;
-  if (replyTo) body.reply_to = replyTo;
-
-  const r = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) {
-    const text = (await r.text()).slice(0, 400);
-    throw new Error(`Resend ${r.status}: ${text}`);
+// ===== Gmail SMTP send helper (nodemailer) =====
+let _transporter = null;
+function getTransporter() {
+  if (_transporter) return _transporter;
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+  if (!user || !pass) {
+    throw new Error('GMAIL_USER / GMAIL_APP_PASSWORD env vars not set');
   }
-  return await r.json();
+  // Gmail's documented SMTP relay — service:'gmail' auto-fills host/port.
+  _transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+  });
+  return _transporter;
+}
+
+async function sendViaGmail({ from, to, cc, subject, html, replyTo }) {
+  const transporter = getTransporter();
+  const result = await transporter.sendMail({
+    from,
+    to: Array.isArray(to) ? to.join(', ') : to,
+    cc: cc && cc.length ? (Array.isArray(cc) ? cc.join(', ') : cc) : undefined,
+    subject,
+    html,
+    replyTo: replyTo || undefined,
+  });
+  return result;  // { messageId, accepted, rejected, ... }
 }
 
 function normaliseEmails(input) {
@@ -313,10 +324,19 @@ export default async function handler(req, res) {
     const subject = customSubject
       || `[สรุปการประชุม] ${booking?.title || 'ประชุม'}${dateStr ? ' - ' + dateStr : ''}`;
 
-    const from = process.env.EMAIL_FROM || 'Teamdata <onboarding@resend.dev>';
+    const gmailUser = process.env.GMAIL_USER || '';
+    const from = process.env.EMAIL_FROM
+      || (gmailUser ? `Teamdata <${gmailUser}>` : 'Teamdata');
 
-    const result = await sendViaResend({ from, to, cc, subject, html });
-    return res.status(200).json({ ok: true, id: result.id, sent_to: to.length, sent_cc: cc.length });
+    const result = await sendViaGmail({ from, to, cc, subject, html });
+    return res.status(200).json({
+      ok: true,
+      messageId: result.messageId,
+      accepted: result.accepted,
+      rejected: result.rejected,
+      sent_to: to.length,
+      sent_cc: cc.length,
+    });
   } catch (err) {
     console.error('[meeting-email]', err);
     return res.status(500).json({ error: String(err.message || err) });
