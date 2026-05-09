@@ -589,6 +589,9 @@
             .chat-sidebar { top: auto; bottom: 12px; left: 12px; transform: none; flex-direction: row; border-radius: 14px; border: 1px solid var(--border); padding: 8px 10px; gap: 10px; }
             .sb-btn { width: 40px; height: 40px; font-size: 14px; }
             .sb-btn .sb-label { display: none; }
+            /* When AI chat tab is open, the FABs overlap the camera/upload
+               button at the bottom of the chat. Hide them while in chat. */
+            body.aichat-active .chat-sidebar { display: none !important; }
         }
 
         /* ===== Notification Toast (popup) ===== */
@@ -1845,6 +1848,9 @@ function showTab(id, btn) {
     document.getElementById(id).style.display = 'block';
     document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
+    // Hide the floating chat sidebar while the AI chat tab is active —
+    // on phones the two FABs sit on top of the chat's camera button.
+    document.body.classList.toggle('aichat-active', id === 'tabReport');
     if (id === 'tabTicketList') loadTickets();
     if (id === 'tabFaq') loadFaq();
     if (id === 'tabDashboard') loadDashboard();
