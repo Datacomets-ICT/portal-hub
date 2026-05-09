@@ -2844,33 +2844,65 @@ tr.rr-clickable:hover { background: var(--bg-2); }
 /* ========= Floating Preview Panel (right side of viewport) =========
    Rendered via React.createPortal to document.body so it lives
    outside the booking modal's stacking context. Fixed-positioned
-   on the right edge of the viewport — the booking modal stays
-   centred, the preview slides in beside it. */
+   on the right half of the viewport. When this panel is open, the
+   booking modal also shifts to the left half (see .ms-preview-open
+   .modal-backdrop below) so they stack side-by-side instead of
+   overlapping. */
 .ms-preview-floating {
   position: fixed;
-  right: 24px;
-  top: 60px;
-  bottom: 60px;
-  width: 540px;
-  max-width: calc(100vw - 48px);
-  z-index: 1100;            /* above the booking modal (z ≈ 1000) */
+  right: 32px;
+  top: 40px;
+  bottom: 40px;
+  width: calc(50vw - 56px);   /* fills the right half */
+  max-width: 760px;
+  min-width: 420px;
+  z-index: 1100;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.25), 0 4px 12px rgba(15, 23, 42, 0.1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: ms-slide-in 0.2s ease-out;
+  animation: ms-slide-in 0.22s ease-out;
 }
 @keyframes ms-slide-in {
-  from { transform: translateX(20px); opacity: 0; }
+  from { transform: translateX(30px); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
 }
+
+/* When preview is open, slide the booking modal to the left half
+   of the viewport so the preview can take the right half. The
+   modal-backdrop uses `place-items: center` by default — switch to
+   `center start` so the modal hugs the left edge instead. */
+body.ms-preview-open .modal-backdrop {
+  place-items: center start;
+  padding-left: 32px;
+  padding-right: calc(50vw + 16px);   /* reserve right half for preview */
+  transition: padding 0.22s ease-out;
+}
+
 @media (max-width: 1280px) {
-  .ms-preview-floating { width: 460px; right: 16px; }
+  .ms-preview-floating { right: 16px; min-width: 380px; }
+  body.ms-preview-open .modal-backdrop {
+    padding-left: 16px;
+    padding-right: calc(50vw + 8px);
+  }
 }
 @media (max-width: 1024px) {
-  .ms-preview-floating { width: 400px; right: 12px; top: 80px; bottom: 80px; }
+  /* Below this width side-by-side gets too cramped — fall back to
+     overlay (preview floats over the modal). */
+  body.ms-preview-open .modal-backdrop {
+    place-items: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .ms-preview-floating {
+    width: calc(100vw - 32px);
+    right: 16px;
+    top: 80px;
+    bottom: 80px;
+    min-width: 0;
+  }
 }
 .ms-preview-head {
   display: flex;

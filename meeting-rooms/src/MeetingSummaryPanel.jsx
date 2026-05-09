@@ -287,6 +287,19 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
   // Edit + preview UI state
   const [editMode, setEditMode] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Toggle a body class so global CSS can shift the booking modal
+  // left and reserve the right half of the viewport for the preview
+  // pane. Cleared on unmount so we don't leave the modal off-centre
+  // after the panel disappears.
+  useEffect(() => {
+    if (previewOpen || editMode) {
+      document.body.classList.add('ms-preview-open');
+    } else {
+      document.body.classList.remove('ms-preview-open');
+    }
+    return () => document.body.classList.remove('ms-preview-open');
+  }, [previewOpen, editMode]);
   const [editedNote, setEditedNote] = useState(null); // working copy while editing
   const [savingEdit, setSavingEdit] = useState(false);
 
