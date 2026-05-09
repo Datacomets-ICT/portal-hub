@@ -2,11 +2,12 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>IT Ticket System</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#4F46E5">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="IT Ticket">
     <link rel="apple-touch-icon" href="/icon-192.png">
@@ -589,9 +590,6 @@
             .chat-sidebar { top: auto; bottom: 12px; left: 12px; transform: none; flex-direction: row; border-radius: 14px; border: 1px solid var(--border); padding: 8px 10px; gap: 10px; }
             .sb-btn { width: 40px; height: 40px; font-size: 14px; }
             .sb-btn .sb-label { display: none; }
-            /* When AI chat tab is open, the FABs overlap the camera/upload
-               button at the bottom of the chat. Hide them while in chat. */
-            body.aichat-active .chat-sidebar { display: none !important; }
         }
 
         /* ===== Notification Toast (popup) ===== */
@@ -731,126 +729,11 @@
         @media (max-width: 768px) {
             .navbar { padding: 0 12px; flex-wrap: wrap; height: auto; padding: 8px 12px; gap: 6px; }
             .navbar .brand { font-size: 14px; }
-            .content { padding: 14px 12px 80px; } /* extra bottom for floating nav */
+            .content { padding: 14px; }
+            .ticket-table { overflow-x: auto; }
+            .ticket-table table { min-width: 700px; }
             .user-info-bar { flex-direction: column; gap: 6px; }
-            .ticket-form-card { padding: 18px 16px; }
-
-            /* ===== MOBILE TOUCH-FRIENDLY OVERRIDES ===== */
-            /* iOS zooms <16px inputs on focus — keep all form fields ≥16px */
-            input, select, textarea, .form-input { font-size: 16px !important; }
-            .btn { min-height: 44px; padding: 11px 18px; }
-            .btn-sm { min-height: 38px; padding: 8px 14px; }
-            /* Tap feedback for any button */
-            button:active { transform: scale(0.97); transition: transform .08s; }
-
-            /* Modal padding tighter + full-width */
-            .modal { padding: 18px 16px; max-height: 92vh; border-radius: 14px; }
-
-            /* Detail rows stack instead of label+value side-by-side */
-            .detail-row { flex-direction: column !important; align-items: stretch !important; gap: 2px !important; }
-            .detail-row .dlabel { width: auto !important; min-width: 0 !important; font-size: 11.5px !important; opacity: 0.7; }
-            .detail-row .dvalue { font-size: 14px !important; }
-
-            /* Search input: don't overflow filter row */
-            .ticket-filter-bar input[type="text"],
-            .ticket-filter-bar input[type="search"],
-            input.search-input { width: 100% !important; max-width: none !important; box-sizing: border-box; }
-            .ticket-filter-bar { flex-direction: column; align-items: stretch; gap: 8px; }
-            .ticket-filter-bar > * { width: 100%; }
-
-            /* Toast overlay safety on mobile */
-            .toast-container { right: 8px; left: 8px; max-width: none; }
-
-            /* ===== TICKET TABLE → CARD VIEW ===== */
-            /* Repaint each <tr> as a stacked card with labelled cells.
-               No HTML change required — labels come from ::before. */
-            .ticket-table { overflow-x: visible; }
-            .ticket-table table {
-                min-width: 0 !important;
-                width: 100%;
-                border-collapse: separate;
-                border-spacing: 0;
-                background: transparent !important;
-            }
-            .ticket-table thead { display: none; }
-            .ticket-table tbody { display: block; }
-            .ticket-table tr {
-                display: grid;
-                grid-template-columns: 1fr auto;
-                gap: 4px 12px;
-                background: var(--card);
-                border: 1px solid var(--border);
-                border-radius: 12px;
-                padding: 14px 14px 12px;
-                margin-bottom: 10px;
-                box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
-                position: relative;
-            }
-            .ticket-table td {
-                display: block;
-                padding: 0;
-                border: 0;
-                font-size: 13.5px;
-                line-height: 1.5;
-                color: var(--fg, #1e293b);
-            }
-            /* Add inline labels via ::before */
-            .ticket-table td::before {
-                content: attr(data-label);
-                display: block;
-                font-size: 10.5px;
-                font-weight: 700;
-                color: var(--muted, #6b7280);
-                text-transform: uppercase;
-                letter-spacing: 0.4px;
-                margin-bottom: 2px;
-            }
-            /* Column-specific labels (cells in source order) */
-            .ticket-table td:nth-child(1) { grid-column: 1 / 2; }
-            .ticket-table td:nth-child(1)::before { content: 'Ticket #'; }
-            .ticket-table td:nth-child(2) { grid-column: 2 / 3; text-align: right; }
-            .ticket-table td:nth-child(2)::before { content: 'วันที่'; }
-            .ticket-table td:nth-child(3) { grid-column: 1 / -1; }
-            .ticket-table td:nth-child(3)::before { content: 'ประเภทงาน'; }
-            .ticket-table td:nth-child(4) { display: none; } /* issueType — fold into row 5 */
-            .ticket-table td:nth-child(5) { grid-column: 1 / -1; }
-            .ticket-table td:nth-child(5)::before { content: 'อาการ'; }
-            .ticket-table td:nth-child(6) { grid-column: 1 / -1; }
-            .ticket-table td:nth-child(6)::before { content: 'สถานที่'; }
-            .ticket-table td:nth-child(7) { grid-column: 1 / 2; }
-            .ticket-table td:nth-child(7)::before { content: 'Priority'; }
-            .ticket-table td:nth-child(8) { grid-column: 2 / 3; text-align: right; }
-            .ticket-table td:nth-child(8)::before { content: 'สถานะ'; }
-            .ticket-table td:nth-child(9) { grid-column: 1 / 2; }
-            .ticket-table td:nth-child(9)::before { content: 'SLA'; }
-            .ticket-table td:nth-child(10) { grid-column: 2 / 3; text-align: right; }
-            .ticket-table td:nth-child(10)::before { content: 'ผู้ดำเนินการ'; }
-            .ticket-table td:nth-child(11) {
-                grid-column: 1 / -1;
-                margin-top: 8px;
-                padding-top: 10px;
-                border-top: 1px solid var(--line, #f1f5f9);
-                display: flex !important;
-                gap: 6px;
-                flex-wrap: wrap;
-            }
-            .ticket-table td:nth-child(11)::before { display: none; }
-            .ticket-table td:nth-child(11) .btn { flex: 1; min-width: 60px; }
-        }
-
-        /* Even smaller phones — collapse some sections further */
-        @media (max-width: 380px) {
-            .content { padding: 12px 8px 80px; }
-            .ticket-table tr { padding: 12px; }
-            .navbar .brand { display: none; }
-        }
-
-        /* iPhone notch / home indicator safe areas */
-        @supports (padding: env(safe-area-inset-bottom)) {
-            @media (max-width: 768px) {
-                body { padding-bottom: env(safe-area-inset-bottom); }
-                .chat-sidebar { bottom: calc(12px + env(safe-area-inset-bottom)) !important; }
-            }
+            .ticket-form-card { padding: 20px; }
         }
     </style>
 </head>
@@ -1717,7 +1600,20 @@
             <!-- ===== Permission slip section — always visible; supports retroactive upload ===== -->
             <div class="form-group" id="adminEditPermGroup" style="padding:14px; background:#FFFBEB; border:1px solid #FCD34D; border-radius:10px;">
                 <label style="color:#92400E;"><i class="fas fa-file-signature" style="color:#D97706;"></i> ใบขอสิทธิ์ <span id="adminEditPermBadge" style="margin-left:6px; padding:2px 8px; border-radius:999px; font-size:11px; background:#FEF3C7; color:#92400E;">ต้องทำ</span></label>
-                <p id="adminEditPermNote" style="font-size:11px; color:#78350F; margin:2px 0 10px 0;">แนบใบขอสิทธิ์ที่นี่ — ระบบจะ mark เป็น "อนุมัติแล้ว" อัตโนมัติเมื่อแนบไฟล์</p>
+                <p id="adminEditPermNote" style="font-size:11px; color:#78350F; margin:2px 0 10px 0;">แนบใบย้อนหลังได้ — ระบบจะอัปเดตสถานะให้อัตโนมัติเมื่อแนบไฟล์</p>
+                <div class="form-row" style="margin-bottom:8px;">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label style="font-size:12px;">สถานะ</label>
+                        <select id="adminEditPermStatus">
+                            <option value="approved">✅ อนุมัติแล้ว</option>
+                            <option value="rejected">❌ ไม่อนุมัติ</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label style="font-size:12px;">เลขที่ใบ (ถ้ามี)</label>
+                        <input type="text" id="adminEditPermDocNo" placeholder="เช่น REQ-2025-001" maxlength="50">
+                    </div>
+                </div>
                 <label class="file-upload-zone" for="adminPermDocFile" style="margin-bottom:6px;">
                     <i class="fas fa-upload"></i>
                     <div class="upload-text"><p>อัปโหลดไฟล์ใบขอสิทธิ์</p><span class="hint">PDF / JPG / PNG ไม่เกิน 10 MB</span></div>
@@ -1944,8 +1840,6 @@ let assignees      = [];       // list of IT staff (is_admin = true)
 let worklist       = {};
 let worklistPerm   = {};       // jobType -> issueType -> {symptom: needsPermission(bool)}
 let adminPermDocUrl = null;    // staged permission slip URL during admin edit
-let adminPermStatusInitial = ''; // remembered original permission status (UI no longer exposes it)
-let adminPermDocNoInitial  = ''; // remembered original permission doc number (UI no longer exposes it)
 let currentFilter  = 'all';
 let adminFilter    = 'all';
 let adminPlant     = '';       // selected plant in admin tab
@@ -1963,9 +1857,6 @@ function showTab(id, btn) {
     document.getElementById(id).style.display = 'block';
     document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
-    // Hide the floating chat sidebar while the AI chat tab is active —
-    // on phones the two FABs sit on top of the chat's camera button.
-    document.body.classList.toggle('aichat-active', id === 'tabReport');
     if (id === 'tabTicketList') loadTickets();
     if (id === 'tabFaq') loadFaq();
     if (id === 'tabDashboard') loadDashboard();
@@ -2993,15 +2884,15 @@ function populatePermSlipSection(t) {
     permGroup.style.display = '';
     const required = !!t.permissionRequired;
     const hasDoc   = !!t.permissionDocUrl;
-    // The status dropdown + doc-no input were removed from the UI per
-    // user request — admins just upload the file and we auto-mark it
-    // approved. Capture the existing values so we can pass them
-    // through unchanged on save (or default to 'approved' on first
-    // upload).
-    adminPermStatusInitial = (t.permissionStatus === 'approved' || t.permissionStatus === 'rejected')
+    // Dropdown only offers approved / rejected (per user request — pending +
+    // submitted removed). Old tickets stored with those statuses still
+    // render their badge correctly via labelMap below; the dropdown just
+    // falls through to the first option (approved) for them.
+    const ps = (t.permissionStatus === 'approved' || t.permissionStatus === 'rejected')
         ? t.permissionStatus
         : 'approved';
-    adminPermDocNoInitial = t.permissionDocNo || '';
+    document.getElementById('adminEditPermStatus').value = ps;
+    document.getElementById('adminEditPermDocNo').value  = t.permissionDocNo || '';
     adminPermDocUrl = t.permissionDocUrl || '';
 
     const badge = document.getElementById('adminEditPermBadge');
@@ -4042,12 +3933,9 @@ async function saveAdminEdit() {
         replyPhotos: replyPhotoUrls.length > 0 ? replyPhotoUrls : undefined,
     };
 
-    // Permission slip — always send so retroactive uploads stick.
-    // Status + docNo no longer have UI controls; auto-derive from
-    // whether a file is currently attached (approved when yes,
-    // preserve previous value otherwise).
-    payload.permissionStatus = adminPermDocUrl ? 'approved' : adminPermStatusInitial;
-    payload.permissionDocNo  = adminPermDocNoInitial || '';
+    // Permission slip — always send so retroactive uploads stick
+    payload.permissionStatus = document.getElementById('adminEditPermStatus').value;
+    payload.permissionDocNo  = document.getElementById('adminEditPermDocNo').value.trim();
     payload.permissionDocUrl = adminPermDocUrl || '';
     setLoading(true);
     try {
@@ -4704,16 +4592,7 @@ function appendChatMsg(role, text, images) {
     // already produced get an onclick + button styling.
     if (role === 'bot') {
         const opts = extractNumberedOptions(text);
-        // A bot bubble with 2+ numbered options + a "?" anywhere in the
-        // message is always a pick prompt — even if the "?" is on an early
-        // line and the list comes after. The old check only looked at the
-        // tail of text.trim(), which misses the common pattern:
-        //   "เข้าใจครับ Email ติดอะไรครับ?\n1. ...\n2. ...\n3. ..."
-        // because trim() leaves "...อื่นๆ (ระบุเอง)**" at the end, not "?".
-        const isPickPrompt = opts.length >= 2 && (
-            /[?？]/.test(text) ||
-            /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด|อะไรครับ|อะไรคะ|อะไรบ้าง/i.test(text)
-        );
+        const isPickPrompt = /[?？]\s*$/.test(text.trim()) || /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด/i.test(text);
         if (opts.length >= 2 && isPickPrompt) {
             const steps = div.querySelectorAll('.chat-step');
             steps.forEach((step, i) => {
@@ -4859,30 +4738,6 @@ function renderAIChatImagePreview() {
     ).join('');
 }
 
-// Resize + JPEG-encode an image to a base64 data URI before uploading to
-// /api/chat. The OCR Vision call works fine on small (≤1280px) images
-// and 25MB of raw upload would blow Vercel's 4.5MB request-body limit
-// for a 5-image batch.
-async function resizeImageToDataUri(file, maxDim = 1280, quality = 0.85) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => {
-            URL.revokeObjectURL(url);
-            const ratio = Math.min(maxDim / img.width, maxDim / img.height, 1);
-            const canvas = document.createElement('canvas');
-            canvas.width  = Math.round(img.width  * ratio);
-            canvas.height = Math.round(img.height * ratio);
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            try { resolve(canvas.toDataURL('image/jpeg', quality)); }
-            catch { resolve(''); }
-        };
-        img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
-        img.src = url;
-    });
-}
-
 async function sendChat() {
     if (chatBusy) return;
     const input = document.getElementById('chatInput');
@@ -4925,18 +4780,6 @@ async function sendChat() {
         }
     }
 
-    // Resize + base64-encode any newly attached images so /api/chat can
-    // run Gemini Vision OCR on them and inject the extracted text into
-    // the user's message before sending to the LLM.
-    let imagePayload = [];
-    if (attachedImages.length > 0) {
-        try {
-            imagePayload = (await Promise.all(
-                attachedImages.map(f => resizeImageToDataUri(f, 1280, 0.85))
-            )).filter(Boolean);
-        } catch { imagePayload = []; }
-    }
-
     // Retry fetch up to 2 times on error (Groq rate limit ฯลฯ)
     async function tryChat(attempt = 0) {
         const res = await fetch('/api/chat', {
@@ -4947,7 +4790,6 @@ async function sendChat() {
                 sessionId: chatSessionId,
                 employeeId: currentUser ? currentUser.employeeId : '',
                 worklist: chatWorklist,
-                images: imagePayload,
             }),
         });
         // The /api/chat endpoint already walks Groq → Gemini → Groq-8b on
@@ -4965,22 +4807,6 @@ async function sendChat() {
     try {
         const data = await tryChat();
         removeTyping();
-
-        // Show OCR result first so user can SEE the AI read their image
-        // (or that OCR failed). Helps debug + builds trust ("the bot
-        // really did look at my screenshot").
-        // Only surface OCR status when something went WRONG. Successful
-        // reads stay invisible — the bot will reference what it saw in
-        // its own message anyway, so dumping the raw extracted text in
-        // a separate yellow panel was just noise.
-        if (data.ocr) {
-            if (data.ocr.status === 'no-key') {
-                appendChatMsg('system', '⚠️ ระบบ OCR ปิดอยู่ — กรุณาพิมพ์ error ที่เห็นในรูปลงมาให้ครับ');
-            } else if (data.ocr.status === 'error') {
-                appendChatMsg('system', '⚠️ AI อ่านรูปไม่สำเร็จ — กรุณาพิมพ์ error ที่เห็นลงมาแทน');
-            }
-            // ok / no-text / empty → silent
-        }
 
         appendChatMsg('bot', data.reply);
         chatHistory.push({ role: 'assistant', content: data.reply });
@@ -5018,21 +4844,16 @@ function heuristicExtract(history) {
     // Returning '' when nothing matched lets the draft modal stay empty
     // until the user actually picks one (B3: was defaulting to 'medium'
     // which bypassed the "no priority guessing" guardrail end-to-end).
-    // SCAN USER TEXT ONLY: bot's priority chooser lists the labels
-    // ("🟠 สำคัญ (ต้องใช้วันนี้)") which used to trigger this regex
-    // and pre-fill priority before the user had picked anything.
     let priority = '';
-    if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(userText)) priority = 'urgent';
-    else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(userText)) priority = 'high';
-    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(userText)) priority = 'medium';
-    else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(userText)) priority = 'low';
+    if (/ด่วนมาก|ฉุกเฉิน|วิกฤต|urgent|งานหยุด|ทำงานไม่ได้เลย/i.test(all)) priority = 'urgent';
+    else if (/\bด่วน\b|\bhigh\b|สำคัญ|ต้องใช้วันนี้/i.test(all)) priority = 'high';
+    else if (/ปกติ|\bmedium\b|มีทางเลี่ยง|พอเลี่ยงได้/i.test(all)) priority = 'medium';
+    else if (/ไม่เร่ง|\blow\b|ไม่รีบ/i.test(all)) priority = 'low';
 
-    // Location — same fix: bot lists "1. Comets HQ 2. Comets FAC ..."
-    // so any of those names appear in `all` regardless of what the user
-    // typed. User text only.
+    // Location
     const locs = ['Comets HQ', 'Comets FAC', 'ICT', 'JA'];
     let location = '';
-    for (const l of locs) if (userText.includes(l)) { location = l; break; }
+    for (const l of locs) if (all.includes(l)) { location = l; break; }
 
     // Location detail (โต๊ะ/ชั้น/ห้อง)
     let locationDetail = '';
@@ -5061,12 +4882,9 @@ function heuristicExtract(history) {
     // เอาแค่ข้อความแรก (ปัญหาหลัก) — ไม่รวม context หลัง
     const request = userMsgs[0] || '';
 
-    // Keyword-based fallback: scan ONLY user messages for issue clues.
-    // Including bot text (`all`) caused Bug B: when the bot lists device
-    // options ("1. PC ตั้งโต๊ะ 2. Notebook 3. Macbook ..."), the word
-    // "Macbook" appears in haystack and the device check picks Macbook
-    // even though the user actually clicked Notebook. User text only.
-    const haystack = userText.toLowerCase();
+    // Keyword-based fallback: scan request + history for common issue clues
+    // so we still pre-fill jobType/issueType/symptom even if Groq fails.
+    const haystack = (request + ' ' + all).toLowerCase();
     const guess = guessIssueFromText(haystack);
 
     return { request, priority, location, locationDetail, vncNumber, ...guess };
@@ -5092,47 +4910,14 @@ function guessIssueFromText(text) {
     // over the permission classifier because the bot's own reply often
     // contains "ขอ..." (e.g. "ขอข้อมูลเพิ่ม") which used to flip isRequest
     // and route the whole conversation to ขอสิทธิ์เข้าระบบ.
-    // Catches every common phrasing for "computer/screen has a problem":
-    // dead screen, BSOD, freeze, won't boot, slow, restarts on its own, plus
-    // generic "หน้าจอ/จอคอม + (ปัญหา|มีปัญหา|เพี้ยน|แตก|ไม่ติด|ไม่ทำงาน|ดับ|...)".
-    // We deliberately catch "หน้าจอคอม[anything]" so the bot asks
-    // device type instead of falling through to the จอคอมพิวเตอร์ rule
-    // (which is for separate external monitors).
-    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|คอม.*(?:ดับ|พัง|เสีย|ค้าง|เปิดไม่ติด|ไม่บูต|มีปัญหา|ปัญหา|รีสตาร์ทเอง|ช้า)|หน้าจอคอม|จอคอม|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|เครื่องช้า|รีสตาร์ทเอง|reboot.*เอง|(?:หน้าจอ|จอ).*(?:ดับ|ปัญหา|มีปัญหา|เพี้ยน|แตก|ไม่ติด|ไม่ทำงาน|ไม่บูต|ฟ้า)/i;
-    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์']) {
-        // Pick device explicitly mentioned. If ambiguous → leave issueType
-        // empty so the bot asks "ใช้เครื่องอะไร?" instead of defaulting to PC.
-        // When user mentions multiple devices (e.g., changed mind from PC to
-        // Notebook), pick the one they said LAST — that's their final answer.
-        const devicePatterns = [
-            { it: 'Macbook',  re: /macbook|แมคบุ๊ก|แมคบุค/i },
-            { it: 'iMac',     re: /\bimac\b/i },
-            { it: 'Notebook', re: /notebook|laptop|โน้ตบุ๊ก|โน้ตบุค|โนตบุ๊ก/i },
-            { it: 'PC',       re: /\bpc\b|ตั้งโต๊ะ|desktop/i },
-        ];
-        let deviceIt = '';
-        let lastIdx = -1;
-        for (const { it, re } of devicePatterns) {
-            // Find the last occurrence of this device in the text
-            const matches = [...text.matchAll(new RegExp(re.source, re.flags + 'g'))];
-            if (matches.length === 0) continue;
-            const idx = matches[matches.length - 1].index;
-            if (idx > lastIdx) { lastIdx = idx; deviceIt = it; }
-        }
-
-        if (deviceIt && worklist['คอมพิวเตอร์'][deviceIt]) {
-            const syms = worklist['คอมพิวเตอร์'][deviceIt] || [];
-            let symptom = '';
-            if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && syms.includes('หน้าจอฟ้า')) symptom = 'หน้าจอฟ้า';
-            else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && syms.includes('เครื่องเปิดไม่ติด')) symptom = 'เครื่องเปิดไม่ติด';
-            else if (/ช้า/i.test(text) && syms.includes('เครื่องช้า')) symptom = 'เครื่องช้า';
-            else if (/ชาร์จไฟไม่เข้า|ชาร์จไม่เข้า/i.test(text) && syms.includes('ชาร์จไฟไม่เข้า')) symptom = 'ชาร์จไฟไม่เข้า';
-            return { jobType: 'คอมพิวเตอร์', issueType: deviceIt, symptom };
-        }
-        // Ambiguous — only know it's a computer hardware failure. Let the
-        // bot ask "ใช้เครื่องอะไร? PC / Notebook / Macbook / iMac" instead
-        // of mis-routing to PC.
-        return { jobType: 'คอมพิวเตอร์', issueType: '', symptom: '' };
+    const HARD_FAIL_RE = /จอฟ้า|หน้าจอฟ้า|blue\s*screen|bsod|หน้าจอคอม.*ดับ|คอม.*ดับ|คอมพังเสีย|คอมเสีย|คอมเปิดไม่ติด|คอมไม่บูต|เครื่องค้าง|เครื่องดับ|เครื่องเปิดไม่ติด|เครื่องพัง|รีสตาร์ทเอง|reboot.*เอง/i;
+    if (HARD_FAIL_RE.test(text) && worklist['คอมพิวเตอร์'] && worklist['คอมพิวเตอร์']['PC']) {
+        const pcSyms = worklist['คอมพิวเตอร์']['PC'] || [];
+        let symptom = '';
+        if (/หน้าจอฟ้า|จอฟ้า|blue\s*screen|bsod/i.test(text) && pcSyms.includes('หน้าจอฟ้า')) symptom = 'หน้าจอฟ้า';
+        else if (/เปิดไม่ติด|ไม่บูต|ดับ/i.test(text) && pcSyms.includes('เครื่องเปิดไม่ติด')) symptom = 'เครื่องเปิดไม่ติด';
+        else if (/ช้า/i.test(text) && pcSyms.includes('เครื่องช้า')) symptom = 'เครื่องช้า';
+        return { jobType: 'คอมพิวเตอร์', issueType: 'PC', symptom };
     }
 
     // Drop the leading word-boundary so phrasings like "อยากขอสิทธิ์ปริ้น"
@@ -5326,11 +5111,7 @@ function guessIssueFromText(text) {
               [/ยืม/i, 'ยืมสายชาร์จ'],
               [/เปลี่ยน/i, 'เปลี่ยนสายชาร์จใหม่'],
           ], defaultSym: 'อื่นๆ (โปรดระบุ)' },
-        // Standalone external monitor only — must be explicit ("จอแยก",
-        // "จอเสริม", "monitor", "จอที่ต่อ", "จอเสริม"). Generic "หน้าจอ"/"จอ"
-        // is handled by HARD_FAIL_RE above, which asks device type first.
-        { kw: /จอแยก|จอเสริม|จอที่ต่อ|external\s*monitor|\bmonitor\b/i,
-          jt: 'อุปกรณ์ไอที', it: 'จอคอมพิวเตอร์', symKw: [
+        { kw: /จอ|monitor|หน้าจอ/i, jt: 'อุปกรณ์ไอที', it: 'จอคอมพิวเตอร์', symKw: [
               [/เปิดไม่ติด/i, 'หน้าจอเปิดไม่ติด'],
           ], defaultSym: 'หน้าจอมีปัญหา' },
         // TV (meeting rooms)
@@ -6289,7 +6070,9 @@ async function onPermDocSelected(e) {
         if (upErr) throw upErr;
         const { data: pub } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
         adminPermDocUrl = pub.publicUrl;
-        // Status auto-flips to 'approved' on save now (no UI dropdown).
+        // Auto-bump status to "submitted" if it was still "pending"
+        const statusSel = document.getElementById('adminEditPermStatus');
+        if (statusSel && statusSel.value === 'pending') statusSel.value = 'submitted';
         renderPermDocPreview();
         showToast('แนบใบขอสิทธิ์เรียบร้อย', 'success');
     } catch (err) {
