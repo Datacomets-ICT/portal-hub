@@ -18,13 +18,18 @@ import {
 
 const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB — matches v18 bucket limit
 
+// User-facing labels stay generic — internally the system might cycle
+// through Whisper → Gemini → Deepgram, but the user just wants to know
+// "AI is working on it". Hiding the provider name avoids the awkward
+// "ลอง provider สำรอง" message that just looked like the system was
+// breaking down.
 const STAGE_LABEL = {
   storage:   '📤 อัปโหลดไฟล์เสียง...',
   process:   '✨ AI กำลังถอดเสียงและสรุป... (~30-90 วินาที)',
-  upload:    '🔄 ลอง provider สำรอง (Gemini)...',
-  processing:'⏳ Gemini กำลังเตรียมประมวลผล...',
-  generate:  '✨ Gemini กำลังสรุป...',
-  deepgram:  '🔄 ลอง provider สำรอง (Deepgram Nova-2)...',
+  upload:    '✨ AI กำลังถอดเสียงและสรุป...',
+  processing:'✨ AI กำลังประมวลผล...',
+  generate:  '✨ AI กำลังสรุป...',
+  deepgram:  '✨ AI กำลังถอดเสียงและสรุป...',
   done:      '✅ เสร็จแล้ว',
 };
 

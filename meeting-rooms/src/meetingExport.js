@@ -376,29 +376,48 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
     : bodyHtml;
 }
 
-// Lazy-load html2pdf.js from CDN so the bundle stays small.
-// Cached on window — second call is instant. Hard 15-second timeout
-// so the user gets a friendly error instead of a forever-spinner if
-// the CDN is blocked / slow / down.
-async function loadHtml2Pdf() {
-  if (window.html2pdf) return window.html2pdf;
-  await new Promise((resolve, reject) => {
+// Lazy-load a script from CDN with a hard 15-second timeout.
+function loadScript(src, globalName) {
+  if (globalName && window[globalName]) return Promise.resolve(window[globalName]);
+  return new Promise((resolve, reject) => {
     const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
+    s.src = src;
     let done = false;
     const finish = (fn) => () => { if (!done) { done = true; fn(); } };
     const timer = setTimeout(
-      finish(() => reject(new Error('โหลด html2pdf.js ไม่สำเร็จ (timeout) — ตรวจสอบอินเทอร์เน็ตหรือลอง ดาวน์โหลด Word แทน'))),
+      finish(() => reject(new Error(`โหลด script ไม่สำเร็จ (timeout 15s): ${src}`))),
       15000
     );
-    s.onload = finish(() => { clearTimeout(timer); resolve(); });
-    s.onerror = finish(() => { clearTimeout(timer); reject(new Error('โหลด html2pdf.js ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต')); });
+    s.onload = finish(() => {
+      clearTimeout(timer);
+      if (globalName && !window[globalName]) {
+        reject(new Error(`โหลดสำเร็จแต่ window.${globalName} ไม่มี`));
+      } else {
+        resolve(globalName ? window[globalName] : true);
+      }
+    });
+    s.onerror = finish(() => {
+      clearTimeout(timer);
+      reject(new Error(`โหลด script ไม่สำเร็จ: ${src}`));
+    });
     document.head.appendChild(s);
   });
-  if (!window.html2pdf) {
-    throw new Error('html2pdf โหลดสำเร็จแต่ window.html2pdf ไม่มี');
-  }
-  return window.html2pdf;
+}
+
+// html2canvas-pro is a fork that supports modern CSS (oklch, lch,
+// color-mix, etc.) — the original html2canvas chokes on oklch which
+// shows up via the host page's design tokens. jsPDF stays separate
+// so we can pass the rendered canvas in directly.
+async function loadPdfDeps() {
+  await loadScript(
+    'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.11/dist/html2canvas-pro.min.js',
+    'html2canvas'
+  );
+  await loadScript(
+    'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js',
+    'jspdf'
+  );
+  return { html2canvas: window.html2canvas, jsPDF: window.jspdf?.jsPDF };
 }
 
 // Wait for Sarabun (and any other added fonts) to be ready in the
@@ -411,11 +430,20 @@ async function waitForFonts(doc) {
 }
 
 // ===== Direct download as PDF (no print dialog) =====
+// html2canvas-pro renders the offscreen iframe → canvas → jsPDF
+// stitches multi-page output. Doing the orchestration ourselves
+// instead of relying on html2pdf.js means we can use html2canvas-pro
+// (oklch-safe) instead of html2pdf's bundled old html2canvas.
 export async function exportAsPdf(args) {
-  const html2pdf = await loadHtml2Pdf();
+  const { html2canvas, jsPDF } = await loadPdfDeps();
+  if (!html2canvas || !jsPDF) {
+    throw new Error('PDF library โหลดไม่สำเร็จ');
+  }
+
   const html = buildReportHtml({ ...args, includeStyles: true });
 
-  // Render in an off-screen iframe so styles don't leak into the host page.
+  // Render in an off-screen iframe so the host page's CSS variables
+  // (oklch design tokens, etc.) can't leak into the report.
   const frame = document.createElement('iframe');
   frame.style.cssText = 'position:fixed;left:-99999px;top:0;width:820px;height:1200px;border:0;visibility:hidden;';
   document.body.appendChild(frame);
@@ -424,29 +452,47 @@ export async function exportAsPdf(args) {
     await new Promise(res => { frame.onload = res; setTimeout(res, 800); });
     await waitForFonts(frame.contentDocument);
 
-    const safeTitle = (args.booking?.title || 'meeting').replace(/[^\w฀-๿-]+/g, '_').slice(0, 60);
-    const opt = {
-      margin: 0,
-      filename: `meeting-summary-${safeTitle}.pdf`,
-      image: { type: 'jpeg', quality: 0.96 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: 820,
-      },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    };
+    const body = frame.contentDocument.body;
+    // Resize the iframe to fit the actual rendered content height so
+    // html2canvas captures everything in one pass.
+    frame.style.height = body.scrollHeight + 'px';
 
-    // Hard timeout — html2canvas can rarely hang on broken images / CORS.
-    await Promise.race([
-      html2pdf().set(opt).from(frame.contentDocument.body).save(),
+    const renderPromise = html2canvas(body, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: 820,
+      windowHeight: body.scrollHeight,
+    });
+    const canvas = await Promise.race([
+      renderPromise,
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error('PDF render timeout (60s) — ลอง ดาวน์โหลด Word แทน')), 60000)
       ),
     ]);
+
+    // Stitch into a multi-page A4 PDF
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL('image/jpeg', 0.94);
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while (heightLeft > 0) {
+      position -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const safeTitle = (args.booking?.title || 'meeting').replace(/[^\w฀-๿-]+/g, '_').slice(0, 60);
+    pdf.save(`meeting-summary-${safeTitle}.pdf`);
   } finally {
     setTimeout(() => frame.remove(), 100);
   }
