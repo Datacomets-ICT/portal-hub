@@ -1599,20 +1599,7 @@
             <!-- ===== Permission slip section — always visible; supports retroactive upload ===== -->
             <div class="form-group" id="adminEditPermGroup" style="padding:14px; background:#FFFBEB; border:1px solid #FCD34D; border-radius:10px;">
                 <label style="color:#92400E;"><i class="fas fa-file-signature" style="color:#D97706;"></i> ใบขอสิทธิ์ <span id="adminEditPermBadge" style="margin-left:6px; padding:2px 8px; border-radius:999px; font-size:11px; background:#FEF3C7; color:#92400E;">ต้องทำ</span></label>
-                <p id="adminEditPermNote" style="font-size:11px; color:#78350F; margin:2px 0 10px 0;">แนบใบย้อนหลังได้ — ระบบจะอัปเดตสถานะให้อัตโนมัติเมื่อแนบไฟล์</p>
-                <div class="form-row" style="margin-bottom:8px;">
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label style="font-size:12px;">สถานะ</label>
-                        <select id="adminEditPermStatus">
-                            <option value="approved">✅ อนุมัติแล้ว</option>
-                            <option value="rejected">❌ ไม่อนุมัติ</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin-bottom:0;">
-                        <label style="font-size:12px;">เลขที่ใบ (ถ้ามี)</label>
-                        <input type="text" id="adminEditPermDocNo" placeholder="เช่น REQ-2025-001" maxlength="50">
-                    </div>
-                </div>
+                <p id="adminEditPermNote" style="font-size:11px; color:#78350F; margin:2px 0 10px 0;">แนบใบขอสิทธิ์ที่นี่ — ระบบจะ mark เป็น "อนุมัติแล้ว" อัตโนมัติเมื่อแนบไฟล์</p>
                 <label class="file-upload-zone" for="adminPermDocFile" style="margin-bottom:6px;">
                     <i class="fas fa-upload"></i>
                     <div class="upload-text"><p>อัปโหลดไฟล์ใบขอสิทธิ์</p><span class="hint">PDF / JPG / PNG ไม่เกิน 10 MB</span></div>
@@ -1839,6 +1826,8 @@ let assignees      = [];       // list of IT staff (is_admin = true)
 let worklist       = {};
 let worklistPerm   = {};       // jobType -> issueType -> {symptom: needsPermission(bool)}
 let adminPermDocUrl = null;    // staged permission slip URL during admin edit
+let adminPermStatusInitial = ''; // remembered original permission status (UI no longer exposes it)
+let adminPermDocNoInitial  = ''; // remembered original permission doc number (UI no longer exposes it)
 let currentFilter  = 'all';
 let adminFilter    = 'all';
 let adminPlant     = '';       // selected plant in admin tab
@@ -2883,15 +2872,15 @@ function populatePermSlipSection(t) {
     permGroup.style.display = '';
     const required = !!t.permissionRequired;
     const hasDoc   = !!t.permissionDocUrl;
-    // Dropdown only offers approved / rejected (per user request — pending +
-    // submitted removed). Old tickets stored with those statuses still
-    // render their badge correctly via labelMap below; the dropdown just
-    // falls through to the first option (approved) for them.
-    const ps = (t.permissionStatus === 'approved' || t.permissionStatus === 'rejected')
+    // The status dropdown + doc-no input were removed from the UI per
+    // user request — admins just upload the file and we auto-mark it
+    // approved. Capture the existing values so we can pass them
+    // through unchanged on save (or default to 'approved' on first
+    // upload).
+    adminPermStatusInitial = (t.permissionStatus === 'approved' || t.permissionStatus === 'rejected')
         ? t.permissionStatus
         : 'approved';
-    document.getElementById('adminEditPermStatus').value = ps;
-    document.getElementById('adminEditPermDocNo').value  = t.permissionDocNo || '';
+    adminPermDocNoInitial = t.permissionDocNo || '';
     adminPermDocUrl = t.permissionDocUrl || '';
 
     const badge = document.getElementById('adminEditPermBadge');
@@ -3932,9 +3921,12 @@ async function saveAdminEdit() {
         replyPhotos: replyPhotoUrls.length > 0 ? replyPhotoUrls : undefined,
     };
 
-    // Permission slip — always send so retroactive uploads stick
-    payload.permissionStatus = document.getElementById('adminEditPermStatus').value;
-    payload.permissionDocNo  = document.getElementById('adminEditPermDocNo').value.trim();
+    // Permission slip — always send so retroactive uploads stick.
+    // Status + docNo no longer have UI controls; auto-derive from
+    // whether a file is currently attached (approved when yes,
+    // preserve previous value otherwise).
+    payload.permissionStatus = adminPermDocUrl ? 'approved' : adminPermStatusInitial;
+    payload.permissionDocNo  = adminPermDocNoInitial || '';
     payload.permissionDocUrl = adminPermDocUrl || '';
     setLoading(true);
     try {
@@ -6176,9 +6168,7 @@ async function onPermDocSelected(e) {
         if (upErr) throw upErr;
         const { data: pub } = sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
         adminPermDocUrl = pub.publicUrl;
-        // Auto-bump status to "submitted" if it was still "pending"
-        const statusSel = document.getElementById('adminEditPermStatus');
-        if (statusSel && statusSel.value === 'pending') statusSel.value = 'submitted';
+        // Status auto-flips to 'approved' on save now (no UI dropdown).
         renderPermDocPreview();
         showToast('แนบใบขอสิทธิ์เรียบร้อย', 'success');
     } catch (err) {
