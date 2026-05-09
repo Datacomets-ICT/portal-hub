@@ -155,7 +155,19 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
       font-weight: 500;
     }
     .hero-meta-row span { display: inline-flex; align-items: center; gap: 6px; opacity: 0.95; }
-    .section { margin-top: 26px; }
+    .section {
+      margin-top: 26px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    table.action {
+      page-break-inside: auto;
+      break-inside: auto;
+    }
+    table.action tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
     .section-title {
       background: linear-gradient(90deg, #0F172A 0%, #1E293B 100%);
       color: #60A5FA;
