@@ -7,6 +7,7 @@
 
 import * as tus from 'tus-js-client';
 import { supabase } from '../lib/supabase.js';
+import { compressIfLarge } from '../audioCompressor.js';
 
 const BUCKET = 'mtg-audio';
 const POLL_INTERVAL_MS = 3000;
@@ -59,15 +60,45 @@ export function getResumableUploadStatus() {
 
 // Upload `file` to Supabase Storage. Picks single-shot or TUS based on
 // size. `onProgress(percent, bytesUploaded, bytesTotal)` reports
-// upload progress (only meaningful for resumable uploads).
+// upload progress.
+//
+// Silent pre-step: files over the compression threshold (30 MB) are
+// re-encoded to 32 kbps mono MP3 in a Web Worker first, so a 96 MB
+// Zoom export becomes a ~12 MB upload that comfortably fits Supabase
+// Free's 50 MB hard ceiling. The user sees a single smooth progress
+// bar — they don't know compression is happening.
 async function uploadAudioToStorage(path, file, onProgress) {
+  // When we compressed, the upload bar starts at 35 % (compression
+  // already pushed it that far). Otherwise it starts at 0 %.
+  let uploadStart = 0;
+
+  if (file.size > 30 * 1024 * 1024) {
+    const original = file;
+    file = await compressIfLarge(file, (compPct) => {
+      // Compression: 0 → 35 % of the overall bar
+      if (onProgress) onProgress(Math.round(compPct * 0.35), 0, original.size);
+    });
+    if (file !== original) {
+      uploadStart = 35;
+      if (/\.\w+$/.test(path)) path = path.replace(/\.\w+$/, '.mp3');
+    }
+  }
+
+  // Helper that maps a 0–100 upload percent into the [uploadStart, 100]
+  // range so the bar moves smoothly across both phases.
+  const reportUpload = (pct, uploaded, total) => {
+    if (!onProgress) return;
+    const mapped = uploadStart + Math.round((pct / 100) * (100 - uploadStart));
+    onProgress(Math.min(100, mapped), uploaded, total);
+  };
+
   // Small file → SDK single-shot is fastest.
   if (file.size <= RESUMABLE_THRESHOLD) {
     const { error } = await supabase.storage
       .from(BUCKET)
       .upload(path, file, { upsert: true, contentType: file.type || 'audio/webm' });
     if (error) throw error;
-    if (onProgress) onProgress(100, file.size, file.size);
+    reportUpload(100, file.size, file.size);
     return;
   }
 
@@ -82,7 +113,7 @@ async function uploadAudioToStorage(path, file, onProgress) {
         .from(BUCKET)
         .upload(path, file, { upsert: true, contentType: file.type || 'audio/webm' });
       if (error) throw error;
-      if (onProgress) onProgress(100, file.size, file.size);
+      reportUpload(100, file.size, file.size);
       return;
     }
     throw new Error(
@@ -112,9 +143,6 @@ async function uploadAudioToStorage(path, file, onProgress) {
       },
       chunkSize: 6 * 1024 * 1024,
       onError: (err) => {
-        // Friendlier message when Supabase rejects the JWT (expired,
-        // wrong project, etc.) — TUS surfaces a long technical blob
-        // otherwise.
         const msg = String(err.message || err);
         if (msg.includes('Invalid Compact JWS') || msg.includes('Unauthorized')) {
           reject(new Error(
@@ -125,7 +153,7 @@ async function uploadAudioToStorage(path, file, onProgress) {
         }
       },
       onProgress: (uploaded, total) => {
-        if (onProgress) onProgress(Math.round((uploaded / total) * 100), uploaded, total);
+        reportUpload(Math.round((uploaded / total) * 100), uploaded, total);
       },
       onSuccess: () => resolve(),
     });
