@@ -3,6 +3,7 @@ import { useAuth } from './lib/auth.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import HubPage from './pages/HubPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import RepairComingSoonPage from './pages/RepairComingSoonPage.jsx';
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -21,6 +22,14 @@ export default function App() {
         element={
           <Protected>
             <HubPage />
+          </Protected>
+        }
+      />
+      <Route
+        path="/repair"
+        element={
+          <Protected>
+            <RepairComingSoonPage />
           </Protected>
         }
       />

@@ -46,6 +46,21 @@ const APPS = [
     cardClass: 'card-meeting',
     tag: 'Workplace',
   },
+  {
+    key: 'repair',
+    label: 'Repair Service',
+    desc: 'แจ้งซ่อมอุปกรณ์/เครื่องมือ · ติดตามสถานะ · เบิก/ยืม/ซื้ออะไหล่',
+    icon: (
+      // Wrench
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+      </svg>
+    ),
+    href: '/repair',           // SPA route, not a static html app
+    cardClass: 'card-repair',
+    tag: 'Maintenance',
+    comingSoon: true,
+  },
 ];
 
 // Drop the leading code (e.g. "A62_วิเคราะห์ข้อมูล" → "วิเคราะห์ข้อมูล").
@@ -103,7 +118,14 @@ export default function HubPage() {
   };
 
   const openApp = (href) => {
-    window.location.href = href;
+    // SPA routes (e.g. /repair) → use react-router so we don't full-reload.
+    // External static apps (/.../index.html) keep using window.location so
+    // their bundles get served fresh from /it/, /driver/, /meeting/.
+    if (href.startsWith('/') && !href.includes('.html')) {
+      navigate(href);
+    } else {
+      window.location.href = href;
+    }
   };
 
   // Close menu on outside click
@@ -329,10 +351,13 @@ export default function HubPage() {
               <button
                 key={app.key}
                 type="button"
-                className={`app-card ${app.cardClass}`}
+                className={`app-card ${app.cardClass} ${app.comingSoon ? 'is-coming-soon' : ''}`}
                 onClick={() => openApp(app.href)}
               >
                 <div className="card-tag">{app.tag}</div>
+                {app.comingSoon && (
+                  <div className="card-soon-badge">เร็วๆ นี้</div>
+                )}
                 <div className="icon-wrap">
                   <span className="icon-glow" aria-hidden="true" />
                   <span className="icon">{app.icon}</span>
@@ -340,7 +365,7 @@ export default function HubPage() {
                 <h3>{app.label}</h3>
                 <p>{app.desc}</p>
                 <span className="cta">
-                  เปิดแอป
+                  {app.comingSoon ? 'ดูรายละเอียด' : 'เปิดแอป'}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M5 12h14M13 5l7 7-7 7" />
                   </svg>

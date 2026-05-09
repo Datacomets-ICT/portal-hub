@@ -859,11 +859,224 @@ a { color: var(--accent); text-decoration: none; }
 .app-card.card-it { --accent-card: #2563eb; --accent-card-soft: #dbeafe; --accent-card-rgb: 37, 99, 235; }
 .app-card.card-driver { --accent-card: #ea580c; --accent-card-soft: #fff1e6; --accent-card-rgb: 234, 88, 12; }
 .app-card.card-meeting { --accent-card: #16a34a; --accent-card-soft: #dcfce7; --accent-card-rgb: 22, 163, 74; }
+.app-card.card-repair { --accent-card: #7c3aed; --accent-card-soft: #ede9fe; --accent-card-rgb: 124, 58, 237; }
 
 /* dark mode adjustments for app-card backgrounds */
 [data-theme="dark"] .app-card.card-it { --accent-card-soft: #16224b; }
 [data-theme="dark"] .app-card.card-driver { --accent-card-soft: #3a1c0c; }
 [data-theme="dark"] .app-card.card-meeting { --accent-card-soft: #0c2818; }
+[data-theme="dark"] .app-card.card-repair { --accent-card-soft: #2a1a4d; }
+
+/* "Coming soon" badge — top-right corner of the card */
+.app-card.is-coming-soon { position: relative; }
+.app-card .card-soon-badge {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: linear-gradient(135deg, #FCD34D, #F59E0B);
+  color: #78350F;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.4px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+  animation: rc-badge-pulse 2.4s ease-in-out infinite;
+}
+@keyframes rc-badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+
+/* ========================================================
+   Repair "Coming soon" page
+======================================================== */
+.repair-coming-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at top right, rgba(124, 58, 237, 0.08), transparent 50%),
+    radial-gradient(ellipse at bottom left, rgba(249, 115, 22, 0.08), transparent 50%),
+    var(--bg, #F8FAFC);
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  font-family: 'IBM Plex Sans Thai', 'Inter', system-ui, sans-serif;
+}
+.repair-coming-card {
+  background: #FFFFFF;
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12), 0 4px 12px rgba(15, 23, 42, 0.06);
+  padding: 40px 48px 44px;
+  max-width: 720px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.repair-coming-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(124,58,237,0.06), transparent 40%);
+  pointer-events: none;
+}
+
+/* Animated SVG art */
+.repair-coming-art {
+  width: 240px;
+  height: 200px;
+  margin-bottom: 8px;
+  position: relative;
+}
+.rc-svg { width: 100%; height: 100%; }
+.rc-shadow {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 180px;
+  height: 12px;
+  background: radial-gradient(ellipse, rgba(15, 23, 42, 0.18), transparent 70%);
+  border-radius: 50%;
+  z-index: 0;
+}
+
+.rc-bolt { animation: rc-bolt-rotate 1.4s ease-in-out infinite; transform-origin: 120px 110px; }
+@keyframes rc-bolt-rotate {
+  0%, 100% { transform: rotate(0deg); }
+  50%      { transform: rotate(60deg); }
+}
+.rc-wrench { animation: rc-wrench-swing 1.4s ease-in-out infinite; }
+@keyframes rc-wrench-swing {
+  0%, 100% { transform: rotate(-30deg); }
+  50%      { transform: rotate(20deg); }
+}
+.rc-driver { animation: rc-driver-poke 1.8s ease-in-out infinite; }
+@keyframes rc-driver-poke {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(8px); }
+}
+.rc-spark {
+  opacity: 0;
+  animation: rc-spark-flash 1.4s ease-in-out infinite;
+}
+.rc-spark-1 { animation-delay: 0s;   }
+.rc-spark-2 { animation-delay: 0.4s; }
+.rc-spark-3 { animation-delay: 0.8s; }
+@keyframes rc-spark-flash {
+  0%, 30%, 100% { opacity: 0; transform: scale(0.4); }
+  40%           { opacity: 1; transform: scale(1.2); }
+  60%           { opacity: 0.4; transform: scale(0.8); }
+}
+
+.repair-coming-text { position: relative; z-index: 1; width: 100%; }
+.rc-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+  color: #78350F;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+}
+.rc-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #F59E0B;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+  animation: rc-dot-pulse 1.6s ease-out infinite;
+}
+@keyframes rc-dot-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+  70%  { box-shadow: 0 0 0 10px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+.rc-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0F172A;
+  margin: 0 0 12px;
+  letter-spacing: -0.5px;
+}
+.rc-sub {
+  color: #475569;
+  font-size: 15px;
+  line-height: 1.7;
+  margin: 0 0 28px;
+}
+.rc-sub b { color: #7c3aed; }
+
+.rc-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 32px;
+}
+@media (max-width: 600px) {
+  .rc-features { grid-template-columns: 1fr; }
+}
+.rc-feature {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  text-align: left;
+  transition: transform 0.18s, border-color 0.18s;
+}
+.rc-feature:hover {
+  transform: translateY(-2px);
+  border-color: #7c3aed;
+}
+.rc-feature-icon {
+  font-size: 22px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+  border-radius: 10px;
+}
+.rc-feature b {
+  font-size: 13.5px;
+  color: #0F172A;
+  font-weight: 700;
+}
+.rc-feature small {
+  font-size: 11.5px;
+  color: #64748B;
+  line-height: 1.5;
+  display: block;
+}
+
+.rc-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #7c3aed;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1.5px solid #7c3aed;
+  transition: background 0.15s, color 0.15s;
+}
+.rc-back:hover {
+  background: #7c3aed;
+  color: #fff;
+}
 
 .hub-footer {
   margin-top: 56px;
