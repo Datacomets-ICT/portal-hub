@@ -20,10 +20,11 @@ const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB — matches v18 bucket limit
 
 const STAGE_LABEL = {
   storage:   '📤 อัปโหลดไฟล์เสียง...',
-  process:   '✨ AI กำลังถอดเสียงและสรุป... (Whisper + Groq, ~30-90 วินาที)',
-  upload:    '🔄 Whisper ติดขัด — กำลังลอง Gemini สำรอง...',
-  processing:'⏳ Gemini กำลังเตรียมประมวลผล... (ไฟล์ใหญ่อาจใช้เวลา 1-3 นาที)',
+  process:   '✨ AI กำลังถอดเสียงและสรุป... (~30-90 วินาที)',
+  upload:    '🔄 ลอง provider สำรอง (Gemini)...',
+  processing:'⏳ Gemini กำลังเตรียมประมวลผล...',
   generate:  '✨ Gemini กำลังสรุป...',
+  deepgram:  '🔄 ลอง provider สำรอง (Deepgram Nova-2)...',
   done:      '✅ เสร็จแล้ว',
 };
 

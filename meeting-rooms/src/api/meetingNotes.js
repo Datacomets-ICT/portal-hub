@@ -236,71 +236,66 @@ export async function startMeetingSummary({ bookingId, file, createdBy, onProgre
     .single();
   if (insErr) throw insErr;
 
-  // 3) Primary: Groq Whisper + Groq LLM (single call). Better Thai
-  //    transcription than Gemini and the free quota is far larger.
-  //    Fallback: Gemini Files API path if Groq has issues.
-  try {
-    progress('process', { note: row });
-    await callApi('process', { note_id: row.id });
-  } catch (err) {
-    console.warn('[meetingNotes] Groq Whisper path failed — trying Gemini fallback', err);
-    progress('upload');
-    const uploadRes = await callApi('upload', {
-      note_id: row.id,
-      audio_url: audioUrl,
-      mime_type: file.type || 'audio/webm',
-    });
-    if (uploadRes.state !== 'ACTIVE') {
-      progress('processing');
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      while (Date.now() < deadline) {
-        await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
-        const pollRes = await callApi('poll', { note_id: row.id });
-        if (pollRes.state === 'ACTIVE') break;
-        if (pollRes.state === 'FAILED') throw new Error('Gemini file processing FAILED');
-      }
-    }
-    progress('generate');
-    await callApi('generate', { note_id: row.id });
-  }
+  // 3) Three-layer transcription fallback chain. Each provider lives
+  //    on a separate quota pool, so it takes all three being exhausted
+  //    at once for the user to see an error.
+  //
+  //      1. Groq Whisper (480 min/day free)        — primary
+  //      2. Gemini Files API (1500 calls/day free) — fallback
+  //      3. Deepgram Nova-2 ($200 free credit)     — last resort
+  await runTranscriptionChain(row.id, audioUrl, file, progress);
 
   progress('done');
   return await getNoteForBooking(bookingId);
 }
 
+async function runTranscriptionChain(noteId, audioUrl, file, progress) {
+  // Layer 1 — Whisper
+  try {
+    progress('process');
+    await callApi('process', { note_id: noteId });
+    return;
+  } catch (err1) {
+    console.warn('[meetingNotes] Whisper failed — trying Gemini', err1);
+    // Layer 2 — Gemini Files API (3 sub-steps)
+    try {
+      progress('upload');
+      const uploadRes = await callApi('upload', {
+        note_id: noteId,
+        audio_url: audioUrl,
+        mime_type: file?.type || 'audio/webm',
+      });
+      if (uploadRes.state !== 'ACTIVE') {
+        progress('processing');
+        const deadline = Date.now() + POLL_TIMEOUT_MS;
+        while (Date.now() < deadline) {
+          await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
+          const pollRes = await callApi('poll', { note_id: noteId });
+          if (pollRes.state === 'ACTIVE') break;
+          if (pollRes.state === 'FAILED') throw new Error('Gemini file processing FAILED');
+        }
+      }
+      progress('generate');
+      await callApi('generate', { note_id: noteId });
+      return;
+    } catch (err2) {
+      console.warn('[meetingNotes] Gemini failed — trying Deepgram', err2);
+      // Layer 3 — Deepgram
+      progress('deepgram');
+      await callApi('deepgram', { note_id: noteId });
+    }
+  }
+}
+
 // Resume from a partial note (retry after failure or reload).
-// Same primary→fallback chain as startMeetingSummary.
+// Same 3-layer chain as startMeetingSummary.
 export async function resumeMeetingSummary(note, onProgress) {
   if (!note?.id) throw new Error('note required');
   const progress = onProgress || (() => {});
   if (note.status === 'done') return note;
+  if (!note.audio_url) throw new Error('No audio_url on note');
 
-  try {
-    progress('process');
-    await callApi('process', { note_id: note.id });
-  } catch (err) {
-    console.warn('[meetingNotes] resume: Groq Whisper failed, trying Gemini', err);
-    if (!note.audio_url) throw err;
-    progress('upload');
-    const r = await callApi('upload', {
-      note_id: note.id,
-      audio_url: note.audio_url,
-      mime_type: 'audio/webm',
-    });
-    if (r.state !== 'ACTIVE') {
-      progress('processing');
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      while (Date.now() < deadline) {
-        await new Promise(res => setTimeout(res, POLL_INTERVAL_MS));
-        const pollRes = await callApi('poll', { note_id: note.id });
-        if (pollRes.state === 'ACTIVE') break;
-        if (pollRes.state === 'FAILED') throw new Error('Gemini processing FAILED');
-      }
-    }
-    progress('generate');
-    await callApi('generate', { note_id: note.id });
-  }
-
+  await runTranscriptionChain(note.id, note.audio_url, { type: 'audio/webm' }, progress);
   progress('done');
   return await getNoteForBooking(note.booking_id);
 }

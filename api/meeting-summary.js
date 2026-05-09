@@ -30,6 +30,16 @@
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 
+// === Per-feature API keys ===
+// Meeting-specific keys isolate quota from IT-Ticket. If the meeting
+// key isn't set, fall back to the shared one so legacy deploys keep
+// working without any env-var changes.
+const groqKey = () =>
+  process.env.GROQ_MEETING_API_KEY || process.env.GROQ_API_KEY || '';
+const geminiKey = () =>
+  process.env.GEMINI_MEETING_API_KEY || process.env.GEMINI_API_KEY || '';
+const deepgramKey = () => process.env.DEEPGRAM_API_KEY || '';
+
 const SUMMARY_PROMPT = `คุณเป็น AI ผู้ช่วยสรุปประชุม วิเคราะห์เสียงประชุมนี้ออกเป็น meeting minutes แบบครบถ้วน
 ตอบเป็น JSON เท่านั้น ห้ามใส่ markdown ห้ามใส่ comment
 
@@ -376,8 +386,8 @@ async function stepProcess(body) {
   const { note_id } = body || {};
   if (!note_id) throw new Error('note_id required');
 
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) throw new Error('GROQ_API_KEY not set');
+  const key = groqKey();
+  if (!key) throw new Error('GROQ_MEETING_API_KEY / GROQ_API_KEY not set');
 
   const note = await getNote(note_id);
   if (!note.audio_url) throw new Error('Note has no audio_url');
@@ -389,8 +399,8 @@ async function stepProcess(body) {
   const audioBytes = new Uint8Array(await audioRes.arrayBuffer());
   const mime = audioRes.headers.get('content-type') || 'audio/webm';
 
-  const transcript = await groqWhisperTranscribe(groqKey, audioBytes, mime, `note-${note_id}.webm`);
-  const summaryText = await groqSummarizeTranscript(groqKey, transcript);
+  const transcript = await groqWhisperTranscribe(key, audioBytes, mime, `note-${note_id}.webm`);
+  const summaryText = await groqSummarizeTranscript(key, transcript);
   const parsed = parseSummary(summaryText);
   if (!parsed) throw new Error('Could not parse Groq summary as JSON');
 
@@ -407,6 +417,81 @@ async function stepProcess(body) {
   return {
     ok: true,
     provider: 'groq-whisper',
+    transcript,
+    summary: parsed.summary || '',
+    action_items: parsed.action_items || [],
+    decisions: parsed.decisions || [],
+    discussion_topics: parsed.discussion_topics || [],
+    next_meeting: parsed.next_meeting || '',
+  };
+}
+
+// === LAYER 3 FALLBACK: Deepgram Nova-2 ===
+// Used when both Groq Whisper and Gemini Files API are exhausted.
+// Deepgram has a $200 free credit on signup (~775 hours of audio)
+// which gives Comets ~10 months of headroom before any payment is
+// involved. Transcription only — summary still goes through Groq LLM.
+const DEEPGRAM_URL = 'https://api.deepgram.com/v1/listen?model=nova-2&language=th&smart_format=true&punctuate=true';
+
+async function deepgramTranscribe(dgKey, audioBytes, mimeType) {
+  const r = await fetch(DEEPGRAM_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${dgKey}`,
+      'Content-Type': mimeType || 'audio/mpeg',
+    },
+    body: audioBytes,
+  });
+  if (!r.ok) {
+    throw new Error(`Deepgram ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  }
+  const data = await r.json();
+  const transcript = data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+  if (!transcript.trim()) {
+    throw new Error('Deepgram returned empty transcript');
+  }
+  return transcript;
+}
+
+async function stepDeepgram(body) {
+  const { note_id } = body || {};
+  if (!note_id) throw new Error('note_id required');
+
+  const dgKey = deepgramKey();
+  if (!dgKey) throw new Error('DEEPGRAM_API_KEY not set');
+
+  // We still use Groq LLM to summarise the transcript Deepgram gives us.
+  const gKey = groqKey();
+  if (!gKey) throw new Error('No Groq key available for summarisation');
+
+  const note = await getNote(note_id);
+  if (!note.audio_url) throw new Error('Note has no audio_url');
+
+  await updateNote(note_id, { status: 'generating', error_message: null });
+
+  const audioRes = await fetch(note.audio_url);
+  if (!audioRes.ok) throw new Error(`Failed to fetch audio (${audioRes.status})`);
+  const audioBytes = new Uint8Array(await audioRes.arrayBuffer());
+  const mime = audioRes.headers.get('content-type') || 'audio/mpeg';
+
+  const transcript = await deepgramTranscribe(dgKey, audioBytes, mime);
+  const summaryText = await groqSummarizeTranscript(gKey, transcript);
+  const parsed = parseSummary(summaryText);
+  if (!parsed) throw new Error('Could not parse summary as JSON');
+
+  await updateNote(note_id, {
+    status: 'done',
+    transcript,
+    summary: parsed.summary || '',
+    action_items: parsed.action_items || [],
+    decisions: parsed.decisions || [],
+    discussion_topics: parsed.discussion_topics || [],
+    next_meeting: parsed.next_meeting || '',
+  });
+
+  return {
+    ok: true,
+    provider: 'deepgram-nova-2',
     transcript,
     summary: parsed.summary || '',
     action_items: parsed.action_items || [],
@@ -465,8 +550,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Each step requires its own provider key — checked inside the step.
-  const apiKey = process.env.GEMINI_API_KEY || '';
+  // Resolved per-step inside the handlers via groqKey() / geminiKey() /
+  // deepgramKey() — each function picks the meeting-specific env var
+  // first and falls back to the shared one when not set.
+  const apiKey = geminiKey();
 
   let body;
   try { body = req.body; if (typeof body === 'string') body = JSON.parse(body); }
@@ -486,12 +573,15 @@ export default async function handler(req, res) {
       result = await stepPoll(apiKey, body);
     } else if (step === 'generate') {
       result = await stepGenerate(apiKey, body);
+    } else if (step === 'deepgram') {
+      // Layer 3 fallback — Deepgram Nova-2 transcribe, Groq summarise
+      result = await stepDeepgram(body);
     } else if (step === 'fallback') {
       // Backwards-compat alias — frontend used to call ?step=fallback
       // for the Whisper path; now process is canonical.
       result = await stepProcess(body);
     } else {
-      return res.status(400).json({ error: 'step must be process|upload|poll|generate' });
+      return res.status(400).json({ error: 'step must be process|upload|poll|generate|deepgram' });
     }
     return res.status(200).json(result);
   } catch (err) {
