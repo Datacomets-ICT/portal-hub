@@ -6,7 +6,12 @@
 import { Mp3Encoder } from '@breezystack/lamejs';
 
 const FRAME = 1152;        // MP3 frame size (lamejs requirement)
-const BITRATE_KBPS = 32;   // Voice-grade, mono
+// 48 kbps mono is the sweet spot — small enough that 2 hr fits the
+// 25 MB Groq Whisper request limit (≈ 43 MB at 48 k... close, may
+// need to chunk for longer), but high enough that Thai voice with
+// background noise transcribes cleanly. 32 kbps was producing
+// hallucinations like "ค่ะ ค่ะ ค่ะ" loops on long meetings.
+const BITRATE_KBPS = 48;
 
 self.onmessage = (e) => {
   const { samplesBuffer, sampleRate } = e.data || {};

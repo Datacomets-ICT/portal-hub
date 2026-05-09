@@ -13,7 +13,10 @@
 //
 // Returns a new File (or the original if compression skipped/failed).
 
-const TARGET_SAMPLE_RATE = 22050;
+// 16 kHz matches Whisper's native input rate — anything higher gets
+// downsampled internally. Using 16 kHz here avoids that extra step
+// and keeps the encoded file smaller for the same perceptual quality.
+const TARGET_SAMPLE_RATE = 16000;
 const COMPRESSION_THRESHOLD_BYTES = 30 * 1024 * 1024;
 
 // Audio-context creation can throw on iOS Safari without a user gesture.

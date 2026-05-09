@@ -377,16 +377,27 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
 }
 
 // Lazy-load html2pdf.js from CDN so the bundle stays small.
-// Cached on window — second call is instant.
+// Cached on window — second call is instant. Hard 15-second timeout
+// so the user gets a friendly error instead of a forever-spinner if
+// the CDN is blocked / slow / down.
 async function loadHtml2Pdf() {
   if (window.html2pdf) return window.html2pdf;
   await new Promise((resolve, reject) => {
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js';
-    s.onload = resolve;
-    s.onerror = () => reject(new Error('โหลด html2pdf.js ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต'));
+    let done = false;
+    const finish = (fn) => () => { if (!done) { done = true; fn(); } };
+    const timer = setTimeout(
+      finish(() => reject(new Error('โหลด html2pdf.js ไม่สำเร็จ (timeout) — ตรวจสอบอินเทอร์เน็ตหรือลอง ดาวน์โหลด Word แทน'))),
+      15000
+    );
+    s.onload = finish(() => { clearTimeout(timer); resolve(); });
+    s.onerror = finish(() => { clearTimeout(timer); reject(new Error('โหลด html2pdf.js ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ต')); });
     document.head.appendChild(s);
   });
+  if (!window.html2pdf) {
+    throw new Error('html2pdf โหลดสำเร็จแต่ window.html2pdf ไม่มี');
+  }
   return window.html2pdf;
 }
 
@@ -401,35 +412,41 @@ async function waitForFonts(doc) {
 
 // ===== Direct download as PDF (no print dialog) =====
 export async function exportAsPdf(args) {
-  const html = buildReportHtml({ ...args, includeStyles: true });
   const html2pdf = await loadHtml2Pdf();
+  const html = buildReportHtml({ ...args, includeStyles: true });
 
   // Render in an off-screen iframe so styles don't leak into the host page.
   const frame = document.createElement('iframe');
   frame.style.cssText = 'position:fixed;left:-99999px;top:0;width:820px;height:1200px;border:0;visibility:hidden;';
   document.body.appendChild(frame);
-  frame.srcdoc = html;
-  await new Promise(res => { frame.onload = res; setTimeout(res, 800); });
-  await waitForFonts(frame.contentDocument);
-
-  const safeTitle = (args.booking?.title || 'meeting').replace(/[^\w฀-๿-]+/g, '_').slice(0, 60);
-  const opt = {
-    margin: 0,
-    filename: `meeting-summary-${safeTitle}.pdf`,
-    image: { type: 'jpeg', quality: 0.96 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      windowWidth: 820,
-    },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
-    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-  };
-
   try {
-    await html2pdf().set(opt).from(frame.contentDocument.body).save();
+    frame.srcdoc = html;
+    await new Promise(res => { frame.onload = res; setTimeout(res, 800); });
+    await waitForFonts(frame.contentDocument);
+
+    const safeTitle = (args.booking?.title || 'meeting').replace(/[^\w฀-๿-]+/g, '_').slice(0, 60);
+    const opt = {
+      margin: 0,
+      filename: `meeting-summary-${safeTitle}.pdf`,
+      image: { type: 'jpeg', quality: 0.96 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: 820,
+      },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    };
+
+    // Hard timeout — html2canvas can rarely hang on broken images / CORS.
+    await Promise.race([
+      html2pdf().set(opt).from(frame.contentDocument.body).save(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('PDF render timeout (60s) — ลอง ดาวน์โหลด Word แทน')), 60000)
+      ),
+    ]);
   } finally {
     setTimeout(() => frame.remove(), 100);
   }

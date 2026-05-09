@@ -243,14 +243,34 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
     return { booking, room, employee, note };
   }
 
-  function handleExportPdf() {
-    if (!note) return;
-    exportAsPdf(exportArgs());
+  const [exporting, setExporting] = useState('');  // 'pdf' | 'doc' | ''
+
+  async function handleExportPdf() {
+    if (!note || exporting) return;
+    setErr('');
+    setExporting('pdf');
+    try {
+      await exportAsPdf(exportArgs());
+    } catch (e) {
+      console.error('[export PDF]', e);
+      setErr('ดาวน์โหลด PDF ไม่สำเร็จ: ' + (e.message || e));
+    } finally {
+      setExporting('');
+    }
   }
 
-  function handleExportDoc() {
-    if (!note) return;
-    exportAsDoc(exportArgs());
+  async function handleExportDoc() {
+    if (!note || exporting) return;
+    setErr('');
+    setExporting('doc');
+    try {
+      await exportAsDoc(exportArgs());
+    } catch (e) {
+      console.error('[export DOC]', e);
+      setErr('ดาวน์โหลด Word ไม่สำเร็จ: ' + (e.message || e));
+    } finally {
+      setExporting('');
+    }
   }
 
   const [copiedAt, setCopiedAt] = useState(0);
@@ -398,16 +418,17 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
 
           {/* Export toolbar */}
           <div className="ms-export-bar">
-            <button type="button" className="ms-export-btn ms-export-pdf" onClick={handleExportPdf}>
-              📄 บันทึกเป็น PDF
+            <button type="button" className="ms-export-btn ms-export-pdf" onClick={handleExportPdf} disabled={!!exporting}>
+              {exporting === 'pdf' ? '⏳ กำลังสร้าง PDF...' : '📄 บันทึกเป็น PDF'}
             </button>
-            <button type="button" className="ms-export-btn ms-export-doc" onClick={handleExportDoc}>
-              📝 ดาวน์โหลด Word
+            <button type="button" className="ms-export-btn ms-export-doc" onClick={handleExportDoc} disabled={!!exporting}>
+              {exporting === 'doc' ? '⏳ กำลังสร้าง Word...' : '📝 ดาวน์โหลด Word'}
             </button>
-            <button type="button" className={`ms-export-btn ms-export-copy ${justCopied ? 'is-copied' : ''}`} onClick={handleCopy}>
+            <button type="button" className={`ms-export-btn ms-export-copy ${justCopied ? 'is-copied' : ''}`} onClick={handleCopy} disabled={!!exporting}>
               {justCopied ? '✓ คัดลอกแล้ว' : '📋 คัดลอกข้อความ'}
             </button>
           </div>
+          {err && <div className="ms-error">{err}</div>}
 
           {Array.isArray(note.discussion_topics) && note.discussion_topics.length > 0 && (
             <div className="ms-section">
