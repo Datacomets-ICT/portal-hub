@@ -4592,7 +4592,11 @@ function appendChatMsg(role, text, images) {
     // already produced get an onclick + button styling.
     if (role === 'bot') {
         const opts = extractNumberedOptions(text);
-        const isPickPrompt = /[?？]\s*$/.test(text.trim()) || /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด/i.test(text);
+        // A "?" anywhere in the bubble (often appears mid-text right before
+        // the numbered list — "ใช้เมาส์อะไรครับ?\n1. ...") is a strong
+        // signal it's a pick prompt. The keyword fallback covers prompts
+        // worded as statements ("เลือกข้อที่ตรง", "พิมพ์เลข").
+        const isPickPrompt = /[?？]/.test(text) || /เลือก|พิมพ์(ตัว)?เลข|ไหนครับ|ไหนคะ|ตัวไหน|แบบไหน|อันไหน|ข้อไหน|ข้อใด|อะไร/i.test(text);
         if (opts.length >= 2 && isPickPrompt) {
             const steps = div.querySelectorAll('.chat-step');
             steps.forEach((step, i) => {
