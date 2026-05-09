@@ -55,25 +55,17 @@ const TopBar = ({ page, setPage, empId, isAdmin, pendingCount, onLogout }) => {
         </nav>
 
         <div style={{marginLeft:"auto", display:"flex", alignItems:"center", gap:10}}>
-          {emp ? (() => {
-            // Match Workspace's user pill: nickname (or first name) · empId,
-            // avatar = avatarUrl image if set else first char of displayName.
-            const display = emp.displayName || emp.name || emp.id;
-            const initial = (display || '?').charAt(0).toUpperCase();
-            return (
-              <div style={{display:"flex", alignItems:"center", gap:10, padding:"6px 14px 6px 6px", background:"var(--blue-50)", borderRadius:999, border:"1px solid var(--blue-100)"}}>
-                <div style={{width:32, height:32, borderRadius:"50%", background:"var(--blue-600)", color:"#fff", display:"grid", placeItems:"center", fontSize:14, fontWeight:600, overflow:"hidden"}}>
-                  {emp.avatarUrl
-                    ? <img src={emp.avatarUrl} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}} />
-                    : initial}
-                </div>
-                <div style={{fontSize:13, lineHeight:1.2, fontWeight:600}}>
-                  {display}
-                  <span style={{color:"var(--ink-3)", fontWeight:500}}> · {emp.id}</span>
-                </div>
+          {emp ? (
+            <div style={{display:"flex", alignItems:"center", gap:10, padding:"6px 10px 6px 6px", background:"var(--blue-50)", borderRadius:999, border:"1px solid var(--blue-100)"}}>
+              <div style={{width:28, height:28, borderRadius:"50%", background:"var(--blue-600)", color:"#fff", display:"grid", placeItems:"center", fontSize:12, fontWeight:600}}>
+                {emp.name.charAt(0)}
               </div>
-            );
-          })() : null}
+              <div style={{fontSize:13, lineHeight:1.1}}>
+                <div style={{fontWeight:600}}>{emp.name}</div>
+                <div style={{color:"var(--ink-3)", fontSize:11}} className="mono">{emp.id}</div>
+              </div>
+            </div>
+          ) : null}
           {/* Logout intentionally lives only in Workspace — sub-apps just
               link back via the "← Workspace" pill (rendered by _back.js). */}
         </div>

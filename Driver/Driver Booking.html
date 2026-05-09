@@ -105,6 +105,219 @@
   /* Button press */
   button:active:not(:disabled) { transform: scale(.98); }
   button { transition: transform .08s; }
+
+  /* ========================================================================
+     MOBILE OVERHAUL — Driver Booking
+     The app uses heavy inline JSX styles, so most overrides are by attribute
+     substring + !important. React serializes `style={{}}` with a space after
+     each colon and comma, e.g. `style="grid-template-columns: 1fr 1fr"`.
+     ======================================================================== */
+  @media (max-width: 768px) {
+    body { font-size: 14px; }
+
+    /* Stop iOS Safari from auto-zooming on focus — needs ≥ 16px */
+    input, textarea, select {
+      font-size: 16px !important;
+    }
+
+    /* Inputs from ui.jsx (padding: 11px 13px) — bump touch target to 44px */
+    input[style*="padding: 11px 13px"],
+    textarea[style*="padding: 11px 13px"],
+    select[style*="padding: 11px 13px"] {
+      padding: 12px 14px !important;
+      min-height: 44px;
+    }
+
+    /* Main shell: 28px / 24px padding eats the viewport on phones */
+    main[style*="max-width: 1120px"] {
+      padding: 16px 12px 80px !important;
+    }
+    /* Topbar inner row */
+    header > div[style*="max-width: 1120px"] {
+      padding: 10px 12px !important;
+      gap: 10px !important;
+      flex-wrap: wrap;
+    }
+    /* Title text — shrink the subtitle */
+    header b[style*="font-size: 17px"] { font-size: 15px !important; }
+    header span[style*="font-size: 11px"] { font-size: 10px !important; }
+
+    /* Nav: horizontal scroll instead of wrap, so Admin tabs stay reachable */
+    header nav[style*="display: flex"][style*="margin-left: 20px"] {
+      margin-left: 0 !important;
+      width: 100%;
+      order: 3;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: 4px;
+    }
+    header nav::-webkit-scrollbar { display: none; }
+    header nav button {
+      flex: 0 0 auto;
+      white-space: nowrap;
+      padding: 9px 12px !important;
+      min-height: 40px;
+      font-size: 13px !important;
+    }
+
+    /* User pill (right side) — push to its own line on the topmost row */
+    header div[style*="margin-left: auto"] {
+      margin-left: auto !important;
+    }
+    header div[style*="background: var(--blue-50)"][style*="border-radius: 999px"] {
+      padding: 5px 10px 5px 5px !important;
+    }
+
+    /* Footer: tighten + safe-area padding */
+    footer[style*="border-top"] {
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+      font-size: 11px !important;
+    }
+
+    /* Card padding (StepDateTime, PlacePicker, etc. — all use padding:28) */
+    div[style*="padding: 28px"] {
+      padding: 18px !important;
+    }
+
+    /* Two-column field grids → stack */
+    div[style*="grid-template-columns: 1fr 1fr"] {
+      grid-template-columns: 1fr !important;
+      gap: 12px !important;
+    }
+    /* Three-column step grids (job type, purpose) → stack to 1 col */
+    div[style*="grid-template-columns: repeat(3, 1fr)"] {
+      grid-template-columns: 1fr !important;
+      gap: 10px !important;
+    }
+    /* Detail page: 1fr 360px sidebar → stack */
+    div[style*="grid-template-columns: 1fr 360px"],
+    div[style*="grid-template-columns: 1fr 340px"],
+    div[style*="grid-template-columns: 1fr 320px"] {
+      grid-template-columns: 1fr !important;
+      gap: 14px !important;
+    }
+    /* Generic 4-col cards (auto 1fr auto auto) → 2 col, hide trailing extras */
+    div[style*="grid-template-columns: auto 1fr auto auto"] {
+      grid-template-columns: auto 1fr !important;
+      gap: 10px !important;
+    }
+    div[style*="grid-template-columns: auto 1fr auto auto"] > *:nth-child(3),
+    div[style*="grid-template-columns: auto 1fr auto auto"] > *:nth-child(4) {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+
+    /* Buttons (Btn component) — all sizes get min 44px touch height */
+    button[style*="border-radius: 10px"][style*="padding: 7px 12px"],
+    button[style*="border-radius: 10px"][style*="padding: 10px 18px"],
+    button[style*="border-radius: 10px"][style*="padding: 14px 22px"] {
+      min-height: 44px;
+      padding: 11px 16px !important;
+    }
+    /* Primary CTA at end of form — full width on phone */
+    button[style*="padding: 14px 22px"] {
+      width: 100%;
+    }
+
+    /* NavBtn small chips already targeted above in `header nav button` */
+
+    /* TabBtn (booking step tab toggle) */
+    button[style*="padding: 7px 14px"][style*="border-radius: 8px"] {
+      padding: 10px 14px !important;
+      min-height: 40px;
+      font-size: 14px !important;
+    }
+    /* The wrapper around tab buttons — let it stretch full-width */
+    div[style*="display: inline-flex"][style*="background: var(--surface-2)"][style*="border-radius: 10px"] {
+      display: flex !important;
+      width: 100%;
+    }
+    div[style*="display: inline-flex"][style*="background: var(--surface-2)"][style*="border-radius: 10px"] button {
+      flex: 1;
+    }
+
+    /* Sticky submit bar in booking flow → safe-area padding for iPhone */
+    div[style*="position: sticky"][style*="bottom: 0px"] {
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+      flex-direction: column-reverse !important;
+      align-items: stretch !important;
+      gap: 8px !important;
+    }
+    div[style*="position: sticky"][style*="bottom: 0px"] button {
+      width: 100%;
+      justify-content: center;
+    }
+
+    /* Chat panel: fixed-right 440px → full-screen sheet */
+    div[style*="position: fixed"][style*="max-width: 440px"][style*="right: 0px"] {
+      max-width: 100% !important;
+      width: 100% !important;
+      animation: fadeUp .2s cubic-bezier(.2,.7,.2,1) !important;
+    }
+    /* Chat input area — 16px font size already handled. Add safe-area */
+    div[style*="position: fixed"][style*="max-width: 440px"] form,
+    div[style*="position: fixed"][style*="max-width: 440px"] > div:last-child {
+      padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    /* Toast stack — top-right collides with browser chrome on phones */
+    div[style*="position: fixed"][style*="top: 16px"][style*="right: 16px"] {
+      top: auto !important;
+      bottom: 12px !important;
+      left: 12px !important;
+      right: 12px !important;
+      max-width: none !important;
+    }
+
+    /* Map iframe — shrink default 200px height */
+    iframe[title="route map"] {
+      height: 160px !important;
+    }
+
+    /* Stepper — wrap nicely, smaller pills */
+    div[style*="display: flex"][style*="flex-wrap: wrap"][style*="gap: 6px"] > div[style*="border-radius: 999px"] {
+      padding: 5px 10px 5px 5px !important;
+      font-size: 12px !important;
+    }
+
+    /* Calendar timeline — let it scroll horizontally rather than overflow */
+    div[style*="min-width:"][style*="180px"] {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Animate fade-up specifically for slide-in chat (override slideInLeft which looks weird on phones) */
+    .anim-slide-in { animation: fadeUp .25s cubic-bezier(.2,.7,.2,1) both; }
+  }
+
+  /* Entry-level phones (iPhone SE / Galaxy A series at ≤ 380px) */
+  @media (max-width: 380px) {
+    main[style*="max-width: 1120px"] {
+      padding: 12px 10px 80px !important;
+    }
+    div[style*="padding: 28px"] {
+      padding: 14px !important;
+    }
+    header > div[style*="max-width: 1120px"] {
+      padding: 8px 10px !important;
+    }
+    header b[style*="font-size: 17px"] { font-size: 14px !important; }
+    /* Hide the user pill text, keep the avatar — saves ~120px on the topbar */
+    header div[style*="background: var(--blue-50)"][style*="border-radius: 999px"] > div:nth-child(2) {
+      display: none;
+    }
+  }
+
+  /* iPhone notch / home indicator — top safe-area for sticky header */
+  @supports (padding: env(safe-area-inset-top)) {
+    @media (max-width: 768px) {
+      header[style*="position: sticky"] {
+        padding-top: env(safe-area-inset-top, 0px);
+      }
+    }
+  }
 </style>
 </head>
 <body>
