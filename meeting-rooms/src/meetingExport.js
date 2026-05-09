@@ -128,21 +128,33 @@ export function buildEmailHtml({ booking, room, employee, note }) {
               ${purpose     ? `<tr><td style="color:#6B7280;font-weight:600;padding:4px 0;">วัตถุประสงค์</td><td style="padding:4px 0;">${esc(purpose)}</td></tr>` : ''}
             </table>
           </td></tr>
-          ${sectionTitle('ประเด็นการประชุม')}
-          <tr><td style="padding:8px 0 4px;">
-            ${topics.length > 0 ? topics.map(t => `
-              <div style="margin-bottom:14px;">
-                <div style="font-weight:700;color:#0F172A;font-size:14px;border-left:3px solid #1E40AF;padding:2px 0 2px 10px;margin-bottom:6px;">${esc(t.topic || '')}</div>
-                ${Array.isArray(t.points) && t.points.length ? `<ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:13px;line-height:1.7;">
-                  ${t.points.map(p => `<li style="margin-bottom:4px;">${esc(p)}</li>`).join('')}
-                </ul>` : ''}
-              </div>
-            `).join('') : (
-              summaryItems.length > 0
-                ? `<ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:13.5px;line-height:1.75;">${summaryItems.map(s => `<li style="margin-bottom:5px;">${esc(s)}</li>`).join('')}</ul>`
-                : `<div style="color:#9CA3AF;font-style:italic;font-size:13px;">ไม่มีข้อมูล</div>`
-            )}
-          </td></tr>
+          ${topics.length > 0 ? `
+            ${sectionTitle('ประเด็นการประชุม')}
+            <tr><td style="padding:8px 0 4px;">
+              ${topics.map(t => `
+                <div style="margin-bottom:14px;">
+                  <div style="font-weight:700;color:#0F172A;font-size:14px;border-left:3px solid #1E40AF;padding:2px 0 2px 10px;margin-bottom:6px;">${esc(t.topic || '')}</div>
+                  ${Array.isArray(t.points) && t.points.length ? `<ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:13px;line-height:1.7;">
+                    ${t.points.map(p => `<li style="margin-bottom:4px;">${esc(p)}</li>`).join('')}
+                  </ul>` : ''}
+                </div>
+              `).join('')}
+            </td></tr>
+          ` : ''}
+          ${summaryItems.length > 0 ? `
+            ${sectionTitle('💡 ประเด็นหลัก')}
+            <tr><td style="padding:8px 0 4px;">
+              <ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:13.5px;line-height:1.75;">
+                ${summaryItems.map(s => `<li style="margin-bottom:5px;">${esc(s)}</li>`).join('')}
+              </ul>
+            </td></tr>
+          ` : ''}
+          ${topics.length === 0 && summaryItems.length === 0 ? `
+            ${sectionTitle('ประเด็นการประชุม')}
+            <tr><td style="padding:8px 0 4px;">
+              <div style="color:#9CA3AF;font-style:italic;font-size:13px;">ไม่มีข้อมูล</div>
+            </td></tr>
+          ` : ''}
           ${decisions.length > 0 ? `
             ${sectionTitle('ข้อตัดสินใจ')}
             <tr><td style="padding:8px 0 4px;">
