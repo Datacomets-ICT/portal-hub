@@ -121,7 +121,17 @@ const OCR_PROMPT = `
 
 # OCR — ระบบอ่านข้อความจากรูปที่ user แนบ
 ถ้ามีบรรทัด "[ข้อความที่อ่านได้จากรูป]:" → text นั้นคือ error/symptom signal — ใช้เลย ห้ามถาม "error อะไรครับ?"
-ถ้าเห็น "[ไม่พบข้อความในรูป]" = photo อุปกรณ์ — ใช้เป็น evidence ไม่ต้องอ้าง text
+
+**สำคัญ: ถ้าเห็น "[ไม่พบข้อความในรูป]" หรือ "[OCR error" หรือ "[ระบบ OCR ปิดอยู่"**
+→ user แนบรูปมา = ส่วนใหญ่เป็นปัญหาคอม/หน้าจอ (BSOD, error dialog, จอดับ ฯลฯ)
+→ **ห้ามถาม "ติดอะไร / ปัญหาอะไร / Email/SAP/VPN ไหน"**
+→ ให้ assume เป็นปัญหา hardware ของคอมพิวเตอร์ — ถาม device ก่อน:
+> "เข้าใจครับ 🙏 ใช้เครื่องอะไรครับ?
+>  1. **PC ตั้งโต๊ะ**
+>  2. **Notebook**
+>  3. **Macbook**
+>  4. **iMac**
+>  5. **อื่นๆ (ระบุเอง)**"
 
 **ห้ามแสดง error code/Stop code ให้ user เห็น** — ใช้ภายในเพื่อ routing เท่านั้น
 ✅ ใช้ symptom สั้น ๆ จาก worklist: "หน้าจอฟ้า" / "เน็ตขัดข้อง" / "ล็อกอินไม่ได้"
@@ -593,9 +603,9 @@ export default async function handler(req, res) {
       if (ocrResult.status === 'ok') {
         marker = `\n\n[ข้อความที่ AI อ่านได้จากรูปที่แนบ ${images.length} รูป]:\n${ocrResult.text}`;
       } else if (ocrResult.status === 'no-text') {
-        marker = `\n\n[AI อ่านรูปแล้ว ${images.length} รูป — เป็นภาพถ่ายอุปกรณ์ ไม่มีข้อความ error ให้ดู — ถาม user เพิ่มเรื่องอาการ]`;
+        marker = `\n\n[ไม่พบข้อความในรูป — น่าจะเป็นรูปถ่ายจอ/เครื่อง (BSOD, จอดับ, error dialog) — ถาม device ก่อน (PC/Notebook/Macbook/iMac) แล้วค่อยถาม symptom]`;
       } else if (ocrResult.status === 'no-key') {
-        marker = `\n\n[ระบบ OCR ปิดอยู่ — ขอให้ user พิมพ์ error code/message ที่เห็นในรูปลงมาให้]`;
+        marker = `\n\n[ระบบ OCR ปิดอยู่ — น่าจะเป็นรูปถ่ายจอ — ถาม device ก่อน (PC/Notebook/Macbook/iMac) แล้วถาม user ให้พิมพ์ error code/อาการที่เห็น]`;
       } else if (ocrResult.status === 'error') {
         marker = `\n\n[OCR error: ${ocrResult.error || 'unknown'} — ขอให้ user พิมพ์ error code/message ลงมาให้]`;
       }
