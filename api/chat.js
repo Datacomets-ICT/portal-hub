@@ -324,15 +324,28 @@ async function ocrImagesGroq(dataUris) {
 // Try Gemini first → fallback to Groq llama-4-scout vision on 429/error.
 async function ocrImagesWithFallback(dataUris) {
   const primary = await ocrImages(dataUris);
-  if (primary.status === 'ok' || primary.status === 'no-text' || primary.status === 'empty') {
-    return primary; // success or definitive answer — no need to fallback
+  // Definitive success or empty input — no need to retry.
+  if (primary.status === 'ok' || primary.status === 'empty') {
+    return primary;
   }
-  console.log(`[OCR] primary failed (${primary.status}), trying Groq fallback`);
+  // Gemini said "no-text" OR errored. Both deserve a Groq retry, because
+  // Gemini Vision regularly false-negatives on:
+  //   - low-contrast BSOD photos
+  //   - off-axis screen shots with glare
+  //   - small/distant text in dialog boxes
+  // If Groq finds text, use it; if Groq also says no-text, we can trust
+  // the consensus. Net cost: one extra vision call when OCR was uncertain.
+  console.log(`[OCR] primary status=${primary.status}, trying Groq fallback`);
   const fallback = await ocrImagesGroq(dataUris);
-  if (fallback.status === 'ok' || fallback.status === 'no-text') {
+  if (fallback.status === 'ok') {
     return { ...fallback, provider: 'groq' };
   }
-  // Both failed — return primary error so user sees the original Gemini msg
+  // Groq also failed/no-text — return whichever has more signal:
+  //   - if primary was no-text and Groq was no-text → definitive no-text
+  //   - if primary errored → return primary so user sees original error
+  if (primary.status === 'no-text' && fallback.status === 'no-text') {
+    return { status: 'no-text', text: '', provider: 'both' };
+  }
   return primary;
 }
 
