@@ -1034,3 +1034,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: err.message || 'Internal error' });
   }
 }
+
+// Default Vercel timeout is 10s — too tight for the 4-provider fallback
+// chain (Groq scout → Cerebras → Gemini → Groq-8b). When the first provider
+// is slow under rate-limit pressure, the function timed out before reaching
+// the next provider and the user saw "เอ๊ะ AI ติดขัด" on the frontend.
+export const config = { maxDuration: 30 };
