@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import ProfileModal from '../components/ProfileModal.jsx';
-import InstallAppButton from '../components/InstallAppButton.jsx';
+import InstallAppButton, { InstallBanner } from '../components/InstallAppButton.jsx';
 
 const APPS = [
   {
@@ -250,6 +250,7 @@ export default function HubPage() {
       </header>
 
       <main className="hub-wrap">
+        <InstallBanner />
         <section className="hub-hero">
           <div className="hub-hero-card">
             <div className="hub-hero-deco" aria-hidden="true">

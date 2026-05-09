@@ -8,6 +8,81 @@ import { useEffect, useRef, useState } from 'react';
 // Once installed (or in standalone mode already) the button hides
 // itself — no point reminding the user.
 
+const DISMISSED_KEY = 'workspace_install_banner_dismissed';
+
+// Bigger CTA banner for mobile users. Shows on the hub page when the
+// app isn't installed yet, until the user dismisses or installs it.
+// Falls back to instructions modal on iOS where there's no native
+// install prompt.
+export function InstallBanner() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [installed, setInstalled] = useState(isStandalone());
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(DISMISSED_KEY) === '1'; }
+    catch { return false; }
+  });
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    function handler(e) {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    }
+    function onInstalled() {
+      setInstalled(true);
+      setDeferredPrompt(null);
+    }
+    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  if (installed || dismissed) return null;
+
+  function dismiss() {
+    setDismissed(true);
+    try { localStorage.setItem(DISMISSED_KEY, '1'); } catch {}
+  }
+
+  async function handleInstall() {
+    if (!deferredPrompt) {
+      setShowHelp(true);
+      return;
+    }
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    if (choice.outcome === 'accepted') setInstalled(true);
+    setDeferredPrompt(null);
+  }
+
+  return (
+    <>
+      <div className="install-banner">
+        <div className="install-banner-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="5" y="2" width="14" height="20" rx="2" />
+            <path d="M12 18h.01" />
+          </svg>
+        </div>
+        <div className="install-banner-text">
+          <div className="install-banner-title">📱 ติดตั้ง Workspace เป็น App</div>
+          <div className="install-banner-sub">
+            ใช้งานสะดวก เปิดเร็วกว่า เห็นไอคอนบน home screen
+          </div>
+        </div>
+        <button type="button" className="install-banner-cta" onClick={handleInstall}>
+          ติดตั้งเลย
+        </button>
+        <button type="button" className="install-banner-close" onClick={dismiss} aria-label="ปิด">✕</button>
+      </div>
+      {showHelp && <InstallHelpModal onClose={() => setShowHelp(false)} />}
+    </>
+  );
+}
+
 export default function InstallAppButton() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [installed, setInstalled] = useState(isStandalone());
