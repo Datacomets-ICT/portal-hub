@@ -4856,17 +4856,17 @@ async function sendChat() {
         // Show OCR result first so user can SEE the AI read their image
         // (or that OCR failed). Helps debug + builds trust ("the bot
         // really did look at my screenshot").
+        // Only surface OCR status when something went WRONG. Successful
+        // reads stay invisible — the bot will reference what it saw in
+        // its own message anyway, so dumping the raw extracted text in
+        // a separate yellow panel was just noise.
         if (data.ocr) {
-            const providerTag = data.ocr.provider === 'groq' ? ' _(สำรองด้วย Groq)_' : '';
-            if (data.ocr.status === 'ok' && data.ocr.text) {
-                appendChatMsg('system', '🔍 **AI อ่านได้จากรูป:**' + providerTag + '\n\n```\n' + data.ocr.text + '\n```');
-            } else if (data.ocr.status === 'no-text') {
-                appendChatMsg('system', '🔍 AI อ่านรูปแล้ว แต่ในรูปไม่มีข้อความ (เป็นภาพถ่ายอุปกรณ์) — ลองพิมพ์อาการเพิ่มได้ครับ');
-            } else if (data.ocr.status === 'no-key') {
-                appendChatMsg('system', '⚠️ ระบบ OCR ปิดอยู่ (admin ยังไม่ได้ตั้ง GEMINI_API_KEY) — กรุณาพิมพ์ error ที่เห็นในรูปลงมาให้ครับ');
+            if (data.ocr.status === 'no-key') {
+                appendChatMsg('system', '⚠️ ระบบ OCR ปิดอยู่ — กรุณาพิมพ์ error ที่เห็นในรูปลงมาให้ครับ');
             } else if (data.ocr.status === 'error') {
-                appendChatMsg('system', '⚠️ AI อ่านรูปไม่สำเร็จ: ' + (data.ocr.error || 'unknown') + ' — กรุณาพิมพ์ error ที่เห็นลงมาแทน');
+                appendChatMsg('system', '⚠️ AI อ่านรูปไม่สำเร็จ — กรุณาพิมพ์ error ที่เห็นลงมาแทน');
             }
+            // ok / no-text / empty → silent
         }
 
         appendChatMsg('bot', data.reply);
