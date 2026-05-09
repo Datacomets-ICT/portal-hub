@@ -801,16 +801,20 @@ async function callLLM(messages, systemPrompt = SYSTEM_PROMPT) {
 
   if (providers.length === 0) throw new Error('No LLM provider configured (set GROQ_API_KEY, CEREBRAS_API_KEY, or GEMINI_API_KEY)');
 
-  let lastErr = null;
+  const failures = [];
   for (const p of providers) {
     try {
       return await p.fn();
     } catch (err) {
-      lastErr = err;
-      console.warn(`[LLM] ${p.name} failed (${err.status || 'no status'}): ${err.message}`);
+      const status = err.status || '???';
+      const msg = (err.message || 'unknown').slice(0, 120);
+      failures.push(`${p.name}=${status}`);
+      console.warn(`[LLM] ${p.name} failed (${status}): ${err.message}`);
     }
   }
-  throw lastErr || new Error('All LLM providers failed');
+  // Surface ALL failures so the frontend debug bubble shows whether the
+  // chain actually fell over to each provider or short-circuited early.
+  throw new Error(`all providers failed [${failures.join(', ')}] — last: ${failures[failures.length - 1] || 'none'}`);
 }
 
 // Backwards-compat wrapper — older code paths still call callGroq().
