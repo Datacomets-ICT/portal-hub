@@ -2840,3 +2840,112 @@ tr.rr-clickable:hover { background: var(--bg-2); }
   font-size: 13px;
   padding: 8px 10px;
 }
+
+/* ========= Edit + Preview grid ========= */
+.ms-edit-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 4px 0 8px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .ms-edit-preview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ms-edit-pane {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.ms-preview-pane {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+  position: sticky;
+  top: 12px;
+}
+.ms-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #1E3A8A, #1E40AF);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.ms-preview-head .ms-btn-ghost {
+  color: #fff;
+  font-size: 14px;
+  padding: 4px 8px;
+}
+.ms-preview-head .ms-btn-ghost:hover { background: rgba(255,255,255,0.15); }
+.ms-preview-iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* ========= Edit form fields ========= */
+.ms-edit-form { display: flex; flex-direction: column; gap: 14px; }
+.ms-edit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ms-edit-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--fg);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.ms-edit-textarea,
+.ms-edit-input {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--fg);
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.ms-edit-textarea:focus,
+.ms-edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+.ms-edit-row,
+.ms-edit-action-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.ms-edit-add {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+.ms-edit-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}

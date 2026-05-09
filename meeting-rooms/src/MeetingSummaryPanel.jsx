@@ -14,6 +14,7 @@ import {
   buildPlainText,
   copyToClipboard,
   summaryToList,
+  buildReportHtml,
 } from './meetingExport.js';
 import MeetingEmailModal from './MeetingEmailModal.jsx';
 
@@ -281,6 +282,115 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
 
   const [emailOpen, setEmailOpen] = useState(false);
   const [copiedAt, setCopiedAt] = useState(0);
+
+  // Edit + preview UI state
+  const [editMode, setEditMode] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [editedNote, setEditedNote] = useState(null); // working copy while editing
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // The "live" view object the preview iframe renders. While editing
+  // it tracks editedNote so the preview reflects every keystroke; when
+  // not editing it just mirrors the saved note.
+  const previewNote = editMode ? editedNote : note;
+
+  function handleStartEdit() {
+    if (!note) return;
+    // Take a deep-ish copy so edits don't mutate state in place.
+    setEditedNote({
+      ...note,
+      action_items: Array.isArray(note.action_items)
+        ? note.action_items.map(a => ({ ...a }))
+        : [],
+      decisions: Array.isArray(note.decisions) ? [...note.decisions] : [],
+      discussion_topics: Array.isArray(note.discussion_topics)
+        ? note.discussion_topics.map(t => ({
+            ...t,
+            points: Array.isArray(t.points) ? [...t.points] : [],
+          }))
+        : [],
+    });
+    setEditMode(true);
+    setPreviewOpen(true); // auto-open preview alongside edit
+    setErr('');
+  }
+
+  function handleCancelEdit() {
+    setEditMode(false);
+    setEditedNote(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editedNote?.id) return;
+    setSavingEdit(true);
+    setErr('');
+    try {
+      const patch = {
+        summary: editedNote.summary || '',
+        action_items: editedNote.action_items || [],
+        decisions: editedNote.decisions || [],
+        discussion_topics: editedNote.discussion_topics || [],
+        next_meeting: editedNote.next_meeting || '',
+        transcript: editedNote.transcript || '',
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase
+        .from('mtg_meeting_notes')
+        .update(patch)
+        .eq('id', editedNote.id);
+      if (error) throw error;
+      setNote({ ...note, ...patch });
+      setEditMode(false);
+      setEditedNote(null);
+    } catch (e) {
+      setErr('บันทึกไม่สำเร็จ: ' + (e.message || e));
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  // Field setters used by the form
+  const updateField = (field, value) => {
+    setEditedNote(prev => ({ ...prev, [field]: value }));
+  };
+  const updateActionItem = (idx, field, value) => {
+    setEditedNote(prev => {
+      const next = [...prev.action_items];
+      next[idx] = { ...next[idx], [field]: value };
+      return { ...prev, action_items: next };
+    });
+  };
+  const removeActionItem = (idx) => {
+    setEditedNote(prev => ({
+      ...prev,
+      action_items: prev.action_items.filter((_, i) => i !== idx),
+    }));
+  };
+  const addActionItem = () => {
+    setEditedNote(prev => ({
+      ...prev,
+      action_items: [...(prev.action_items || []), { task: '', owner: '', due: '' }],
+    }));
+  };
+  const updateDecision = (idx, value) => {
+    setEditedNote(prev => {
+      const next = [...prev.decisions];
+      next[idx] = value;
+      return { ...prev, decisions: next };
+    });
+  };
+  const removeDecision = (idx) => {
+    setEditedNote(prev => ({
+      ...prev,
+      decisions: prev.decisions.filter((_, i) => i !== idx),
+    }));
+  };
+  const addDecision = () => {
+    setEditedNote(prev => ({
+      ...prev,
+      decisions: [...(prev.decisions || []), ''],
+    }));
+  };
   async function handleCopy() {
     if (!note) return;
     const text = buildPlainText(exportArgs());
@@ -300,9 +410,19 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
     <div className="ms-panel">
       <div className="ms-panel-head">
         <div className="ms-panel-title">📝 สรุปการประชุม (AI)</div>
-        {note && !isProcessing && (
-          <button type="button" className="ms-btn-ghost" onClick={handleDelete} title="ลบ">🗑️</button>
-        )}
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {note && note.status === 'done' && !isProcessing && !editMode && (
+            <>
+              <button type="button" className="ms-btn-ghost" onClick={handleStartEdit} title="แก้ไข">✏️</button>
+              <button type="button" className="ms-btn-ghost" onClick={() => setPreviewOpen(o => !o)} title="ดู Preview">
+                {previewOpen ? '🙈' : '👁️'}
+              </button>
+            </>
+          )}
+          {note && !isProcessing && !editMode && (
+            <button type="button" className="ms-btn-ghost" onClick={handleDelete} title="ลบ">🗑️</button>
+          )}
+        </div>
       </div>
 
       {/* In-progress UI — covers fresh starts AND resumed pipelines */}
@@ -453,8 +573,57 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             })()}
           />
 
+          {/* Two-column layout when editing OR previewing.
+              Left = read-only display or edit form. Right = live preview iframe. */}
+          {(editMode || previewOpen) && (
+            <div className="ms-edit-preview-grid">
+              <div className="ms-edit-pane">
+                {editMode && editedNote ? (
+                  <EditForm
+                    edited={editedNote}
+                    update={updateField}
+                    updateActionItem={updateActionItem}
+                    addActionItem={addActionItem}
+                    removeActionItem={removeActionItem}
+                    updateDecision={updateDecision}
+                    addDecision={addDecision}
+                    removeDecision={removeDecision}
+                    onSave={handleSaveEdit}
+                    onCancel={handleCancelEdit}
+                    saving={savingEdit}
+                  />
+                ) : (
+                  <ReadOnlyView note={note} />
+                )}
+              </div>
+              <div className="ms-preview-pane">
+                <div className="ms-preview-head">
+                  <span>👁️ ตัวอย่างที่จะส่ง / โหลด</span>
+                  <button
+                    type="button"
+                    className="ms-btn-ghost"
+                    onClick={() => { if (!editMode) setPreviewOpen(false); }}
+                    disabled={editMode}
+                    title={editMode ? 'ปิดได้หลังจากบันทึก/ยกเลิก' : 'ปิด preview'}
+                  >✕</button>
+                </div>
+                <iframe
+                  className="ms-preview-iframe"
+                  title="meeting summary preview"
+                  srcDoc={buildReportHtml({
+                    booking,
+                    room,
+                    employee,
+                    note: previewNote,
+                    includeStyles: true,
+                  })}
+                />
+              </div>
+            </div>
+          )}
 
-          {Array.isArray(note.discussion_topics) && note.discussion_topics.length > 0 && (
+          {/* Inline read-only display — only when not in edit/preview mode */}
+          {!editMode && !previewOpen && Array.isArray(note.discussion_topics) && note.discussion_topics.length > 0 && (
             <div className="ms-section">
               <div className="ms-section-title">💬 ประเด็นการประชุม</div>
               {note.discussion_topics.map((t, i) => (
@@ -470,7 +639,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             </div>
           )}
 
-          {(() => {
+          {!editMode && !previewOpen && (() => {
             const lines = summaryToList(note.summary);
             return lines.length > 0 ? (
               <div className="ms-section">
@@ -482,7 +651,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             ) : null;
           })()}
 
-          {Array.isArray(note.decisions) && note.decisions.length > 0 && (
+          {!editMode && !previewOpen && Array.isArray(note.decisions) && note.decisions.length > 0 && (
             <div className="ms-section">
               <div className="ms-section-title">⚖️ ข้อตัดสินใจ</div>
               <ul className="ms-decisions">
@@ -491,7 +660,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             </div>
           )}
 
-          {Array.isArray(note.action_items) && note.action_items.length > 0 && (
+          {!editMode && !previewOpen && Array.isArray(note.action_items) && note.action_items.length > 0 && (
             <div className="ms-section">
               <div className="ms-section-title">✅ Action Items</div>
               <ul className="ms-action-list">
@@ -506,14 +675,14 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             </div>
           )}
 
-          {note.next_meeting && (
+          {!editMode && !previewOpen && note.next_meeting && (
             <div className="ms-section">
               <div className="ms-section-title">📅 การประชุมครั้งถัดไป</div>
               <div className="ms-next-meeting">{note.next_meeting}</div>
             </div>
           )}
 
-          {note.transcript && (
+          {!editMode && !previewOpen && note.transcript && (
             <details className="ms-section ms-transcript">
               <summary>📜 ดู transcript เต็ม</summary>
               <pre className="ms-transcript-text">{note.transcript}</pre>
@@ -521,6 +690,154 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ===== Sub-components =====
+
+function ReadOnlyView({ note }) {
+  const lines = summaryToList(note.summary);
+  return (
+    <div>
+      {Array.isArray(note.discussion_topics) && note.discussion_topics.length > 0 && (
+        <div className="ms-section">
+          <div className="ms-section-title">💬 ประเด็นการประชุม</div>
+          {note.discussion_topics.map((t, i) => (
+            <div key={i} className="ms-topic">
+              <div className="ms-topic-head">{t.topic}</div>
+              {Array.isArray(t.points) && t.points.length > 0 && (
+                <ul className="ms-topic-points">
+                  {t.points.map((p, j) => <li key={j}>{p}</li>)}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {lines.length > 0 && (
+        <div className="ms-section">
+          <div className="ms-section-title">💡 ประเด็นหลัก</div>
+          <ul className="ms-action-list">{lines.map((l, i) => <li key={i}>{l}</li>)}</ul>
+        </div>
+      )}
+      {Array.isArray(note.decisions) && note.decisions.length > 0 && (
+        <div className="ms-section">
+          <div className="ms-section-title">⚖️ ข้อตัดสินใจ</div>
+          <ul className="ms-decisions">{note.decisions.map((d, i) => <li key={i}>{d}</li>)}</ul>
+        </div>
+      )}
+      {Array.isArray(note.action_items) && note.action_items.length > 0 && (
+        <div className="ms-section">
+          <div className="ms-section-title">✅ Action Items</div>
+          <ul className="ms-action-list">
+            {note.action_items.map((it, i) => (
+              <li key={i}>
+                <b>{it.task}</b>
+                {it.owner && <> — <span className="ms-owner">{it.owner}</span></>}
+                {it.due && <> · <span className="ms-due">{it.due}</span></>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {note.next_meeting && (
+        <div className="ms-section">
+          <div className="ms-section-title">📅 การประชุมครั้งถัดไป</div>
+          <div className="ms-next-meeting">{note.next_meeting}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EditForm({
+  edited, update, updateActionItem, addActionItem, removeActionItem,
+  updateDecision, addDecision, removeDecision, onSave, onCancel, saving,
+}) {
+  return (
+    <div className="ms-edit-form">
+      <div className="ms-edit-section">
+        <label className="ms-edit-label">💡 ประเด็นหลัก</label>
+        <textarea
+          className="ms-edit-textarea"
+          rows={6}
+          value={edited.summary || ''}
+          onChange={e => update('summary', e.target.value)}
+          placeholder="• ประเด็นที่ 1&#10;• ประเด็นที่ 2"
+        />
+      </div>
+
+      <div className="ms-edit-section">
+        <label className="ms-edit-label">⚖️ ข้อตัดสินใจ</label>
+        {(edited.decisions || []).map((d, i) => (
+          <div key={i} className="ms-edit-row">
+            <input
+              type="text"
+              className="ms-edit-input"
+              value={d}
+              onChange={e => updateDecision(i, e.target.value)}
+              placeholder="ข้อตัดสินใจ"
+            />
+            <button type="button" className="ms-btn-ghost" onClick={() => removeDecision(i)} title="ลบ">✕</button>
+          </div>
+        ))}
+        <button type="button" className="ms-btn-secondary ms-edit-add" onClick={addDecision}>+ เพิ่มข้อตัดสินใจ</button>
+      </div>
+
+      <div className="ms-edit-section">
+        <label className="ms-edit-label">✅ Action Items</label>
+        {(edited.action_items || []).map((it, i) => (
+          <div key={i} className="ms-edit-action-row">
+            <input
+              type="text"
+              className="ms-edit-input"
+              value={it.task || ''}
+              onChange={e => updateActionItem(i, 'task', e.target.value)}
+              placeholder="งาน"
+              style={{ flex: 2 }}
+            />
+            <input
+              type="text"
+              className="ms-edit-input"
+              value={it.owner || ''}
+              onChange={e => updateActionItem(i, 'owner', e.target.value)}
+              placeholder="ผู้รับผิดชอบ"
+              style={{ flex: 1 }}
+            />
+            <input
+              type="text"
+              className="ms-edit-input"
+              value={it.due || ''}
+              onChange={e => updateActionItem(i, 'due', e.target.value)}
+              placeholder="กำหนดเสร็จ"
+              style={{ flex: 1 }}
+            />
+            <button type="button" className="ms-btn-ghost" onClick={() => removeActionItem(i)} title="ลบ">✕</button>
+          </div>
+        ))}
+        <button type="button" className="ms-btn-secondary ms-edit-add" onClick={addActionItem}>+ เพิ่ม Action Item</button>
+      </div>
+
+      <div className="ms-edit-section">
+        <label className="ms-edit-label">📅 การประชุมครั้งถัดไป</label>
+        <input
+          type="text"
+          className="ms-edit-input"
+          value={edited.next_meeting || ''}
+          onChange={e => update('next_meeting', e.target.value)}
+          placeholder="เช่น พุธหน้า 14:00 ห้อง JUPITER"
+        />
+      </div>
+
+      <div className="ms-edit-actions">
+        <button type="button" className="ms-btn-primary" onClick={onSave} disabled={saving}>
+          {saving ? '⏳ กำลังบันทึก...' : '💾 บันทึก'}
+        </button>
+        <button type="button" className="ms-btn-secondary" onClick={onCancel} disabled={saving}>
+          ↩️ ยกเลิก
+        </button>
+      </div>
     </div>
   );
 }
