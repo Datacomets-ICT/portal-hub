@@ -417,7 +417,10 @@ function formatKnowledgeContext(results) {
 // ---- Call Groq API ----
 const MAX_HISTORY = 10; // keep last N messages to avoid token overflow
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const GEMINI_MODEL = 'gemini-1.5-flash-latest';
+// gemini-1.5-flash-latest was returning 404 in Jan 2026 (Google
+// deprecated the -latest alias for older versions). gemini-2.0-flash
+// is the current stable free-tier model, 1M TPM, much higher quotas.
+const GEMINI_MODEL = 'gemini-2.0-flash';
 // Groq fallback model (small + fast — different rate-limit pool than scout)
 const GROQ_FALLBACK_MODEL = 'llama-3.1-8b-instant';
 
@@ -484,7 +487,11 @@ async function callGeminiOnce(apiKey, messages, systemPrompt) {
 // from Groq, so they stack). Their inference is the fastest in market
 // (~2000 tok/s on Llama 3.3 70B).
 const CEREBRAS_URL   = 'https://api.cerebras.ai/v1/chat/completions';
-const CEREBRAS_MODEL = 'llama-3.3-70b';
+// llama-3.3-70b was 404'ing in Jan 2026 — Cerebras renamed to
+// llama-3.3-70b-instruct (or similar). Switching to llama3.1-8b which
+// is their fastest/most-stable model and confirmed available on free
+// tier. ~2000 tok/s — basically instant.
+const CEREBRAS_MODEL = 'llama3.1-8b';
 
 async function callCerebrasOnce(apiKey, messages, systemPrompt) {
   const body = {
