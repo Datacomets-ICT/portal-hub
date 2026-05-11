@@ -3180,3 +3180,172 @@ body.ms-preview-open .modal-backdrop {
   .main { padding: 0 8px !important; }
   .modal-body { padding: 12px !important; }
 }
+
+/* ───────── Room preview pane (magnifier on room cards) ─────────
+   Floating panel that slides in from the right edge so the user can
+   inspect a room photo at full size without leaving the booking
+   wizard. Backdrop is transparent — it's a peek, not a modal. */
+
+.rs-photo {
+  position: relative;
+}
+.rs-zoom-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  transition: background 0.12s, transform 0.08s;
+  z-index: 1;
+}
+.rs-zoom-btn:hover { background: #fff; transform: scale(1.08); }
+.rs-zoom-btn:active { transform: scale(0.96); }
+
+.room-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+  animation: rpFade .15s ease;
+}
+@keyframes rpFade { from { opacity: 0; } to { opacity: 1; } }
+
+.room-preview-pane {
+  width: min(420px, 92vw);
+  height: 100vh;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.18);
+  animation: rpSlide .22s cubic-bezier(.2,.7,.2,1);
+  overflow: hidden;
+}
+@keyframes rpSlide { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.room-preview-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
+  border: 0;
+  font-size: 16px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  z-index: 2;
+}
+.room-preview-close:hover { background: #fff; }
+
+.room-preview-stage {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  height: 56vh;
+  background: #0b1220;
+  overflow: hidden;
+}
+.room-preview-img {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity .6s ease;
+}
+.room-preview-img.on { opacity: 1; }
+.room-preview-img.kenburns { animation: rpKenBurns 18s ease-in-out infinite alternate; }
+@keyframes rpKenBurns {
+  0%   { transform: scale(1.04) translate(0, 0); }
+  50%  { transform: scale(1.10) translate(-2%, -1%); }
+  100% { transform: scale(1.04) translate(2%, 1%); }
+}
+.room-preview-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  opacity: 0.5;
+  font-size: 14px;
+}
+
+.room-preview-dots {
+  position: absolute;
+  bottom: 12px;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  z-index: 2;
+}
+.room-preview-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  padding: 0;
+  transition: background .12s, width .15s;
+}
+.room-preview-dot.on { background: #fff; width: 22px; border-radius: 4px; }
+
+.room-preview-info {
+  flex: 1;
+  padding: 18px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.room-preview-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fg);
+}
+.room-preview-meta {
+  font-size: 13px;
+  color: var(--fg-3);
+}
+.room-preview-equip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.room-preview-equip-chip {
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--fg-2);
+  border: 1px solid var(--line);
+}
+.room-preview-desc {
+  font-size: 13px;
+  color: var(--fg-2);
+  line-height: 1.55;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 540px) {
+  .room-preview-pane { width: 100vw; }
+  .room-preview-stage { height: 48vh; }
+}

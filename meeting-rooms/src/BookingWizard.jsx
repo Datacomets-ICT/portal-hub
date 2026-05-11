@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DAY_START,
   DAY_END,
@@ -48,6 +49,9 @@ export default function BookingWizard({
 
   // Selection + final details
   const [selectedRoom, setSelectedRoom] = useState(null);
+  // Magnifier preview pane — separate from selection so the user can
+  // peek at a room without committing to it.
+  const [previewRoom, setPreviewRoom] = useState(null);
   const [title, setTitle] = useState('');
   const [company, setCompany] = useState('');
   const [equipment, setEquipment] = useState([]);
@@ -324,7 +328,29 @@ export default function BookingWizard({
                     <div
                       className="rs-photo"
                       style={{ backgroundImage: `url(${r.picture})` }}
-                    />
+                    >
+                      <span
+                        className="rs-zoom-btn"
+                        role="button"
+                        tabIndex={0}
+                        title="ดูรูปห้องแบบใหญ่"
+                        aria-label={`ดูรูปห้อง ${r.name}`}
+                        onClick={(e) => { e.stopPropagation(); setPreviewRoom(r); }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setPreviewRoom(r);
+                          }
+                        }}
+                      >
+                        {/* magnifier glyph — inline SVG so we don't pull a font */}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <circle cx="11" cy="11" r="7" />
+                          <line x1="20" y1="20" x2="16.65" y2="16.65" />
+                        </svg>
+                      </span>
+                    </div>
                     <div className="rs-info">
                       <div className="rs-name">{r.name}</div>
                       <div className="rs-meta">
@@ -447,6 +473,112 @@ export default function BookingWizard({
           </button>
         </div>
       </div>
+
+      {previewRoom && (
+        <RoomPreviewPane
+          room={previewRoom}
+          onClose={() => setPreviewRoom(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Floating preview pane that slides in from the right edge of the
+// viewport. Renders via portal so it escapes the modal's stacking
+// context and overlays the entire screen on small displays.
+//
+// The "slideshow" cycles through room.pictures (array) when present;
+// for now most rooms only have a single room.picture, in which case
+// the pane shows that one image with a slow ken-burns animation so
+// it still feels alive. When the schema gains multi-image support,
+// passing room.pictures = [url1, url2, ...] will Just Work — no UI
+// change needed.
+function RoomPreviewPane({ room, onClose }) {
+  const images = useMemo(() => {
+    if (Array.isArray(room.pictures) && room.pictures.length > 0) return room.pictures;
+    if (room.picture) return [room.picture];
+    return [];
+  }, [room]);
+  const [idx, setIdx] = useState(0);
+
+  // Auto-advance — only meaningful when multiple images. Single image
+  // gets the ken-burns effect via CSS, no JS rotation needed.
+  useEffect(() => {
+    if (images.length < 2) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % images.length), 3500);
+    return () => clearInterval(t);
+  }, [images.length]);
+
+  // Esc to close
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div className="room-preview-backdrop" onClick={onClose}>
+      <aside
+        className="room-preview-pane"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label={`รูปห้อง ${room.name}`}
+      >
+        <button
+          type="button"
+          className="room-preview-close"
+          onClick={onClose}
+          aria-label="ปิด"
+        >
+          ✕
+        </button>
+
+        <div className="room-preview-stage">
+          {images.length === 0 ? (
+            <div className="room-preview-empty">ห้องนี้ยังไม่มีรูป</div>
+          ) : (
+            images.map((src, i) => (
+              <div
+                key={src + i}
+                className={`room-preview-img ${i === idx ? 'on' : ''} ${images.length === 1 ? 'kenburns' : ''}`}
+                style={{ backgroundImage: `url(${src})` }}
+              />
+            ))
+          )}
+          {images.length > 1 && (
+            <div className="room-preview-dots">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`room-preview-dot ${i === idx ? 'on' : ''}`}
+                  onClick={() => setIdx(i)}
+                  aria-label={`ภาพที่ ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="room-preview-info">
+          <div className="room-preview-name">{room.name}</div>
+          <div className="room-preview-meta">
+            {room.location} · {room.floor} · {room.seats} ที่นั่ง
+          </div>
+          {Array.isArray(room.equipment) && room.equipment.length > 0 && (
+            <div className="room-preview-equip">
+              {room.equipment.map((e) => (
+                <span key={e} className="room-preview-equip-chip">{e}</span>
+              ))}
+            </div>
+          )}
+          {room.description && (
+            <div className="room-preview-desc">{room.description}</div>
+          )}
+        </div>
+      </aside>
+    </div>,
+    document.body
   );
 }
