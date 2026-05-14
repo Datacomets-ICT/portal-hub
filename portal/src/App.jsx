@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage.jsx';
 import HubPage from './pages/HubPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import RepairComingSoonPage from './pages/RepairComingSoonPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
+import AnnouncementMarquee from './components/AnnouncementMarquee.jsx';
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -12,28 +14,42 @@ function Protected({ children }) {
 }
 
 export default function App() {
+  const { user } = useAuth();
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/" element={<Navigate to="/hub" replace />} />
-      <Route
-        path="/hub"
-        element={
-          <Protected>
-            <HubPage />
-          </Protected>
-        }
-      />
-      <Route
-        path="/repair"
-        element={
-          <Protected>
-            <RepairComingSoonPage />
-          </Protected>
-        }
-      />
-      <Route path="*" element={<Navigate to="/hub" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/" element={<Navigate to="/hub" replace />} />
+        <Route
+          path="/hub"
+          element={
+            <Protected>
+              <HubPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/repair"
+          element={
+            <Protected>
+              <RepairComingSoonPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <Protected>
+              <AdminPage />
+            </Protected>
+          }
+        />
+        <Route path="*" element={<Navigate to="/hub" replace />} />
+      </Routes>
+      {/* Marquee renders on every signed-in page (login/register skip via the
+          condition below). It's outside <Routes> so it persists across nav. */}
+      {user && <AnnouncementMarquee />}
+    </>
   );
 }
