@@ -131,6 +131,13 @@ function rowToBooking(r) {
     purpose: r.purpose,
     purposeDetail: r.purpose_detail,
     status: r.status,
+    // v6: in-trip live status — separate from approval `status` above.
+    // Possible values: idle | on_the_way | picked_up | delivered | done.
+    // Falls back to 'idle' for legacy rows.
+    tripStatus: r.trip_status || 'idle',
+    tripStatusUpdatedAt: r.trip_status_updated_at || null,
+    tripRating: r.trip_rating || null,
+    tripRatingComment: r.trip_rating_comment || '',
     car:    r.car_plate    ? { plate: r.car_plate,    model: r.car_model, seats: r.car_seats, color: r.car_color } : null,
     driver: r.driver_name  ? { id: r.driver_no, name: r.driver_name, phone: r.driver_phone } : null,
     createdAt: r.created_at ? new Date(r.created_at).toLocaleString('sv-SE').slice(0, 16) : '',

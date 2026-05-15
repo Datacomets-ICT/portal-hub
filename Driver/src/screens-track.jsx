@@ -178,6 +178,10 @@ const BookingDetail = ({ b, back, empId, password, onReload, openChatInitial, on
     <div style={{display:"grid", gridTemplateColumns:"1fr 360px", gap:20}}>
       {/* Left */}
       <div style={{display:"flex", flexDirection:"column", gap:16}}>
+        {/* Live trip panel — shows status buttons, GPS map, rating.
+            Only renders once admin approved the booking. */}
+        <LiveTripPanel b={b} empId={empId} onReload={onReload}/>
+
         {/* Timeline */}
         <Card style={{padding:24}}>
           <h3 style={{margin:"0 0 18px", fontSize:15}}>สถานะการดำเนินการ</h3>
@@ -320,4 +324,308 @@ const MiniRow = ({k, v}) => (
   </div>
 );
 
-Object.assign(window, { TrackScreen });
+// =============================================================================
+// LiveTripPanel — Phase A (status buttons) + Phase B (GPS map) + Phase C (rating)
+// =============================================================================
+// Renders a single card with three sections that show / hide based on
+// the trip's current state:
+//   1. Status progress bar — 4 stages (ออกแล้ว → รับแล้ว → ส่งแล้ว → จบ)
+//      with click-to-advance buttons for the driver/admin
+//   2. Live GPS map (only while trip_status is on_the_way or picked_up)
+//      — uses Leaflet for the rendering, free OpenStreetMap tiles
+//   3. Star rating (only after trip_status='done', if not yet rated)
+//
+// State:
+//   - Polls drv_get_my_bookings indirectly via parent's onReload every 6s
+//     so the booker sees live updates without WebSocket plumbing.
+//   - GPS share toggle uses navigator.geolocation.watchPosition; pings
+//     drv_post_location every 30s while active.
+const STATUS_FLOW = [
+  { key: 'idle',       label: 'รอออก',     short: '⚪' },
+  { key: 'on_the_way', label: 'ออกแล้ว',   short: '🚗' },
+  { key: 'picked_up',  label: 'รับแล้ว',   short: '🙋' },
+  { key: 'delivered',  label: 'ส่งแล้ว',   short: '📍' },
+  { key: 'done',       label: 'จบ trip',   short: '✅' },
+];
+
+const LiveTripPanel = ({ b, empId, onReload }) => {
+  const [busy, setBusy] = React.useState(false);
+  const [sharing, setSharing] = React.useState(false);
+  const [loc, setLoc] = React.useState(null);
+  const [shareErr, setShareErr] = React.useState('');
+  const [rateValue, setRateValue] = React.useState(b.tripRating || 0);
+  const [rateComment, setRateComment] = React.useState(b.tripRatingComment || '');
+  const [rateSent, setRateSent] = React.useState(!!b.tripRating);
+  const watchIdRef = React.useRef(null);
+  const lastUploadRef = React.useRef(0);
+  const mapElRef = React.useRef(null);
+  const mapInstRef = React.useRef(null);
+  const markerRef = React.useRef(null);
+
+  const cur = b.tripStatus || 'idle';
+  const curIdx = STATUS_FLOW.findIndex(s => s.key === cur);
+  const isOwner = b.employee && b.employee.id === empId;
+  const tripActive = cur === 'on_the_way' || cur === 'picked_up';
+  const tripDone = cur === 'done' || b.status === 'completed';
+
+  // Auto-poll every 6s while the panel is open, so booker watching
+  // their trip sees status changes without manual refresh.
+  React.useEffect(() => {
+    if (!onReload) return;
+    const t = setInterval(() => onReload(), 6000);
+    return () => clearInterval(t);
+  }, [onReload]);
+
+  // Poll location every 8s while trip is active (booker-side view)
+  React.useEffect(() => {
+    if (!tripActive) { setLoc(null); return; }
+    let cancelled = false;
+    async function tick() {
+      try {
+        const { data, error } = await window.sb.rpc('drv_get_location', { p_booking_no: b.id });
+        if (cancelled) return;
+        if (!error && Array.isArray(data) && data.length > 0) setLoc(data[0]);
+      } catch (_) {}
+    }
+    tick();
+    const t = setInterval(tick, 8000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [tripActive, b.id]);
+
+  // Render Leaflet map when we have a location
+  React.useEffect(() => {
+    if (!tripActive || !loc || !mapElRef.current || typeof window.L === 'undefined') return;
+    const L = window.L;
+    if (!mapInstRef.current) {
+      mapInstRef.current = L.map(mapElRef.current, { zoomControl: true, attributionControl: false })
+        .setView([loc.lat, loc.lng], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 })
+        .addTo(mapInstRef.current);
+      markerRef.current = L.marker([loc.lat, loc.lng]).addTo(mapInstRef.current);
+    } else {
+      markerRef.current.setLatLng([loc.lat, loc.lng]);
+      mapInstRef.current.setView([loc.lat, loc.lng], mapInstRef.current.getZoom());
+    }
+  }, [loc, tripActive]);
+
+  // Cleanup map on unmount
+  React.useEffect(() => () => {
+    if (mapInstRef.current) { mapInstRef.current.remove(); mapInstRef.current = null; }
+  }, []);
+
+  // Driver clicks a status button — advance trip
+  async function setStatus(next) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { error } = await window.sb.rpc('drv_set_trip_status', {
+        p_booking_no: b.id, p_status: next,
+      });
+      if (error) throw error;
+      onReload && await onReload();
+      // Auto-stop GPS share when trip moves to delivered / done
+      if (next === 'delivered' || next === 'done') stopGpsShare();
+    } catch (e) {
+      alert(e.message || 'อัปเดตสถานะไม่สำเร็จ');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Driver toggles GPS share
+  function startGpsShare() {
+    if (!('geolocation' in navigator)) {
+      setShareErr('เบราว์เซอร์ไม่รองรับ GPS');
+      return;
+    }
+    setShareErr('');
+    setSharing(true);
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const now = Date.now();
+        // Throttle: 1 upload per 30s to avoid hammering Supabase
+        if (now - lastUploadRef.current < 30_000) return;
+        lastUploadRef.current = now;
+        try {
+          await window.sb.rpc('drv_post_location', {
+            p_booking_no: b.id,
+            p_lat: pos.coords.latitude,
+            p_lng: pos.coords.longitude,
+            p_accuracy: pos.coords.accuracy,
+          });
+        } catch (_) {}
+      },
+      (err) => { setShareErr(err.message || 'ขอ GPS ไม่สำเร็จ'); setSharing(false); },
+      { enableHighAccuracy: true, maximumAge: 10_000, timeout: 30_000 }
+    );
+  }
+  function stopGpsShare() {
+    if (watchIdRef.current != null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    setSharing(false);
+  }
+  React.useEffect(() => () => stopGpsShare(), []);
+
+  // Booker rates the trip
+  async function submitRating() {
+    if (rateValue < 1) return;
+    setBusy(true);
+    try {
+      const { error } = await window.sb.rpc('drv_rate_trip', {
+        p_booking_no: b.id, p_rating: rateValue, p_comment: rateComment || null,
+      });
+      if (error) throw error;
+      setRateSent(true);
+      onReload && await onReload();
+    } catch (e) {
+      alert(e.message || 'ส่งคะแนนไม่สำเร็จ');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ───────── render ─────────
+  if (b.status !== 'approved' && b.status !== 'completed') return null; // only show after admin approves
+  const ageStr = loc ? (loc.age_seconds < 60 ? `${loc.age_seconds} วินาทีก่อน` : `${Math.floor(loc.age_seconds/60)} นาทีก่อน`) : '';
+
+  return (
+    <Card style={{padding:20, border:"2px solid var(--blue-200)", background:"linear-gradient(180deg, #f5f9ff 0%, #fff 100%)"}}>
+      <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8}}>
+        <h3 style={{margin:0, fontSize:15, color:"var(--blue-700)"}}>📡 สถานะ trip แบบ real-time</h3>
+        <div style={{fontSize:11, color:"var(--ink-3)"}}>อัปเดตอัตโนมัติทุก 6 วินาที</div>
+      </div>
+
+      {/* 1. Progress steps */}
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", margin:"4px 0 18px", gap:4}}>
+        {STATUS_FLOW.map((s, i) => {
+          const reached = i <= curIdx;
+          const isCurrent = i === curIdx;
+          return (
+            <React.Fragment key={s.key}>
+              <div style={{flex:"0 0 auto", textAlign:"center"}}>
+                <div style={{
+                  width:34, height:34, borderRadius:"50%", margin:"0 auto",
+                  background: reached ? "var(--blue-600)" : "#fff",
+                  border: "2px solid " + (reached ? "var(--blue-600)" : "var(--line)"),
+                  color: reached ? "#fff" : "var(--ink-3)",
+                  display:"grid", placeItems:"center", fontSize:14, fontWeight:700,
+                  boxShadow: isCurrent ? "0 0 0 4px rgba(43,95,208,.15)" : "none",
+                }}>{s.short}</div>
+                <div style={{fontSize:11, marginTop:5, color: reached ? "var(--blue-700)" : "var(--ink-3)", fontWeight: isCurrent?700:500}}>{s.label}</div>
+              </div>
+              {i < STATUS_FLOW.length - 1 && (
+                <div style={{flex:1, height:3, background: i < curIdx ? "var(--blue-600)" : "var(--line)", borderRadius:2, marginTop:-16}}/>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* 2. Driver action buttons (visible to anyone with the page — driver clicks via shared link or admin clicks on driver's behalf) */}
+      {!tripDone && (
+        <div style={{padding:"12px 14px", background:"#fff", border:"1px dashed var(--blue-200)", borderRadius:10, marginBottom: tripActive ? 14 : 0}}>
+          <div style={{fontSize:12, color:"var(--ink-3)", marginBottom:8}}>📞 สำหรับคนขับ — กดเมื่อถึงแต่ละขั้น</div>
+          <div style={{display:"flex", gap:6, flexWrap:"wrap"}}>
+            {STATUS_FLOW.slice(1).map((s) => {
+              const idx = STATUS_FLOW.findIndex(x => x.key === s.key);
+              const isPast = idx <= curIdx;
+              const isNext = idx === curIdx + 1;
+              return (
+                <button key={s.key} onClick={() => setStatus(s.key)} disabled={busy || isPast}
+                  style={{
+                    flex:"1 1 auto", minWidth:100, padding:"10px 12px",
+                    border: "1.5px solid " + (isNext ? "var(--blue-600)" : isPast ? "var(--blue-200)" : "var(--line)"),
+                    borderRadius: 8,
+                    background: isNext ? "var(--blue-600)" : isPast ? "var(--blue-50)" : "#fff",
+                    color: isNext ? "#fff" : isPast ? "var(--blue-700)" : "var(--ink-2)",
+                    cursor: isPast || busy ? "default" : "pointer",
+                    fontSize:13, fontWeight:600, fontFamily:"inherit",
+                    opacity: isPast ? 0.7 : 1,
+                  }}>
+                  {isPast ? "✓ " : ""}{s.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. GPS map (booker side) — when trip is active */}
+      {tripActive && (
+        <div style={{marginBottom: isOwner ? 0 : 14}}>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6}}>
+            <div style={{fontSize:13, fontWeight:600, color:"var(--ink-2)"}}>📍 ตำแหน่งคนขับ</div>
+            <div style={{fontSize:11, color:"var(--ink-3)"}}>{loc ? `อัปเดตล่าสุด: ${ageStr}` : 'ยังไม่ได้รับตำแหน่ง'}</div>
+          </div>
+          <div ref={mapElRef} style={{
+            height:220, borderRadius:10, overflow:"hidden",
+            border:"1px solid var(--line)",
+            background: loc ? "transparent" : "repeating-linear-gradient(45deg,#f1f5ff 0 8px,#e8eefd 8px 16px)",
+            display: loc ? "block" : "grid", placeItems: loc ? "initial" : "center",
+            color:"var(--ink-3)", fontSize:13,
+          }}>
+            {!loc && (sharing ? 'กำลังรอตำแหน่งแรก...' : 'คนขับยังไม่ได้แชร์ตำแหน่ง')}
+          </div>
+        </div>
+      )}
+
+      {/* 4. GPS share toggle (driver side) */}
+      {tripActive && (
+        <div style={{padding:"10px 14px", background:"var(--warn-bg)", border:"1px dashed #f5dca0", borderRadius:10}}>
+          <div style={{fontSize:12, color:"var(--warn)", marginBottom:8}}>📡 สำหรับคนขับ — กดเริ่มเพื่อแชร์ตำแหน่งให้คนจอง</div>
+          <div style={{display:"flex", gap:8, alignItems:"center", flexWrap:"wrap"}}>
+            {!sharing ? (
+              <button onClick={startGpsShare} disabled={busy} style={{padding:"8px 18px", background:"var(--ok)", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer"}}>
+                ▶ เริ่มแชร์ตำแหน่ง
+              </button>
+            ) : (
+              <button onClick={stopGpsShare} style={{padding:"8px 18px", background:"#fff", color:"var(--err)", border:"1.5px solid var(--err)", borderRadius:8, fontSize:13, fontWeight:600, cursor:"pointer"}}>
+                ⏸ หยุดแชร์
+              </button>
+            )}
+            <span style={{fontSize:11, color:"var(--ink-3)"}}>
+              {sharing ? '⚠️ อย่าปิด tab นี้ — ตำแหน่งจะหยุดส่ง' : 'ระบบจะส่งตำแหน่งให้คนจองทุก 30 วินาที'}
+            </span>
+          </div>
+          {shareErr && <div style={{marginTop:6, fontSize:11, color:"var(--err)"}}>{shareErr}</div>}
+        </div>
+      )}
+
+      {/* 5. Rating (after done) — only owner can rate */}
+      {tripDone && isOwner && (
+        <div style={{marginTop:14, paddingTop:14, borderTop:"1px solid var(--line)"}}>
+          {rateSent ? (
+            <div style={{padding:"10px 14px", background:"var(--ok-bg)", border:"1px dashed var(--ok)", borderRadius:10, color:"var(--ok)", fontSize:13, fontWeight:500, textAlign:"center"}}>
+              🙏 ขอบคุณสำหรับคะแนน {rateValue} ดาว — บันทึกแล้ว
+            </div>
+          ) : (
+            <div style={{padding:"12px 14px", background:"#fff", border:"1.5px solid var(--blue-200)", borderRadius:10}}>
+              <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>🌟 ให้คะแนนคนขับ — Trip จบแล้ว</div>
+              <div style={{display:"flex", gap:6, marginBottom:10}}>
+                {[1,2,3,4,5].map(n => (
+                  <button key={n} onClick={() => setRateValue(n)} style={{
+                    background:"none", border:"none", cursor:"pointer", padding:0,
+                    fontSize:30, color: n <= rateValue ? "#fbbf24" : "#cbd5e1",
+                    transition:"transform .08s", lineHeight:1,
+                  }}
+                  onMouseEnter={e => e.target.style.transform = "scale(1.15)"}
+                  onMouseLeave={e => e.target.style.transform = "scale(1)"}>★</button>
+                ))}
+              </div>
+              <textarea value={rateComment} onChange={e => setRateComment(e.target.value)}
+                placeholder="ความคิดเห็น (ไม่บังคับ)"
+                style={{width:"100%", padding:"8px 10px", border:"1px solid var(--line)", borderRadius:8, fontSize:13, fontFamily:"inherit", resize:"vertical", minHeight:50, marginBottom:8}}/>
+              <button onClick={submitRating} disabled={rateValue < 1 || busy} style={{padding:"8px 18px", background:"var(--blue-600)", color:"#fff", border:"none", borderRadius:8, fontSize:13, fontWeight:600, cursor: rateValue<1?"not-allowed":"pointer", opacity: rateValue<1?0.5:1}}>
+                {busy ? 'กำลังบันทึก...' : 'บันทึกคะแนน'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+};
+
+Object.assign(window, { TrackScreen, LiveTripPanel });
