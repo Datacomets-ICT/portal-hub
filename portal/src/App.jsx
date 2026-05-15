@@ -6,6 +6,7 @@ import RegisterPage from './pages/RegisterPage.jsx';
 import RepairComingSoonPage from './pages/RepairComingSoonPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import DirectoryPage from './pages/DirectoryPage.jsx';
+import BackfillPage from './pages/BackfillPage.jsx';
 import AnnouncementMarquee from './components/AnnouncementMarquee.jsx';
 
 function Protected({ children }) {
@@ -51,6 +52,14 @@ export default function App() {
           element={
             <Protected>
               <DirectoryPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/it-backfill"
+          element={
+            <Protected>
+              <BackfillPage />
             </Protected>
           }
         />
