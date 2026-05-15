@@ -190,6 +190,7 @@ function App() {
           editKey={page.editKey} editFrom={page.editFrom}/>
       )}
       {page.name === "track" && <TrackScreen key={"tr"+(page.id||"list")} setPage={setPage} empId={empId} password={password} bookings={bookings} detailId={page.id} onReload={reloadBookings} openChat={!!page.openChat}/>}
+      {page.name === "live"  && <LiveDriversScreen setPage={setPage}/>}
       {page.name === "admin" && isAdmin && <AdminScreen setPage={setPage} empId={empId} password={password} openBookingKey={page.openBookingKey} openChat={!!page.openChat}/>}
       {page.name === "calendar" && isAdmin && <CalendarScreen setPage={setPage} empId={empId} password={password}/>}
       <ToastStack toasts={toasts} dismiss={dismissToast}

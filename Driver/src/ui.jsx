@@ -36,6 +36,7 @@ const TopBar = ({ page, setPage, empId, isAdmin, pendingCount, onLogout }) => {
           <NavBtn active={page.name==="home"} onClick={()=>setPage({name:"home"})}><Ico.Home/> หน้าแรก</NavBtn>
           <NavBtn active={page.name==="booking"} onClick={()=>setPage({name:"booking", step:0})}><Ico.Car/> จองรถ</NavBtn>
           <NavBtn active={page.name==="track"} onClick={()=>setPage({name:"track"})}><Ico.Route/> ติดตามการจอง</NavBtn>
+          <NavBtn active={page.name==="live"} onClick={()=>setPage({name:"live"})}>🛰️ Live Drivers</NavBtn>
           {isAdmin ? (
             <NavBtn active={page.name==="admin"} onClick={()=>setPage({name:"admin"})}>
               <Ico.Check/> จัดการคำขอ
