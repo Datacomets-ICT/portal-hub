@@ -5,6 +5,7 @@ import HubPage from './pages/HubPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import RepairComingSoonPage from './pages/RepairComingSoonPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
+import DirectoryPage from './pages/DirectoryPage.jsx';
 import AnnouncementMarquee from './components/AnnouncementMarquee.jsx';
 
 function Protected({ children }) {
@@ -42,6 +43,14 @@ export default function App() {
           element={
             <Protected>
               <AdminPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/people"
+          element={
+            <Protected>
+              <DirectoryPage />
             </Protected>
           }
         />
