@@ -12,21 +12,21 @@
 
 create or replace function public.list_active_employees()
 returns table (
-  employee_id   text,
-  first_name    text,
-  last_name     text,
-  nickname      text,
-  email         text,
-  phone         text,
-  line_id       text,
-  department    text,
-  section       text,
-  position      text,
-  company       text,
-  avatar_url    text,
-  status_emoji  text,
-  status_text   text,
-  status_until  timestamptz
+  employee_id    text,
+  first_name     text,
+  last_name      text,
+  nickname       text,
+  email          text,
+  phone          text,
+  line_id        text,
+  department     text,
+  section        text,
+  job_position   text,    -- "position" is reserved in PostgreSQL — alias here
+  company        text,
+  avatar_url     text,
+  status_emoji   text,
+  status_text    text,
+  status_until   timestamptz
 )
 language sql
 security definer
@@ -42,7 +42,7 @@ as $body$
     e.line_id,
     e.department,
     e.section,
-    e.position,
+    e.position    as job_position,
     e.company,
     e.avatar_url,
     -- Hide expired statuses so the UI doesn't show stale "พักเที่ยง"

@@ -52,7 +52,7 @@ export default function DirectoryPage() {
         r.phone,
         r.department,
         r.section,
-        r.position,
+        r.job_position,
       ]
         .filter(Boolean)
         .join(' ')
@@ -113,7 +113,7 @@ export default function DirectoryPage() {
 function PersonCard({ row: r, expanded, onToggle }) {
   const fullName =
     [r.first_name, r.last_name].filter(Boolean).join(' ') || r.nickname || r.employee_id;
-  const subtitle = [r.department, r.section, r.position].filter(Boolean).join(' · ');
+  const subtitle = [r.department, r.section, r.job_position].filter(Boolean).join(' · ');
   const initial = (r.nickname || r.first_name || r.employee_id || '?').charAt(0).toUpperCase();
   const hasStatus = !!(r.status_emoji || r.status_text);
 
