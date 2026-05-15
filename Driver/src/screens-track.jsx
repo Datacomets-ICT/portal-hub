@@ -343,10 +343,16 @@ const MiniRow = ({k, v}) => (
 //     so the booker sees live updates without WebSocket plumbing.
 //   - GPS share toggle uses navigator.geolocation.watchPosition; pings
 //     drv_post_location every 30s while active.
+// Workflow order chosen by ops: driver arrives at pickup → confirms
+// passenger received ("รับแล้ว") → then departs with passenger
+// ("ออกแล้ว") → drops off ("ส่งแล้ว") → closes the trip ("จบ trip").
+// Status enum keys stay the same (picked_up / on_the_way) — only the
+// display order in the UI changes. Underlying drv_set_trip_status RPC
+// is unaffected.
 const STATUS_FLOW = [
   { key: 'idle',       label: 'รอออก',     short: '⚪' },
-  { key: 'on_the_way', label: 'ออกแล้ว',   short: '🚗' },
   { key: 'picked_up',  label: 'รับแล้ว',   short: '🙋' },
+  { key: 'on_the_way', label: 'ออกแล้ว',   short: '🚗' },
   { key: 'delivered',  label: 'ส่งแล้ว',   short: '📍' },
   { key: 'done',       label: 'จบ trip',   short: '✅' },
 ];

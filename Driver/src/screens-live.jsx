@@ -71,7 +71,10 @@ const LiveDriversScreen = ({ setPage }) => {
     trips.forEach((t) => {
       if (t.lat == null || t.lng == null) return;   // driver not sharing yet
       seen.add(t.booking_no);
-      const color = t.trip_status === 'picked_up' ? '#16a34a' : '#2563eb';   // green if passenger in car, blue if heading
+      // Color reflects how far along the trip is — picked_up is the
+      // earlier stage (blue), on_the_way is later (green = closer to
+      // delivery). Matches the new ops order in screens-track.
+      const color = t.trip_status === 'on_the_way' ? '#16a34a' : '#2563eb';
       const label = (t.driver_name || t.driver_no || '?') + ' · ' + (t.car_plate || '');
       const ll = [t.lat, t.lng];
 
@@ -187,7 +190,7 @@ const Stat = ({ label, n, color }) => (
 );
 
 const TripRow = ({ t, selected, onClick }) => {
-  const stColor = t.trip_status === 'picked_up' ? '#16a34a' : '#2563eb';
+  const stColor = t.trip_status === 'on_the_way' ? '#16a34a' : '#2563eb';
   const stLabel = t.trip_status === 'picked_up' ? '🙋 รับแล้ว' : '🚗 ออกแล้ว';
   const ageStr = t.loc_age_seconds == null
     ? null
