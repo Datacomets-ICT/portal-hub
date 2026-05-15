@@ -150,19 +150,24 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
   const [empId, setEmpId] = useState('');
   const [emp, setEmp] = useState(null);
   const [lookingUp, setLookingUp] = useState(false);
+  const [handlerId, setHandlerId] = useState(adminId);
+  const [handler, setHandler] = useState(null);
+  const [lookingUpHandler, setLookingUpHandler] = useState(false);
   const [request, setRequest] = useState('');
   const [priority, setPriority] = useState('medium');
+  const [status, setStatus] = useState('เปิด Ticket');
   const [location, setLocation] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Lookup employee on blur if id changed
+  // Pre-fill the handler card with the current admin on first render so
+  // the user can see who's set as the doer without having to click out.
+  useEffect(() => { lookupHandler(adminId); }, [adminId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lookup requester (the user with the problem) on blur
   const lookup = async () => {
     const id = empId.trim();
-    if (!id) {
-      setEmp(null);
-      return;
-    }
+    if (!id) { setEmp(null); return; }
     setLookingUp(true);
     setError(null);
     try {
@@ -184,23 +189,42 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
     }
   };
 
-  const submit = async () => {
-    if (!emp) {
-      setError('ค้นหารหัสพนักงานก่อน');
-      return;
+  // Lookup handler (the IT person doing the work).
+  const lookupHandler = async (idArg) => {
+    const id = (idArg ?? handlerId).trim();
+    if (!id) { setHandler(null); return; }
+    setLookingUpHandler(true);
+    try {
+      const { data, error: err } = await supabase.rpc('it_lookup_employee', {
+        p_admin_id: adminId,
+        p_target_id: id,
+      });
+      if (err) throw err;
+      setHandler((data && data[0]) || null);
+    } catch {
+      setHandler(null);
+    } finally {
+      setLookingUpHandler(false);
     }
+  };
+
+  const submit = async () => {
+    if (!emp) { setError('ค้นหารหัสพนักงานผู้ขอก่อน'); return; }
+    if (!handlerId.trim()) { setError('ระบุรหัส IT ผู้ทำ'); return; }
     setSubmitting(true);
     setError(null);
     try {
       const { data, error: err } = await supabase.rpc('it_backfill_ticket', {
         p_admin_id: adminId,
         p_target_id: emp.employee_id,
+        p_handler_id: handlerId.trim(),
         p_job_type: issue.job_type,
         p_issue_type: issue.issue_type,
         p_symptom: issue.symptom || '',
         p_request: request.trim(),
         p_location: location.trim() || null,
         p_priority: priority,
+        p_status: status,
       });
       if (err) throw err;
       onSuccess(data);
@@ -223,7 +247,7 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
         </div>
 
         <label className="bf-field">
-          <span>รหัสพนักงาน</span>
+          <span>รหัสพนักงาน <b>ผู้ขอ</b> (คนที่มีปัญหา)</span>
           <input
             type="text"
             autoFocus
@@ -253,6 +277,41 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
             )}
           </div>
         )}
+
+        <label className="bf-field">
+          <span>รหัส <b>IT ผู้ทำ</b> (คนที่ดำเนินการ — default คือคุณ)</span>
+          <input
+            type="text"
+            value={handlerId}
+            onChange={(e) => setHandlerId(e.target.value)}
+            onBlur={() => lookupHandler()}
+            placeholder="เช่น 11295"
+          />
+          {lookingUpHandler && <span className="bf-hint">กำลังค้นหา…</span>}
+        </label>
+
+        {handler && (
+          <div className="bf-emp-card" style={{ background: 'rgba(var(--accent-rgb), 0.06)' }}>
+            <div className="bf-emp-name">
+              IT ผู้ทำ: {handler.full_name || '-'}
+              {handler.nickname && <span className="bf-emp-nick"> ({handler.nickname})</span>}
+            </div>
+            <div className="bf-emp-meta">
+              {[handler.department, handler.section].filter(Boolean).join(' · ') || '-'}
+            </div>
+          </div>
+        )}
+
+        <label className="bf-field">
+          <span>สถานะปัจจุบัน <small style={{ color: 'var(--ink-3)' }}>(เพราะเปิดย้อนหลัง อาจเสร็จไปแล้ว)</small></span>
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="เปิด Ticket">🟡 เปิด Ticket (รอดำเนินการ)</option>
+            <option value="กำลังดำเนินการ">🔵 กำลังดำเนินการ</option>
+            <option value="ดำเนินการเรียบร้อย">🟢 ดำเนินการเรียบร้อย (รอยืนยันปิดงาน)</option>
+            <option value="ปิดงานแล้ว">⚫ ปิดงานแล้ว</option>
+            <option value="ยกเลิก">🔴 ยกเลิก</option>
+          </select>
+        </label>
 
         <label className="bf-field">
           <span>สถานที่ (ถ้าระบุ)</span>
