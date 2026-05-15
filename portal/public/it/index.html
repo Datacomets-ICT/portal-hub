@@ -841,6 +841,9 @@
             <button class="active" onclick="showTab('tabHome', this)"><i class="fas fa-home"></i> หน้าแรก</button>
             <button onclick="showTab('tabNewTicket', this)"><i class="fas fa-plus-circle"></i> เปิด Ticket</button>
             <button onclick="showTab('tabTicketList', this)"><i class="fas fa-list"></i> Ticket List</button>
+            <!-- Admin-only: navigates to portal /it-backfill (same origin so SSO carries over).
+                 .admin-only is display:none by default; body.is-admin flips it to inline-flex. -->
+            <button class="admin-only" onclick="window.location.href='/it-backfill'"><i class="fas fa-file-medical"></i> Backfill</button>
         </div>
         <div class="user-info">
             <div class="notif-wrap">
