@@ -266,7 +266,10 @@ const AdminDetail = ({ b, empId, password, back, onChanged, openChatInitial }) =
                 </div>
               </div>
             </div>
-            <RouteMap origin={b.pickup.map} destination={b.dropoff.map} label="เส้นทาง"/>
+            <RouteMap
+              origin={b.pickup.map}        destination={b.dropoff.map}
+              originName={b.pickup.name}   destinationName={b.dropoff.name}
+              label="เส้นทาง"/>
           </Card>
 
           <Card style={{padding:24}}>

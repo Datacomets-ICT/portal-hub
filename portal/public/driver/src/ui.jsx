@@ -58,8 +58,10 @@ const TopBar = ({ page, setPage, empId, isAdmin, pendingCount, onLogout }) => {
         <div style={{marginLeft:"auto", display:"flex", alignItems:"center", gap:10}}>
           {emp ? (
             <div style={{display:"flex", alignItems:"center", gap:10, padding:"6px 10px 6px 6px", background:"var(--blue-50)", borderRadius:999, border:"1px solid var(--blue-100)"}}>
-              <div style={{width:28, height:28, borderRadius:"50%", background:"var(--blue-600)", color:"#fff", display:"grid", placeItems:"center", fontSize:12, fontWeight:600}}>
-                {emp.name.charAt(0)}
+              <div style={{width:28, height:28, borderRadius:"50%", background:"var(--blue-600)", color:"#fff", display:"grid", placeItems:"center", fontSize:12, fontWeight:600, overflow:"hidden"}}>
+                {emp.avatarUrl
+                  ? <img src={emp.avatarUrl} alt="" style={{width:"100%", height:"100%", objectFit:"cover"}}/>
+                  : emp.name.charAt(0)}
               </div>
               <div style={{fontSize:13, lineHeight:1.1}}>
                 <div style={{fontWeight:600}}>{emp.name}</div>
@@ -227,18 +229,28 @@ function extractMapCoords(url) {
 
 // Real Google Maps iframe — directions if both ends supplied, single point otherwise.
 // No API key needed (uses the public maps.google.com embed).
-const RouteMap = ({ origin, destination, height=200, label }) => {
+//
+// Falls back to a text-search query when no coords are extractable from
+// the saved URL (e.g. user typed a custom place name "ชมวิว" with no map
+// link, or the URL is a maps.app.goo.gl short-link that we can't parse).
+// Result: even without coords we show *some* useful map.
+const RouteMap = ({ origin, destination, originName, destinationName, height=200, label }) => {
   const a = extractMapCoords(origin);
   const b = extractMapCoords(destination);
-  if (!a && !b) return <MapStub label={label || "แผนที่"}/>;
+  // Fallback strings — coords if we have them, else the place name, else the
+  // raw url (Google often resolves a short link as a search query).
+  const aQ = a || originName     || origin     || '';
+  const bQ = b || destinationName || destination || '';
 
-  const src = (a && b)
-    ? `https://maps.google.com/maps?saddr=${encodeURIComponent(a)}&daddr=${encodeURIComponent(b)}&output=embed`
-    : `https://maps.google.com/maps?q=${encodeURIComponent(a || b)}&z=15&output=embed`;
+  if (!aQ && !bQ) return <MapStub label={label || "แผนที่"}/>;
 
-  const openHref = (a && b)
-    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(a)}&destination=${encodeURIComponent(b)}&travelmode=driving`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(a || b)}`;
+  const src = (aQ && bQ)
+    ? `https://maps.google.com/maps?saddr=${encodeURIComponent(aQ)}&daddr=${encodeURIComponent(bQ)}&output=embed`
+    : `https://maps.google.com/maps?q=${encodeURIComponent(aQ || bQ)}&z=15&output=embed`;
+
+  const openHref = (aQ && bQ)
+    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(aQ)}&destination=${encodeURIComponent(bQ)}&travelmode=driving`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(aQ || bQ)}`;
 
   return (
     <div style={{borderRadius:10, border:"1px solid var(--line)", overflow:"hidden", position:"relative"}}>

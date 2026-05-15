@@ -231,7 +231,10 @@ const BookingDetail = ({ b, back, empId, password, onReload, openChatInitial, on
               </div>
             </div>
           </div>
-          <div style={{marginTop:16}}><RouteMap origin={b.pickup.map} destination={b.dropoff.map} label="เส้นทาง"/></div>
+          <div style={{marginTop:16}}><RouteMap
+            origin={b.pickup.map}        destination={b.dropoff.map}
+            originName={b.pickup.name}   destinationName={b.dropoff.name}
+            label="เส้นทาง"/></div>
         </Card>
 
         {/* Purpose */}

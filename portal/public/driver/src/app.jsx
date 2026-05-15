@@ -23,6 +23,9 @@ const PORTAL_USER = (function () {
       phone: u.phone || '',
       role: role,
       isAdmin: isAdmin,
+      // Carry over the avatar set in Workspace profile so the topbar
+      // pill shows the same image instead of a flat letter.
+      avatarUrl: u.avatarUrl || '',
     };
   } catch (_) {
     return null;
