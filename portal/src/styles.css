@@ -607,15 +607,15 @@ a { color: var(--accent); text-decoration: none; }
   border-radius: 50%;
   background-size: cover;
   background-position: center;
-  opacity: 0.28;
+  opacity: 0.42;
   /* Soft radial mask so the photo bleeds into the card edge instead of
      ending in a hard circle. */
-  -webkit-mask-image: radial-gradient(circle, #000 40%, transparent 75%);
-          mask-image: radial-gradient(circle, #000 40%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 78%);
+          mask-image: radial-gradient(circle, #000 45%, transparent 78%);
 }
-[data-theme="dark"] .hub-hero-avatar-bg { opacity: 0.32; }
+[data-theme="dark"] .hub-hero-avatar-bg { opacity: 0.48; }
 @media (max-width: 720px) {
-  .hub-hero-avatar-bg { width: 200px; height: 200px; right: -40px; opacity: 0.22; }
+  .hub-hero-avatar-bg { width: 200px; height: 200px; right: -40px; opacity: 0.34; }
 }
 .hub-hero-deco .orb {
   position: absolute;
