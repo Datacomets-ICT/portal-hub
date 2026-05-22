@@ -20,6 +20,7 @@ import {
   updateBooking,
   deleteBooking,
 } from './api/bookings';
+import { RecordingProvider, RecordingIndicator, useRecording } from './RecordingContext.jsx';
 
 // Per-app role (v43): admin determined by meeting_role from Workspace
 // auth (toMeetingUser already sets role='admin' for elevated users).
@@ -33,7 +34,32 @@ function ymd(d) {
   return `${y}-${m}-${day}`;
 }
 
+// Wrap the real app in RecordingProvider so the live recording (if any)
+// survives all the SPA tab switches inside AppInner.
 export default function App() {
+  return (
+    <RecordingProvider>
+      <AppInner />
+      <RecordingIndicatorWithJump />
+    </RecordingProvider>
+  );
+}
+
+// Pulls the bookingId from context so the user can click the floating
+// pill to jump back to the booking modal that's recording. We re-route
+// by dispatching a tiny custom event the AppInner listens for.
+function RecordingIndicatorWithJump() {
+  const { bookingId } = useRecording();
+  return (
+    <RecordingIndicator
+      onClick={bookingId ? () => {
+        window.dispatchEvent(new CustomEvent('mtg:jump-to-booking', { detail: { bookingId } }));
+      } : undefined}
+    />
+  );
+}
+
+function AppInner() {
   const TWEAKS = {
     density: 'comfort',
     accentHue: 45,
@@ -199,6 +225,31 @@ export default function App() {
     setModal({ room, initial: b });
   };
   const closeModal = () => setModal(null);
+
+  // Floating "🔴 กำลังอัด" indicator at App level dispatches this when
+  // clicked → we open the booking it's recording, switching date / tab
+  // if needed so the modal can mount.
+  useEffect(() => {
+    const onJump = (ev) => {
+      const id = ev?.detail?.bookingId;
+      if (!id) return;
+      const b = bookings.find((x) => x.id === id);
+      if (!b) return;
+      const room = rooms.find((r) => r.id === b.roomId);
+      if (!room) return;
+      // Switch date if the booking is on another day
+      if (b.bookingDate && b.bookingDate !== currentDateStr) {
+        const d = new Date(b.bookingDate + 'T00:00:00');
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diff = Math.round((d.getTime() - today.getTime()) / 86_400_000);
+        setDateIdx(diff);
+      }
+      setModal({ room, initial: b });
+    };
+    window.addEventListener('mtg:jump-to-booking', onJump);
+    return () => window.removeEventListener('mtg:jump-to-booking', onJump);
+  }, [bookings, rooms, currentDateStr]);
 
   const [toasts, setToasts] = useState([]);
   const toast = (msg) => {

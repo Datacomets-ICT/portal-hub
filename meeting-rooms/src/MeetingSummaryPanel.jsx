@@ -18,6 +18,7 @@ import {
   buildEmailHtml,
 } from './meetingExport.js';
 import MeetingEmailModal from './MeetingEmailModal.jsx';
+import { useRecording } from './RecordingContext.jsx';
 
 const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB — matches v18 bucket limit
 
@@ -60,23 +61,22 @@ function fmtDuration(sec) {
 export default function MeetingSummaryPanel({ booking, currentUser, room = null, employee = null }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [recording, setRecording] = useState(false);
-  const [recordedBlob, setRecordedBlob] = useState(null);
-  const [recordedSec, setRecordedSec] = useState(0);
   const [stage, setStage] = useState('');     // storage | upload | processing | generate | done
   const [uploadPercent, setUploadPercent] = useState(0);
   const [err, setErr] = useState('');
-  const [tickHack, setTickHack] = useState(0); // re-render to update recording timer
 
-  const mediaRecRef = useRef(null);
-  const recStartRef = useRef(0);
-  // Refs to hold the wake-lock sentinel + beforeunload handler so we
-  // can release them cleanly when recording stops or component unmounts.
-  const wakeLockRef = useRef(null);
-  const beforeUnloadRef = useRef(null);
-  const visListenerRef = useRef(null);
+  // Recording state now lives in the App-level RecordingContext so it
+  // survives this component unmounting (modal close, tab switch).
+  // We narrow it to THIS booking — if recording is for a different
+  // booking, the panel acts as if it's not recording.
+  const rec = useRecording();
+  const isThisBooking = rec.bookingId === booking?.id;
+  const recording = rec.recording && isThisBooking;
+  const recordedBlob = isThisBooking ? rec.recordedBlob : null;
+  const recordedSec = isThisBooking ? rec.recordedSec : 0;
+  const elapsedSec = recording ? rec.elapsedSec : 0;
+
   const fileInputRef = useRef(null);
-  const tickIntervalRef = useRef(null);
 
   // Initial load
   useEffect(() => {
@@ -111,123 +111,18 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
     return () => clearInterval(id);
   }, [note?.audio_expires_at, note?.audio_path]);
 
-  // Tick the recording timer while recording
-  useEffect(() => {
-    if (!recording) {
-      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
-      tickIntervalRef.current = null;
-      return;
-    }
-    tickIntervalRef.current = setInterval(() => setTickHack(t => t + 1), 1000);
-    return () => {
-      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
-      tickIntervalRef.current = null;
-    };
-  }, [recording]);
+  // Recording timer + cleanup are handled by RecordingContext now.
 
-  // Release wake-lock / beforeunload guard if the component unmounts
-  // while recording (e.g. user clicks away to another tab in the SPA).
-  useEffect(() => () => {
-    try { wakeLockRef.current?.release?.(); } catch {}
-    if (beforeUnloadRef.current) window.removeEventListener('beforeunload', beforeUnloadRef.current);
-    if (visListenerRef.current) document.removeEventListener('visibilitychange', visListenerRef.current);
-  }, []);
-
+  // Delegate to the global RecordingContext — it owns MediaRecorder,
+  // wake-lock, beforeunload, and the chunks buffer.
   async function handleStartRecording() {
     setErr('');
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          // Voice-grade settings keep file small enough for long meetings.
-          channelCount: 1,
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
-      // 24 kbps opus → ~10 MB/hr → 100 MB bucket fits ~10 hrs of meeting
-      const mr = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : 'audio/webm',
-        audioBitsPerSecond: 24000,
-      });
-      const chunks = [];
-      mr.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
-      mr.onstop = () => {
-        const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' });
-        setRecordedBlob(blob);
-        setRecordedSec(Math.round((Date.now() - recStartRef.current) / 1000));
-        stream.getTracks().forEach(t => t.stop());
-      };
-      // Flush a chunk every 5s so a tab crash / mid-recording stop still
-      // leaves us with a usable WebM up to the last chunk boundary
-      // (without timeslice, all data is one big chunk emitted on stop).
-      mr.start(5000);
-      mediaRecRef.current = mr;
-      recStartRef.current = Date.now();
-      setRecording(true);
-      setRecordedBlob(null);
-
-      // ── Keep the recording alive when the screen would normally sleep
-      // or the user navigates away ──
-      //
-      // 1. Screen Wake Lock — asks Chrome/Edge/Safari to keep the
-      //    display awake while the page is visible. iOS Safari requires
-      //    it to be requested from a user gesture; this fn is triggered
-      //    by the button click, so we're inside that window.
-      try {
-        if ('wakeLock' in navigator) {
-          wakeLockRef.current = await navigator.wakeLock.request('screen');
-          // If the OS revokes (e.g. focus moves to another app), try to
-          // re-acquire when we come back.
-          wakeLockRef.current.addEventListener?.('release', () => {
-            wakeLockRef.current = null;
-          });
-        }
-      } catch (_) { /* not supported / denied — recording still works */ }
-
-      // 2. beforeunload — fire a confirm dialog if user tries to close
-      //    the tab or navigate away mid-recording. Modern browsers
-      //    ignore the custom message but still show "เปลี่ยนหน้าจะหยุด
-      //    บันทึก" via the browser's default copy.
-      const beforeUnload = (ev) => {
-        ev.preventDefault();
-        ev.returnValue = '';
-        return '';
-      };
-      window.addEventListener('beforeunload', beforeUnload);
-      beforeUnloadRef.current = beforeUnload;
-
-      // 3. visibilitychange — when tab hides, try to re-acquire wake lock
-      //    on return. Recording continues either way because audio APIs
-      //    aren't throttled in background like timers are.
-      const onVis = async () => {
-        if (document.visibilityState === 'visible' && !wakeLockRef.current && 'wakeLock' in navigator) {
-          try { wakeLockRef.current = await navigator.wakeLock.request('screen'); } catch (_) {}
-        }
-      };
-      document.addEventListener('visibilitychange', onVis);
-      visListenerRef.current = onVis;
-    } catch (e) {
-      setErr('ไม่สามารถใช้ไมค์ได้: ' + (e.message || e));
-    }
+    const title = booking?.title || `Meeting ${booking?.id || ''}`;
+    const ok = await rec.start(booking.id, title);
+    if (!ok && rec.err) setErr(rec.err);
   }
-
   function handleStopRecording() {
-    try { mediaRecRef.current?.stop(); } catch {}
-    setRecording(false);
-    // Release wake lock + unhook unload guards so navigation works normally again.
-    try { wakeLockRef.current?.release?.(); } catch {}
-    wakeLockRef.current = null;
-    if (beforeUnloadRef.current) {
-      window.removeEventListener('beforeunload', beforeUnloadRef.current);
-      beforeUnloadRef.current = null;
-    }
-    if (visListenerRef.current) {
-      document.removeEventListener('visibilitychange', visListenerRef.current);
-      visListenerRef.current = null;
-    }
+    rec.stop();
   }
 
   function handleFilePick() {
@@ -242,8 +137,8 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
       setErr(`ไฟล์ใหญ่เกิน 100MB (${(f.size / 1024 / 1024).toFixed(1)}MB)`);
       return;
     }
-    setRecordedBlob(f);
-    setRecordedSec(0);
+    const title = booking?.title || `Meeting ${booking?.id || ''}`;
+    rec.setFileForBooking(booking.id, title, f);
   }
 
   async function handleSubmit() {
@@ -273,8 +168,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
         finalNote.duration_sec = recordedSec;
       }
       setNote(finalNote);
-      setRecordedBlob(null);
-      setRecordedSec(0);
+      rec.clearBlob();
       setStage('done');
     } catch (e) {
       console.error('[MeetingSummary]', e);
@@ -557,7 +451,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
             )}
             {recording && (
               <button type="button" className="ms-btn-stop" onClick={handleStopRecording}>
-                ⏹ หยุดบันทึก ({fmtDuration(Math.floor((Date.now() - recStartRef.current) / 1000))})
+                ⏹ หยุดบันทึก ({fmtDuration(elapsedSec)})
               </button>
             )}
             {!recording && recordedBlob && (
@@ -573,7 +467,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
                 <button
                   type="button"
                   className="ms-btn-ghost"
-                  onClick={() => { setRecordedBlob(null); setRecordedSec(0); }}
+                  onClick={() => rec.clearBlob()}
                 >
                   ยกเลิก
                 </button>
