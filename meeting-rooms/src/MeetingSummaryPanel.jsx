@@ -70,6 +70,11 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
 
   const mediaRecRef = useRef(null);
   const recStartRef = useRef(0);
+  // Refs to hold the wake-lock sentinel + beforeunload handler so we
+  // can release them cleanly when recording stops or component unmounts.
+  const wakeLockRef = useRef(null);
+  const beforeUnloadRef = useRef(null);
+  const visListenerRef = useRef(null);
   const fileInputRef = useRef(null);
   const tickIntervalRef = useRef(null);
 
@@ -120,6 +125,14 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
     };
   }, [recording]);
 
+  // Release wake-lock / beforeunload guard if the component unmounts
+  // while recording (e.g. user clicks away to another tab in the SPA).
+  useEffect(() => () => {
+    try { wakeLockRef.current?.release?.(); } catch {}
+    if (beforeUnloadRef.current) window.removeEventListener('beforeunload', beforeUnloadRef.current);
+    if (visListenerRef.current) document.removeEventListener('visibilitychange', visListenerRef.current);
+  }, []);
+
   async function handleStartRecording() {
     setErr('');
     try {
@@ -147,11 +160,55 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
         setRecordedSec(Math.round((Date.now() - recStartRef.current) / 1000));
         stream.getTracks().forEach(t => t.stop());
       };
-      mr.start();
+      // Flush a chunk every 5s so a tab crash / mid-recording stop still
+      // leaves us with a usable WebM up to the last chunk boundary
+      // (without timeslice, all data is one big chunk emitted on stop).
+      mr.start(5000);
       mediaRecRef.current = mr;
       recStartRef.current = Date.now();
       setRecording(true);
       setRecordedBlob(null);
+
+      // ── Keep the recording alive when the screen would normally sleep
+      // or the user navigates away ──
+      //
+      // 1. Screen Wake Lock — asks Chrome/Edge/Safari to keep the
+      //    display awake while the page is visible. iOS Safari requires
+      //    it to be requested from a user gesture; this fn is triggered
+      //    by the button click, so we're inside that window.
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+          // If the OS revokes (e.g. focus moves to another app), try to
+          // re-acquire when we come back.
+          wakeLockRef.current.addEventListener?.('release', () => {
+            wakeLockRef.current = null;
+          });
+        }
+      } catch (_) { /* not supported / denied — recording still works */ }
+
+      // 2. beforeunload — fire a confirm dialog if user tries to close
+      //    the tab or navigate away mid-recording. Modern browsers
+      //    ignore the custom message but still show "เปลี่ยนหน้าจะหยุด
+      //    บันทึก" via the browser's default copy.
+      const beforeUnload = (ev) => {
+        ev.preventDefault();
+        ev.returnValue = '';
+        return '';
+      };
+      window.addEventListener('beforeunload', beforeUnload);
+      beforeUnloadRef.current = beforeUnload;
+
+      // 3. visibilitychange — when tab hides, try to re-acquire wake lock
+      //    on return. Recording continues either way because audio APIs
+      //    aren't throttled in background like timers are.
+      const onVis = async () => {
+        if (document.visibilityState === 'visible' && !wakeLockRef.current && 'wakeLock' in navigator) {
+          try { wakeLockRef.current = await navigator.wakeLock.request('screen'); } catch (_) {}
+        }
+      };
+      document.addEventListener('visibilitychange', onVis);
+      visListenerRef.current = onVis;
     } catch (e) {
       setErr('ไม่สามารถใช้ไมค์ได้: ' + (e.message || e));
     }
@@ -160,6 +217,17 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
   function handleStopRecording() {
     try { mediaRecRef.current?.stop(); } catch {}
     setRecording(false);
+    // Release wake lock + unhook unload guards so navigation works normally again.
+    try { wakeLockRef.current?.release?.(); } catch {}
+    wakeLockRef.current = null;
+    if (beforeUnloadRef.current) {
+      window.removeEventListener('beforeunload', beforeUnloadRef.current);
+      beforeUnloadRef.current = null;
+    }
+    if (visListenerRef.current) {
+      document.removeEventListener('visibilitychange', visListenerRef.current);
+      visListenerRef.current = null;
+    }
   }
 
   function handleFilePick() {

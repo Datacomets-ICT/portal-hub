@@ -442,10 +442,25 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
       setTitle(initial?.title || '');
       setStart(initial?.start ?? 9 * 60);
       setEnd(initial?.end ?? 10 * 60);
-      setBooker(initial?.booker || '');
-      setSelectedEmp(
-        initial?.booker ? employees.find((e) => e.name === initial.booker) || null : null
-      );
+      // Booker is always the signed-in user — never editable.
+      // For NEW bookings (no initial.id) → currentUser. For EDIT, prefer
+      // the original booker (so we don't overwrite who actually booked
+      // it just because someone else is editing).
+      let lockedBooker = null;
+      if (initial?.id && initial?.booker) {
+        lockedBooker = employees.find((e) => e.name === initial.booker)
+          || { code: '?', name: initial.booker, nickname: '', dept: '' };
+      } else if (currentUser) {
+        lockedBooker = {
+          code: currentUser.code,
+          name: currentUser.name,
+          nickname: currentUser.nickname || '',
+          dept: currentUser.dept || '',
+          position: currentUser.position || '',
+        };
+      }
+      setSelectedEmp(lockedBooker);
+      setBooker(lockedBooker?.name || '');
       setBookerQuery('');
       setAttendees(initial?.attendees || 4);
       setPurpose(initial?.purpose || 'ประชุมภายใน');
@@ -455,7 +470,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
       setCustomerCount(initial?.customerCount || 0);
       setDetailsBooking(null);
     }
-  }, [open, initial?.id, employees]);
+  }, [open, initial?.id, employees, currentUser]);
 
   if (!open || !room) return null;
 
@@ -526,8 +541,8 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
           )}
           <fieldset className="booking-form-fields" disabled={isPast}>
           <label className="field field-full">
-            <span className="field-label">หัวข้อการประชุม</span>
-            <input className="field-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น Weekly Sync, Product Review" autoFocus />
+            <span className="field-label">หัวข้อการประชุม{isPast && <em style={{fontWeight:400,fontSize:11,color:'#9aa7bd',marginLeft:6}}>(ล็อก — ประชุมผ่านไปแล้ว)</em>}</span>
+            <input className="field-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น Weekly Sync, Product Review" autoFocus readOnly={isPast} style={isPast ? {background:'var(--surface-2)',cursor:'not-allowed'} : undefined} />
           </label>
 
           <div className="field-row">
@@ -590,66 +605,20 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
                     <div className="booker-pos">{selectedEmp.position}</div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="booker-clear"
-                  onClick={() => {
-                    setSelectedEmp(null);
-                    setBooker('');
-                    setBookerQuery('');
-                  }}
-                  aria-label="เปลี่ยนผู้จอง"
-                >
-                  ✕
-                </button>
+                {/* Booker is locked to the signed-in user — no clear button.
+                    Past edits keep the original booker (read-only). */}
               </div>
             ) : (
-              <>
-                <input
-                  className="field-input"
-                  value={bookerQuery || booker}
-                  onFocus={() => setBookerOpen(true)}
-                  onBlur={() => setTimeout(() => setBookerOpen(false), 150)}
-                  onChange={(e) => { setBookerQuery(e.target.value); setBooker(e.target.value); setBookerOpen(true); }}
-                  placeholder="พิมพ์รหัสพนักงาน หรือชื่อ"
-                />
-                {bookerOpen && filteredEmp.length > 0 && (
-                  <div className="combo-menu">
-                    {filteredEmp.map((e) => (
-                      <div
-                        key={e.code}
-                        className="combo-item"
-                        onMouseDown={() => {
-                          setBooker(e.name);
-                          setSelectedEmp(e);
-                          setBookerQuery('');
-                          setBookerOpen(false);
-                        }}
-                      >
-                        <div className="combo-avatar">{(e.nickname || e.name)[0]}</div>
-                        <div className="combo-text">
-                          <div className="combo-name">
-                            {e.name}
-                            {e.nickname && <span className="combo-nick"> ({e.nickname})</span>}
-                          </div>
-                          <div className="combo-sub">
-                            {e.code}
-                            {e.dept && <> · {e.dept}</>}
-                            {e.position && <> · {e.position}</>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
+              <div className="field-input" style={{opacity:0.6}}>
+                ไม่พบข้อมูลผู้จอง
+              </div>
             )}
           </div>
 
           <div className="field-row">
             <label className="field">
-              <span className="field-label">วัตถุประสงค์</span>
-              <select className="field-input" value={purpose} onChange={(e) => setPurpose(e.target.value)}>
+              <span className="field-label">วัตถุประสงค์{isPast && <em style={{fontWeight:400,fontSize:11,color:'#9aa7bd',marginLeft:6}}>(ล็อก)</em>}</span>
+              <select className="field-input" value={purpose} onChange={(e) => setPurpose(e.target.value)} disabled={isPast} style={isPast ? {background:'var(--surface-2)',cursor:'not-allowed'} : undefined}>
                 <option>ประชุมภายใน</option>
                 <option>รับรองลูกค้า</option>
                 <option>สัมภาษณ์งาน</option>

@@ -593,7 +593,29 @@ a { color: var(--accent); text-decoration: none; }
   background: linear-gradient(135deg, rgba(30, 41, 70, 0.6), rgba(15, 23, 50, 0.4));
   border-color: rgba(255, 255, 255, 0.06);
 }
-.hub-hero-deco { position: absolute; inset: 0; pointer-events: none; }
+.hub-hero-deco { position: absolute; inset: 0; pointer-events: none; overflow: hidden; border-radius: inherit; }
+/* User's profile photo as a faint watermark behind the greeting card.
+   Sits right of the text so it doesn't fight with the title; soft
+   radial mask to fade into the card background. */
+.hub-hero-avatar-bg {
+  position: absolute;
+  top: 50%;
+  right: -40px;
+  transform: translateY(-50%);
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.10;
+  filter: blur(0.5px);
+  -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+          mask-image: radial-gradient(circle, #000 30%, transparent 70%);
+}
+[data-theme="dark"] .hub-hero-avatar-bg { opacity: 0.14; }
+@media (max-width: 720px) {
+  .hub-hero-avatar-bg { width: 200px; height: 200px; right: -60px; opacity: 0.08; }
+}
 .hub-hero-deco .orb {
   position: absolute;
   border-radius: 50%;

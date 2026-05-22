@@ -291,6 +291,15 @@ export default function HubPage() {
             <div className="hub-hero-deco" aria-hidden="true">
               <span className="orb orb-1" />
               <span className="orb orb-2" />
+              {/* User's avatar as a faint background watermark behind the
+                  greeting. Renders only if the user uploaded a photo;
+                  otherwise the orbs are enough decoration. */}
+              {hasAvatar && (
+                <div
+                  className="hub-hero-avatar-bg"
+                  style={{ backgroundImage: `url(${user.avatarUrl})` }}
+                />
+              )}
             </div>
             <p className="hub-greet">
               <span className="dot-blink" /> {dateStr}
