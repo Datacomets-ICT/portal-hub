@@ -1769,8 +1769,14 @@ a { color: var(--accent); text-decoration: none; }
 @media (max-width: 380px) {
   .shell-nav { padding-left: 10px; padding-right: 10px; gap: 6px; }
   .brand-name { display: none; }
-  .nav-time { display: none; }
   .hub-wrap { padding: 14px 10px 64px; }
+}
+
+/* Most phones (≤ 420px) — hide the date/clock pill so the user pill
+   has room. Was 380 before but pixel 5 is 393 and the clock pushed
+   the row off-screen. */
+@media (max-width: 420px) {
+  .nav-time { display: none; }
 }
 
 /* Touch-only devices — hide the oneko cat on phones (it's a desktop easter
@@ -2043,7 +2049,12 @@ a { color: var(--accent); text-decoration: none; }
 .ann-marquee-track {
   display: flex;
   white-space: nowrap;
-  flex: 1;
+  flex: 1 1 0;
+  /* min-width:0 lets the flex child shrink past its content size — without
+     this the inner <span>s with nowrap text would force the track wider
+     than the marquee pill itself and overflow the viewport on narrow
+     screens. */
+  min-width: 0;
   overflow: hidden;
   -webkit-mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
           mask-image: linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent);
@@ -2775,5 +2786,10 @@ a { color: var(--accent); text-decoration: none; }
   .bf-card { padding: 14px; }
   .bf-card-h { flex-direction: column; align-items: stretch; }
   .bf-search { width: 100%; }
+  /* Use plain 1fr (not minmax) so grid track shrinks to container
+     width — minmax(280px, ...) forced items to stay ≥ 280px and the
+     long Thai symptom text expanded buttons past the viewport. */
   .bf-issues { grid-template-columns: 1fr; }
+  .bf-issue { min-width: 0; }
+  .bf-issue-main { min-width: 0; }
 }
