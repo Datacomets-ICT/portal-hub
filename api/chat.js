@@ -455,7 +455,7 @@ function formatKnowledgeContext(results) {
 }
 
 // ---- Call Groq API ----
-const MAX_HISTORY = 10; // keep last N messages to avoid token overflow
+const MAX_HISTORY = 16; // keep last N messages to avoid token overflow
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 // gemini-1.5-flash-latest was returning 404 in Jan 2026 (Google
 // deprecated the -latest alias for older versions). gemini-2.0-flash
@@ -699,13 +699,29 @@ export default async function handler(req, res) {
     let ocrResult = { status: 'empty', text: '' };
     if (Array.isArray(images) && images.length > 0 && safeMessages.length > 0) {
       ocrResult = await ocrImagesWithFallback(images);
+      // Check if user has already described device/symptom — avoids the
+      // "ถามซ้ำ" pattern where OCR marker forces the AI to re-ask for
+      // device even after the user has already typed "PC จอฟ้า" etc.
+      const recentUserText = safeMessages
+        .filter(m => m.role === 'user')
+        .slice(-3)
+        .map(m => String(m.content || ''))
+        .join(' ')
+        .toLowerCase();
+      const hasDeviceKeyword = /(pc|notebook|laptop|macbook|imac|computer|คอมพิวเตอร์|คอม|โน๊ตบุ๊?ค|โน้ตบุ๊?ค|จอ|เครื่อง|เม้?าส์|คีย์บอร์ด|ปริ้?นเตอร์|printer)/i.test(recentUserText);
+      const hasSymptomKeyword = /(เสีย|พัง|ใช้ไม่ได้|ดับ|ค้าง|ช้า|ไม่ทำงาน|ไม่ติด|ไม่ขึ้น|ฟ้า|แดง|error|crash|down|hang|slow|fail|bsod|blue screen)/i.test(recentUserText);
+      const userAlreadyDescribed = hasDeviceKeyword || hasSymptomKeyword;
       let marker = '';
       if (ocrResult.status === 'ok') {
         marker = `\n\n[ข้อความที่ AI อ่านได้จากรูปที่แนบ ${images.length} รูป]:\n${ocrResult.text}`;
       } else if (ocrResult.status === 'no-text') {
-        marker = `\n\n[ไม่พบข้อความในรูป — น่าจะเป็นรูปถ่ายจอ/เครื่อง (BSOD, จอดับ, error dialog) — ถาม device ก่อน (PC/Notebook/Macbook/iMac) แล้วค่อยถาม symptom]`;
+        marker = userAlreadyDescribed
+          ? `\n\n[ไม่พบข้อความในรูป — user ระบุ device/อาการแล้ว ใช้บริบทที่มีต่อ ห้ามถามซ้ำเรื่อง device]`
+          : `\n\n[ไม่พบข้อความในรูป — น่าจะเป็นรูปถ่ายจอ/เครื่อง (BSOD, จอดับ, error dialog) — ถาม device ก่อน (PC/Notebook/Macbook/iMac) แล้วค่อยถาม symptom]`;
       } else if (ocrResult.status === 'no-key') {
-        marker = `\n\n[ระบบ OCR ปิดอยู่ — น่าจะเป็นรูปถ่ายจอ — ถาม device ก่อน (PC/Notebook/Macbook/iMac) แล้วถาม user ให้พิมพ์ error code/อาการที่เห็น]`;
+        marker = userAlreadyDescribed
+          ? `\n\n[ระบบ OCR ปิดอยู่ — user ระบุ device/อาการแล้ว ใช้บริบทที่มีต่อ ห้ามถามซ้ำ]`
+          : `\n\n[ระบบ OCR ปิดอยู่ — น่าจะเป็นรูปถ่ายจอ — ถาม device ก่อน (PC/Notebook/Macbook/iMac) แล้วถาม user ให้พิมพ์ error code/อาการที่เห็น]`;
       } else if (ocrResult.status === 'error') {
         marker = `\n\n[OCR error: ${ocrResult.error || 'unknown'} — ขอให้ user พิมพ์ error code/message ลงมาให้]`;
       }
@@ -770,13 +786,12 @@ export default async function handler(req, res) {
     // need the worklist. Drop it to save the bulk of the per-request
     // tokens.
     //
-    // Threshold = 4 (not 3) to cover the "ask device first" 2-step flow:
-    //   t1 user: "หน้าจอดับ"
-    //   t2 user: "PC"             ← still need worklist to list PC's symptoms
-    //   t3 user: "หน้าจอฟ้า"      ← still need worklist to confirm
-    //   t4 user: "Comets HQ"      ← safe to drop, location onwards
+    // Threshold = 10 (was 4) — dropping worklist too early left the AI
+    // without the issueType catalog while still collecting details, which
+    // caused "ถามไปไม่เปิด ticket" (AI keeps asking instead of emitting
+    // [CREATE_TICKET]). Worklist is small enough to keep around longer.
     const userTurns = safeMessages.filter(m => m.role === 'user').length;
-    const symptomLikelyLocked = userTurns >= 4;
+    const symptomLikelyLocked = userTurns >= 10;
     if (!symptomLikelyLocked && Array.isArray(worklist) && worklist.length > 0) {
       const byJob = {};
       for (const r of worklist) {
