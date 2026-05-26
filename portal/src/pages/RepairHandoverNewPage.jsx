@@ -14,9 +14,11 @@ export default function RepairHandoverNewPage() {
   const [deliveredAt, setDeliveredAt] = useState(new Date().toISOString().slice(0, 16));
   const [addr, setAddr] = useState('Fac');
   const [addrOther, setAddrOther] = useState('');
-  const [sender, setSender] = useState(user?.name || '');
+  const defaultName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+    || user?.nickname || user?.name || '';
+  const [sender, setSender] = useState(defaultName);
   const [recipient, setRecipient] = useState('');
-  const [authorized, setAuthorized] = useState(user?.name || '');
+  const [authorized, setAuthorized] = useState(defaultName);
   const [note, setNote] = useState('');
   const [items, setItems] = useState([{ item: '', quantity: '', unit: '', note: '' }]);
   const [submitting, setSubmitting] = useState(false);

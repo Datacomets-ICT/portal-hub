@@ -48,7 +48,8 @@ export default function RepairEquipmentDetailPage() {
         p_stock_id: stockId,
         p_movement_type: moveType,
         p_quantity: q,
-        p_performed_by: user?.name || user?.code || '-',
+        p_performed_by: [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+          || user?.nickname || user?.name || user?.employeeId || user?.code || '-',
         p_floor: floor || null,
         p_zone: zone || null,
         p_job_id: jobId.trim() || null,

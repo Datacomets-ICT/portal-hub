@@ -39,7 +39,9 @@ export default function RepairFactoryDetailPage() {
     setBusy(true); setErr(null);
     try {
       const { error } = await supabase.rpc('rpr_update_factory_request', {
-        p_doc_no: docNo, p_action: action, p_actor: user?.name || user?.code,
+        p_doc_no: docNo, p_action: action, p_actor:
+          [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+          || user?.nickname || user?.name || user?.employeeId || user?.code,
       });
       if (error) throw error;
       await load();

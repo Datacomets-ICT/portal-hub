@@ -36,6 +36,9 @@ export default function RepairDetailPage() {
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  const myName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+    || user?.nickname || user?.name || user?.employeeId || '';
+
   // Edit-in-place for the "finish" flow
   const [assignedTo, setAssignedTo] = useState('');
   const [repairDetail, setRepairDetail] = useState('');
@@ -48,7 +51,7 @@ export default function RepairDetailPage() {
       const { data, error } = await supabase.rpc('rpr_get_job', { p_job_id: jobId });
       if (error) throw error;
       setJob(data);
-      setAssignedTo(data?.assigned_to || user?.name || '');
+      setAssignedTo(data?.assigned_to || myName);
       setRepairDetail(data?.repair_detail || '');
       setAfterPhotos((data?.after_photo_urls || []).map((url) => ({ url, name: url.split('/').pop() })));
     } catch (e) {
@@ -109,7 +112,7 @@ export default function RepairDetailPage() {
     }
   };
 
-  const start = () => transition('กำลังดำเนินการ', { assigned_to: assignedTo || user?.name });
+  const start = () => transition('กำลังดำเนินการ', { assigned_to: assignedTo || myName });
   const sendOutside = () => transition('รอช่างนอก');
   const cancel = () => {
     if (!window.confirm('ยกเลิกใบนี้?')) return;

@@ -35,9 +35,11 @@ export default function RepairNewPage() {
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState([]);
 
+  const reporterFullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+    || user?.nickname || user?.name || '';
   const [reporterId, setReporterId] = useState(user?.employeeId || user?.code || '');
-  const [reporterName, setReporterName] = useState(user?.name || '');
-  const [reporterDept, setReporterDept] = useState(user?.dept || user?.department || '');
+  const [reporterName, setReporterName] = useState(reporterFullName);
+  const [reporterDept, setReporterDept] = useState(user?.department || user?.dept || '');
 
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);

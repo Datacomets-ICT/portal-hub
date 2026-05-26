@@ -10,7 +10,9 @@ export default function RepairFactoryNewPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [requester, setRequester] = useState(user?.name || '');
+  const defaultName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+    || user?.nickname || user?.name || '';
+  const [requester, setRequester] = useState(defaultName);
   const [note, setNote] = useState('');
   const [items, setItems] = useState([{ item: '', quantity: '', unit: '' }]);
   const [submitting, setSubmitting] = useState(false);

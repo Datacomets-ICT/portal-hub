@@ -2978,6 +2978,64 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 /* ── Repair menu (7-tile landing) ───────────────────────────────── */
+.rpr-welcome {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg,
+    rgba(var(--accent-rgb), 0.10),
+    rgba(var(--accent-rgb), 0.02) 70%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-top: 4px;
+}
+.rpr-welcome-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.rpr-welcome-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.rpr-welcome-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rpr-welcome-hi {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.rpr-welcome-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rpr-welcome-meta {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.rpr-welcome-meta strong {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
 .rpr-menu-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -2985,37 +3043,77 @@ a { color: var(--accent); text-decoration: none; }
   margin-top: 6px;
 }
 .rpr-tile {
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 22px 16px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px 18px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 16px;
   cursor: pointer;
   font-family: inherit;
-  transition: border-color 0.12s, transform 0.06s, box-shadow 0.12s;
-  text-align: center;
+  transition: border-color 0.15s, transform 0.08s, box-shadow 0.15s;
+  text-align: left;
+  overflow: hidden;
+}
+.rpr-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+    var(--tile-tint, rgba(var(--accent-rgb), 0.08)),
+    transparent 65%);
+  opacity: 0.7;
+  pointer-events: none;
+  transition: opacity 0.15s;
 }
 .rpr-tile:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.14);
+  border-color: var(--tile-color, var(--accent));
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08),
+              0 0 0 1px var(--tile-color, var(--accent)) inset;
 }
-.rpr-tile-emoji {
-  font-size: 36px;
-  line-height: 1;
+.rpr-tile:hover::before { opacity: 1; }
+.rpr-tile-icon {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--tile-color, var(--accent));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 10px var(--tile-tint, rgba(var(--accent-rgb), 0.30));
 }
 .rpr-tile-title {
-  font-size: 15px;
-  font-weight: 600;
+  position: relative;
+  font-size: 15.5px;
+  font-weight: 700;
   color: var(--ink);
 }
 .rpr-tile-desc {
-  font-size: 12px;
+  position: relative;
+  font-size: 12.5px;
   color: var(--ink-3);
-  line-height: 1.4;
+  line-height: 1.45;
+}
+.rpr-tile-arrow {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  color: var(--tile-color, var(--accent));
+  font-size: 18px;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.rpr-tile:hover .rpr-tile-arrow {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 /* ── Repair detail + create page ─────────────────────────────────── */
