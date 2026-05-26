@@ -149,7 +149,11 @@ lines = [
     "-- Contact backfill from 'เบอร์ติดต่อบริษัทในเครือ 05_05_2026.xlsx'",
     "-- Auto-generated. Each UPDATE only fills BLANK fields in employees",
     "-- — never overwrites values the user already set in their profile.",
-    "-- Match strategy: (first_name + last_name) → (first_name only) → (nickname).",
+    "-- Match strategy: STRICT (first_name + last_name). Falls back to",
+    "-- first_name only when Excel has a single Thai token AND the employee",
+    "-- row also has no last_name. Nickname matching was REMOVED — common",
+    "-- Thai nicknames (บี, นัท, มด) caused one Excel contact to inflate",
+    "-- in_directory across 5-10 unrelated employees.",
     "-- Run in Supabase SQL Editor. Idempotent — safe to re-run.",
     "--",
     "-- Each row also flips `in_directory = true` so the /people page",
@@ -180,14 +184,17 @@ for c in contacts:
     em = sql_escape(c['email']) if c['email'] else ''
     ph = sql_escape(c['phone']) if c['phone'] else ''
 
-    # Build the matching predicate. Try most specific first.
+    # STRICT match — first_name + last_name only.
+    # Earlier versions also matched by nickname which inflated the
+    # in_directory count 4× because Thai nicknames repeat heavily (บี,
+    # นัท, มด, อ้อ — one Excel contact would match 5-10 unrelated staff).
     where_parts = []
     if fn and ln:
         where_parts.append(f"(first_name = '{fn}' and last_name = '{ln}')")
-    if fn:
+    elif fn:
+        # Excel only has a single Thai token — match first_name only when
+        # the employee row also has no last_name (true single-name people).
         where_parts.append(f"(first_name = '{fn}' and (last_name is null or last_name = ''))")
-    if nk:
-        where_parts.append(f"(nickname ilike '{nk}')")
     if not where_parts:
         continue
     where = ' or '.join(where_parts)

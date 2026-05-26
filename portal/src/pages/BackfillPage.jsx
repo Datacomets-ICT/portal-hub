@@ -6,22 +6,19 @@ import { supabase } from '../lib/supabase.js';
 // IT Admin "ticket backfill" page — for walk-up / phone-call requests
 // where the user didn't open a ticket themselves.
 //
-// Layout:
-//   ┌──────────────────────────────────────┐
-//   │ ← back   Backfill Ticket             │
-//   │                                      │
-//   │ ปัญหายอดฮิต (90 วันล่าสุด)           │
-//   │ [Email · อีเมลเต็ม         | 23 ครั้ง]│  ← click to start backfill
-//   │ [SAP · ล็อกอินไม่ได้       | 18 ครั้ง]│
-//   │ [คอมพิวเตอร์ · หน้าจอฟ้า  | 12 ครั้ง]│
-//   │ ...                                  │
-//   └──────────────────────────────────────┘
-//
-// Click a button → modal opens:
-//   - empId input (autofocus)
-//   - on blur → fetch employee details (name, dept, phone)
-//   - free-text "รายละเอียด" + priority
-//   - submit → it_backfill_ticket RPC → returns ticket_no → toast
+// Flow:
+//   1. Drill into worklist (job_type → issue_type → symptom)
+//      • each level has an "อื่น ๆ ระบุเอง" escape hatch
+//      • picking at any level past job_type opens the form
+//   2. Form: requester empId + handler empId + status + (photo)
+//      • default status = "กำลังดำเนินการ"
+//      • if status = "ดำเนินการเรียบร้อย" or "ปิดงานแล้ว" → photo REQUIRED
+//   3. Submit → it_backfill_ticket RPC → returns ticket_no → toast
+
+const COMPLETED_STATUSES = new Set([
+  'ดำเนินการเรียบร้อย',
+  'ปิดงานแล้ว',
+]);
 
 export default function BackfillPage() {
   const { user } = useAuth();
@@ -36,10 +33,14 @@ export default function BackfillPage() {
     if (user && !isItAdmin) navigate('/hub', { replace: true });
   }, [user, isItAdmin, navigate]);
 
-  const [issues, setIssues] = useState([]);
+  // ── worklist data
+  const [worklist, setWorklist] = useState([]);   // [{job_type, issue_type, symptom}]
   const [loading, setLoading] = useState(true);
+
+  // ── drill state
+  const [picked, setPicked] = useState({ job_type: null, issue_type: null });
   const [filter, setFilter] = useState('');
-  const [picked, setPicked] = useState(null);
+  const [form, setForm] = useState(null);          // { job_type, issue_type, symptom } once chosen
   const [toast, setToast] = useState(null);
 
   const showToast = (msg, kind = 'ok') => {
@@ -52,46 +53,128 @@ export default function BackfillPage() {
     (async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.rpc('it_top_issues', {
-          p_admin_id: user.employeeId,
-          p_limit: 30,
-          p_days: 90,
-        });
+        const { data, error } = await supabase
+          .from('worklist')
+          .select('job_type, issue_type, symptom')
+          .order('job_type')
+          .order('issue_type', { nullsFirst: false })
+          .order('symptom', { nullsFirst: false });
         if (error) throw error;
-        setIssues(data || []);
+        setWorklist(data || []);
       } catch (err) {
-        showToast(err.message || 'โหลดไม่สำเร็จ', 'err');
+        showToast(err.message || 'โหลด worklist ไม่สำเร็จ', 'err');
       } finally {
         setLoading(false);
       }
     })();
-  }, [isItAdmin, user?.employeeId]);
+  }, [isItAdmin]);
 
-  const visible = useMemo(() => {
+  // ── derive current level's items from worklist + picked state
+  const currentLevel = picked.job_type == null
+    ? 'job_type'
+    : picked.issue_type == null
+      ? 'issue_type'
+      : 'symptom';
+
+  const items = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return issues;
-    return issues.filter((it) =>
-      [it.job_type, it.issue_type, it.symptom]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [issues, filter]);
+    if (currentLevel === 'job_type') {
+      const set = new Set();
+      worklist.forEach((w) => w.job_type && set.add(w.job_type));
+      const arr = Array.from(set).sort();
+      return q ? arr.filter((v) => v.toLowerCase().includes(q)) : arr;
+    }
+    if (currentLevel === 'issue_type') {
+      const set = new Set();
+      worklist
+        .filter((w) => w.job_type === picked.job_type)
+        .forEach((w) => w.issue_type && set.add(w.issue_type));
+      const arr = Array.from(set).sort();
+      return q ? arr.filter((v) => v.toLowerCase().includes(q)) : arr;
+    }
+    // symptom level
+    const set = new Set();
+    worklist
+      .filter((w) => w.job_type === picked.job_type && w.issue_type === picked.issue_type)
+      .forEach((w) => w.symptom && set.add(w.symptom));
+    const arr = Array.from(set).sort();
+    return q ? arr.filter((v) => v.toLowerCase().includes(q)) : arr;
+  }, [worklist, picked, filter, currentLevel]);
+
+  const goBack = () => {
+    setFilter('');
+    if (picked.issue_type != null) setPicked({ ...picked, issue_type: null });
+    else if (picked.job_type != null) setPicked({ job_type: null, issue_type: null });
+  };
+
+  const pick = (value) => {
+    setFilter('');
+    if (currentLevel === 'job_type') {
+      setPicked({ job_type: value, issue_type: null });
+    } else if (currentLevel === 'issue_type') {
+      // Check if any row in this (job, issue) combo has a symptom — if
+      // not, jump straight to form (no level 3 needed).
+      const hasSymptoms = worklist.some(
+        (w) => w.job_type === picked.job_type
+            && w.issue_type === value
+            && w.symptom && w.symptom.trim() !== ''
+      );
+      if (hasSymptoms) {
+        setPicked({ job_type: picked.job_type, issue_type: value });
+      } else {
+        setForm({ job_type: picked.job_type, issue_type: value, symptom: '' });
+      }
+    } else {
+      setForm({ job_type: picked.job_type, issue_type: picked.issue_type, symptom: value });
+    }
+  };
+
+  // "Other" → prompt for a custom value, then either drill or jump to form
+  const pickOther = () => {
+    const label = currentLevel === 'job_type' ? 'ประเภทงาน'
+      : currentLevel === 'issue_type' ? 'อุปกรณ์/หัวข้อ'
+      : 'อาการ';
+    const v = prompt(`ระบุ${label}เอง:`);
+    if (!v || !v.trim()) return;
+    const value = v.trim();
+    if (currentLevel === 'symptom') {
+      setForm({ job_type: picked.job_type, issue_type: picked.issue_type, symptom: value });
+    } else if (currentLevel === 'issue_type') {
+      // custom issue_type → no symptoms defined → straight to form
+      setForm({ job_type: picked.job_type, issue_type: value, symptom: '' });
+    } else {
+      // custom job_type → empty issue_type → straight to form
+      setForm({ job_type: value, issue_type: '', symptom: '' });
+    }
+  };
 
   if (!user || !isItAdmin) return null;
+
+  const crumb = [
+    'Backfill',
+    picked.job_type,
+    picked.issue_type,
+  ].filter(Boolean).join(' › ');
 
   return (
     <div className="bf-shell">
       <header className="bf-head">
-        <button className="bf-back" onClick={() => navigate('/hub')}>← กลับ</button>
-        <h1>Backfill Ticket</h1>
-        <span className="bf-sub">เปิด Ticket ย้อนหลังให้พนักงาน</span>
+        <button
+          className="bf-back"
+          onClick={() => (picked.job_type ? goBack() : navigate('/hub'))}
+        >
+          ← {picked.job_type ? 'กลับ' : 'หน้าแรก'}
+        </button>
+        <h1>{crumb}</h1>
+        <span className="bf-sub">
+          {currentLevel === 'job_type' && 'เลือกประเภทงาน'}
+          {currentLevel === 'issue_type' && 'เลือกอุปกรณ์/หัวข้อ'}
+          {currentLevel === 'symptom' && 'เลือกอาการ'}
+        </span>
       </header>
 
       <section className="bf-card">
         <div className="bf-card-h">
-          <h2>ปัญหายอดฮิต <span className="bf-card-sub">(90 วันล่าสุด)</span></h2>
           <input
             className="bf-search"
             placeholder="ค้นหา..."
@@ -102,40 +185,41 @@ export default function BackfillPage() {
 
         {loading ? (
           <div className="bf-loading">กำลังโหลด…</div>
-        ) : visible.length === 0 ? (
-          <div className="bf-empty">ไม่พบข้อมูล</div>
         ) : (
-          <div className="bf-issues">
-            {visible.map((it, i) => (
+          <div className="bf-drill">
+            {items.map((value) => (
               <button
-                key={`${it.job_type}|${it.issue_type}|${it.symptom}|${i}`}
+                key={value}
                 type="button"
-                className="bf-issue"
-                onClick={() => setPicked(it)}
+                className="bf-drill-item"
+                onClick={() => pick(value)}
               >
-                <div className="bf-issue-main">
-                  <div className="bf-issue-symptom">{it.symptom || '(ไม่ระบุ symptom)'}</div>
-                  <div className="bf-issue-meta">
-                    {it.issue_type} · {it.job_type}
-                  </div>
-                </div>
-                <div className="bf-issue-count">
-                  {it.ticket_count}
-                  <span>ครั้ง</span>
-                </div>
+                <span className="bf-drill-label">{value}</span>
+                <span className="bf-drill-chev">›</span>
               </button>
             ))}
+            <button
+              type="button"
+              className="bf-drill-item bf-drill-other"
+              onClick={pickOther}
+            >
+              <span className="bf-drill-label">＋ อื่น ๆ / ระบุเอง</span>
+              <span className="bf-drill-chev">›</span>
+            </button>
           </div>
         )}
       </section>
 
-      {picked && (
+      {form && (
         <BackfillModal
-          issue={picked}
+          issue={form}
           adminId={user.employeeId}
-          onClose={() => setPicked(null)}
+          onClose={() => setForm(null)}
           onSuccess={(ticketNo) => {
-            setPicked(null);
+            setForm(null);
+            // After success, reset drill back to top so the next request
+            // starts fresh — most common flow.
+            setPicked({ job_type: null, issue_type: null });
             showToast(`เปิด Ticket สำเร็จ: ${ticketNo}`);
           }}
         />
@@ -155,16 +239,17 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
   const [lookingUpHandler, setLookingUpHandler] = useState(false);
   const [request, setRequest] = useState('');
   const [priority, setPriority] = useState('medium');
-  const [status, setStatus] = useState('เปิด Ticket');
+  const [status, setStatus] = useState('กำลังดำเนินการ');
   const [location, setLocation] = useState('');
+  const [photos, setPhotos] = useState([]);          // [{url, name}]
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Pre-fill the handler card with the current admin on first render so
-  // the user can see who's set as the doer without having to click out.
+  const needsProof = COMPLETED_STATUSES.has(status);
+
   useEffect(() => { lookupHandler(adminId); }, [adminId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Lookup requester (the user with the problem) on blur
   const lookup = async () => {
     const id = empId.trim();
     if (!id) { setEmp(null); return; }
@@ -189,7 +274,6 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
     }
   };
 
-  // Lookup handler (the IT person doing the work).
   const lookupHandler = async (idArg) => {
     const id = (idArg ?? handlerId).trim();
     if (!id) { setHandler(null); return; }
@@ -208,9 +292,42 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
     }
   };
 
+  const handleFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const out = [];
+      for (const file of files) {
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const path = `backfill/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: upErr } = await supabase
+          .storage
+          .from('ticket-attachments')
+          .upload(path, file, { contentType: file.type, upsert: false });
+        if (upErr) throw upErr;
+        const { data: pub } = supabase.storage.from('ticket-attachments').getPublicUrl(path);
+        out.push({ url: pub.publicUrl, name: file.name });
+      }
+      setPhotos((prev) => [...prev, ...out]);
+    } catch (e) {
+      setError(e.message || 'อัพโหลดรูปไม่สำเร็จ');
+    } finally {
+      setUploading(false);
+      e.target.value = '';  // reset so same file can be re-picked
+    }
+  };
+
+  const removePhoto = (idx) => setPhotos((prev) => prev.filter((_, i) => i !== idx));
+
   const submit = async () => {
     if (!emp) { setError('ค้นหารหัสพนักงานผู้ขอก่อน'); return; }
     if (!handlerId.trim()) { setError('ระบุรหัส IT ผู้ทำ'); return; }
+    if (needsProof && photos.length === 0) {
+      setError('สถานะ "ดำเนินการเรียบร้อย" หรือ "ปิดงานแล้ว" ต้องแนบรูปหลักฐาน');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -225,6 +342,7 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
         p_location: location.trim() || null,
         p_priority: priority,
         p_status: status,
+        p_photo_urls: photos.length ? photos.map((p) => p.url) : null,
       });
       if (err) throw err;
       onSuccess(data);
@@ -242,8 +360,10 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
         <h2>เปิด Ticket ย้อนหลัง</h2>
 
         <div className="bf-issue-tag">
-          <strong>{issue.symptom || '(ไม่ระบุ)'}</strong>
-          <span>{issue.issue_type} · {issue.job_type}</span>
+          <strong>{issue.symptom || issue.issue_type || '(ไม่ระบุ)'}</strong>
+          <span>
+            {[issue.job_type, issue.issue_type].filter(Boolean).join(' · ')}
+          </span>
         </div>
 
         <label className="bf-field">
@@ -303,7 +423,7 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
         )}
 
         <label className="bf-field">
-          <span>สถานะปัจจุบัน <small style={{ color: 'var(--ink-3)' }}>(เพราะเปิดย้อนหลัง อาจเสร็จไปแล้ว)</small></span>
+          <span>สถานะปัจจุบัน</span>
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="เปิด Ticket">🟡 เปิด Ticket (รอดำเนินการ)</option>
             <option value="กำลังดำเนินการ">🔵 กำลังดำเนินการ</option>
@@ -343,6 +463,37 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
           />
         </label>
 
+        <div className="bf-field">
+          <span>
+            รูปหลักฐาน
+            {needsProof && <b style={{ color: '#dc2626' }}> *จำเป็น</b>}
+          </span>
+          <div className="bf-photos">
+            {photos.map((p, i) => (
+              <div key={i} className="bf-photo">
+                <img src={p.url} alt={p.name} />
+                <button
+                  type="button"
+                  className="bf-photo-x"
+                  onClick={() => removePhoto(i)}
+                  aria-label="ลบ"
+                >✕</button>
+              </div>
+            ))}
+            <label className="bf-photo-add">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFiles}
+                disabled={uploading}
+                style={{ display: 'none' }}
+              />
+              <span>{uploading ? 'กำลังอัพโหลด…' : '＋ เพิ่มรูป'}</span>
+            </label>
+          </div>
+        </div>
+
         {error && <div className="bf-error">{error}</div>}
 
         <div className="bf-actions">
@@ -353,7 +504,7 @@ function BackfillModal({ issue, adminId, onClose, onSuccess }) {
             type="button"
             className="bf-btn bf-btn-go"
             onClick={submit}
-            disabled={submitting || !emp}
+            disabled={submitting || !emp || uploading || (needsProof && photos.length === 0)}
           >
             {submitting ? 'กำลังเปิด…' : 'เปิด Ticket'}
           </button>
