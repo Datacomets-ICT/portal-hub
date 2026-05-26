@@ -183,9 +183,13 @@ for r in range(2, ws_insp.max_row + 1):
         if idx is None: return None
         return ws_insp.cell(r, idx + 1).value
 
+    # Skip truly empty rows (xlsx export usually has hundreds of trailing
+    # empties). A row is "empty" if it has no inspector + no inspected_at.
+    if not cell('inspector_id') and not cell('inspector_name') and not cell('inspected_at'):
+        continue
+
     irid = cell('irid')
     if not irid or not str(irid).strip():
-        # Mint synthetic
         seq_irid += 1
         irid = f'IRID{seq_irid:06d}'
     irid = str(irid).strip()
@@ -245,6 +249,12 @@ for j in job_rows:
 lines.append("")
 lines.append("-- ===== rpr_inspections =====")
 
+def ts_or_default(v):
+    """Like ts() but emits DEFAULT for null so NOT NULL columns get now()."""
+    if v is None or not str(v).strip():
+        return 'default'
+    return "'" + str(v).replace("'", "''") + "'::timestamptz"
+
 for i in insp_rows:
     lines.append(
         f"insert into rpr_inspections (irid, inspector_id, inspector_name, dept, "
@@ -252,7 +262,7 @@ for i in insp_rows:
         f"values ({esc(i['irid'])}, {esc(i['inspector_id'])}, {esc(i['inspector_name'])}, "
         f"{esc(i['dept'])}, {ts(i['inspected_at'])}, {esc(i['inspection_type'])}, "
         f"{esc(i['item'])}, {esc(i['floor'])}, {esc(i['zone'])}, {esc(i['detail'])}, "
-        f"{ts(i['created_at'])}) "
+        f"{ts_or_default(i['created_at'])}) "
         f"on conflict (irid) do nothing;"
     )
 
