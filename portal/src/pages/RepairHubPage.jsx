@@ -142,7 +142,7 @@ export default function RepairHubPage() {
         <button
           type="button"
           className="rpr-new"
-          onClick={() => alert('Phase 2: ฟอร์มแจ้งซ่อมใหม่ (drill worklist + photo) — ยังไม่เปิด')}
+          onClick={() => navigate('/repair/new')}
         >
           ＋ แจ้งซ่อมใหม่
         </button>
@@ -175,7 +175,7 @@ export default function RepairHubPage() {
                 return (
                   <tr
                     key={r.job_id}
-                    onClick={() => alert(`Phase 2: รายละเอียด ${r.job_id}`)}
+                    onClick={() => navigate(`/repair/${r.job_id}`)}
                   >
                     <td className="rpr-td-id">{r.job_id}</td>
                     <td>{r.reporter_name || '-'}</td>

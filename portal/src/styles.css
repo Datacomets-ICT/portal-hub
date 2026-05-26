@@ -2977,6 +2977,96 @@ a { color: var(--accent); text-decoration: none; }
   .rpr-table th, .rpr-table td { padding: 8px 8px; }
 }
 
+/* ── Repair detail + create page ─────────────────────────────────── */
+.rpr-card-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rpr-card-section h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+.rpr-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 16px;
+  font-size: 13px;
+}
+.rpr-kv > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rpr-kv > div > span {
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.rpr-note-block {
+  background: rgba(0, 0, 0, 0.02);
+  border-left: 3px solid var(--accent);
+  padding: 8px 12px;
+  border-radius: 0 8px 8px 0;
+}
+.rpr-note-label {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.rpr-note-body {
+  font-size: 13.5px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+.rpr-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.rpr-photo-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  cursor: zoom-in;
+}
+.rpr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.rpr-btn {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rpr-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.rpr-btn-go { background: var(--accent); color: #fff; }
+.rpr-btn-go:hover:not(:disabled) { filter: brightness(1.05); }
+.rpr-btn-alt { background: #5b21b6; color: #fff; }
+.rpr-btn-warn { background: #b91c1c; color: #fff; }
+.rpr-btn-cancel { background: var(--surface); color: var(--ink-2); border: 1px solid var(--line); }
+
 /* ── Backfill drill (worklist 3-level browser) ───────────────────── */
 .bf-drill {
   display: flex;

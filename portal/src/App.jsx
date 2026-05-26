@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage.jsx';
 import HubPage from './pages/HubPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import RepairHubPage from './pages/RepairHubPage.jsx';
+import RepairNewPage from './pages/RepairNewPage.jsx';
+import RepairDetailPage from './pages/RepairDetailPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import DirectoryPage from './pages/DirectoryPage.jsx';
 import BackfillPage from './pages/BackfillPage.jsx';
@@ -36,6 +38,22 @@ export default function App() {
           element={
             <Protected>
               <RepairHubPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/repair/new"
+          element={
+            <Protected>
+              <RepairNewPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/repair/:jobId"
+          element={
+            <Protected>
+              <RepairDetailPage />
             </Protected>
           }
         />
