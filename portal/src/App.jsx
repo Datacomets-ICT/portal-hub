@@ -8,6 +8,7 @@ import RepairHubPage from './pages/RepairHubPage.jsx';
 import RepairNewPage from './pages/RepairNewPage.jsx';
 import RepairDetailPage from './pages/RepairDetailPage.jsx';
 import RepairInspectionsPage from './pages/RepairInspectionsPage.jsx';
+import RepairInspectionNewPage from './pages/RepairInspectionNewPage.jsx';
 import RepairEquipmentPage from './pages/RepairEquipmentPage.jsx';
 import RepairHandoversPage from './pages/RepairHandoversPage.jsx';
 import RepairHandoverNewPage from './pages/RepairHandoverNewPage.jsx';
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/repair/jobs"               element={<Protected><RepairHubPage /></Protected>} />
         <Route path="/repair/jobs/:jobId"        element={<Protected><RepairDetailPage /></Protected>} />
         <Route path="/repair/inspections"        element={<Protected><RepairInspectionsPage /></Protected>} />
+        <Route path="/repair/inspections/new"    element={<Protected><RepairInspectionNewPage /></Protected>} />
         <Route path="/repair/equipment"          element={<Protected><RepairEquipmentPage /></Protected>} />
         <Route path="/repair/equipment/new"      element={<Protected><RepairEquipmentNewPage /></Protected>} />
         <Route path="/repair/equipment/:stockId" element={<Protected><RepairEquipmentDetailPage /></Protected>} />

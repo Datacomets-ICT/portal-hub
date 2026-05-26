@@ -12,7 +12,12 @@ export default function RepairFactoryNewPage() {
 
   const defaultName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
     || user?.nickname || user?.name || '';
+
+  const [requestDate, setRequestDate] = useState(new Date().toISOString().slice(0, 16));
   const [requester, setRequester] = useState(defaultName);
+  const [approver, setApprover] = useState('');
+  const [dispenser, setDispenser] = useState('');
+  const [receiver, setReceiver] = useState('');
   const [note, setNote] = useState('');
   const [items, setItems] = useState([{ item: '', quantity: '', unit: '' }]);
   const [submitting, setSubmitting] = useState(false);
@@ -37,6 +42,10 @@ export default function RepairFactoryNewPage() {
           quantity: it.quantity || null,
           unit: it.unit || null,
         })),
+        p_request_date: requestDate ? new Date(requestDate).toISOString() : null,
+        p_approver: approver.trim() || null,
+        p_dispenser: dispenser.trim() || null,
+        p_receiver: receiver.trim() || null,
       });
       if (error) throw error;
       navigate(`/repair/factory-requests/${data}`);
@@ -59,11 +68,29 @@ export default function RepairFactoryNewPage() {
       {err && <div className="rpr-err">{err}</div>}
 
       <section className="rpr-card-section">
-        <h3>ข้อมูลผู้ขอ</h3>
-        <label className="bf-field">
-          <span>ผู้ขอเบิก *</span>
-          <input value={requester} onChange={(e) => setRequester(e.target.value)} />
-        </label>
+        <h3>ข้อมูลคำขอ</h3>
+        <div className="rpr-form-grid">
+          <label className="bf-field">
+            <span>วันที่เบิก *</span>
+            <input type="datetime-local" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} />
+          </label>
+          <label className="bf-field">
+            <span>ผู้ขอเบิก *</span>
+            <input value={requester} onChange={(e) => setRequester(e.target.value)} />
+          </label>
+          <label className="bf-field">
+            <span>ผู้อนุมัติ <small style={{ color: 'var(--ink-3)' }}>(ใส่ได้ภายหลังตอนอนุมัติ)</small></span>
+            <input value={approver} onChange={(e) => setApprover(e.target.value)} placeholder="คุณจุ๋ม" />
+          </label>
+          <label className="bf-field">
+            <span>ผู้จ่าย <small style={{ color: 'var(--ink-3)' }}>(ใส่ตอนจ่าย)</small></span>
+            <input value={dispenser} onChange={(e) => setDispenser(e.target.value)} />
+          </label>
+          <label className="bf-field">
+            <span>ผู้รับ <small style={{ color: 'var(--ink-3)' }}>(ใส่ตอนรับของ)</small></span>
+            <input value={receiver} onChange={(e) => setReceiver(e.target.value)} />
+          </label>
+        </div>
         <label className="bf-field">
           <span>หมายเหตุ</span>
           <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />

@@ -9,9 +9,23 @@ import { supabase } from '../lib/supabase.js';
 // is locked to currentUser (LINE OA flow will mint these too, but
 // today an admin/ช่าง creates on behalf of the requester).
 
+// Only shown when ประเภทบริการ = "ระบบ" — most ใบแจ้งซ่อม / ซ่อมทั่วไป
+// don't need to subclassify by system, just go straight to item.
 const REPAIR_TYPES = [
   'ปรับอากาศ', 'ปะปา(สุขาภิบาล)', 'ไฟฟ้า',
   'โครงสร้างหรือเฟอร์นิเจอร์', 'ความปลอดภัย', 'ตรวจประจำเดือน', 'อื่น ๆ',
+];
+
+// รายการ dropdown — common items grouped roughly by system. Picking
+// "อื่น ๆ" reveals a text input so anything not on the list still works.
+const COMMON_ITEMS = [
+  'แอร์', 'น้ำหยดจากแอร์', 'รีโมทแอร์',
+  'หลอดไฟยาว', 'หลอดไฟกลม', 'โคมไฟ', 'ปลั๊กไฟ', 'สวิตช์ไฟ',
+  'ก๊อกน้ำ', 'ฝักบัว', 'โถส้วม', 'อ่างล้างมือ', 'ท่อน้ำ',
+  'ประตู', 'หน้าต่าง', 'บานพับ', 'กลอน', 'กุญแจ',
+  'โต๊ะ', 'เก้าอี้', 'ตู้', 'ฝ้าเพดาน', 'ผนัง', 'พื้น',
+  'กล้องวงจรปิด', 'เครื่องสแกนนิ้ว', 'สัญญาณเตือนภัย',
+  'อื่น ๆ',
 ];
 
 const FLOORS = ['ชั้น1','ชั้น2','ชั้น3','ชั้น4','ชั้น5','ชั้น6','ชั้น7','ชั้น8'];
@@ -30,10 +44,14 @@ export default function RepairNewPage() {
   const [serviceType, setServiceType] = useState('ใบแจ้งซ่อม');
   const [repairType, setRepairType] = useState('');
   const [item, setItem] = useState('');
+  const [itemOther, setItemOther] = useState('');
   const [floor, setFloor] = useState('');
   const [zone, setZone] = useState('');
   const [note, setNote] = useState('');
   const [photos, setPhotos] = useState([]);
+
+  const needsRepairType = serviceType === 'ระบบ';
+  const finalItem = item === 'อื่น ๆ' ? itemOther.trim() : item;
 
   const reporterFullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
     || user?.nickname || user?.name || '';
@@ -74,8 +92,8 @@ export default function RepairNewPage() {
   const removePhoto = (idx) => setPhotos((prev) => prev.filter((_, i) => i !== idx));
 
   const submit = async () => {
-    if (!repairType) { setErr('เลือกประเภทการซ่อม'); return; }
-    if (!item.trim()) { setErr('ใส่รายการ'); return; }
+    if (needsRepairType && !repairType) { setErr('เลือกประเภทการซ่อม'); return; }
+    if (!finalItem) { setErr('เลือก/ระบุรายการ'); return; }
     if (!floor) { setErr('เลือกชั้น'); return; }
     if (!note.trim()) { setErr('ใส่รายละเอียด'); return; }
 
@@ -87,8 +105,8 @@ export default function RepairNewPage() {
         p_reporter_name: reporterName || '-',
         p_reporter_dept: reporterDept || null,
         p_service_type:  serviceType,
-        p_repair_type:   repairType,
-        p_item:          item.trim(),
+        p_repair_type:   needsRepairType ? repairType : null,
+        p_item:          finalItem,
         p_floor:         floor,
         p_zone:          zone || null,
         p_note:          note.trim(),
@@ -126,43 +144,58 @@ export default function RepairNewPage() {
       <section className="rpr-card-section">
         <h3>รายละเอียดงาน</h3>
 
-        <label className="bf-field">
-          <span>ประเภทบริการ</span>
-          <select value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
-            <option>ใบแจ้งซ่อม</option>
-            <option>ซ่อมทั่วไป</option>
-            <option>ระบบ</option>
-          </select>
-        </label>
+        <div className="rpr-form-grid">
+          <label className="bf-field">
+            <span>ประเภทบริการ</span>
+            <select value={serviceType} onChange={(e) => setServiceType(e.target.value)}>
+              <option>ใบแจ้งซ่อม</option>
+              <option>ซ่อมทั่วไป</option>
+              <option>ระบบ</option>
+            </select>
+          </label>
 
-        <label className="bf-field">
-          <span>ประเภทการซ่อม *</span>
-          <select value={repairType} onChange={(e) => setRepairType(e.target.value)}>
-            <option value="">— เลือก —</option>
-            {REPAIR_TYPES.map((r) => <option key={r}>{r}</option>)}
-          </select>
-        </label>
+          {needsRepairType && (
+            <label className="bf-field">
+              <span>ประเภทการซ่อม *</span>
+              <select value={repairType} onChange={(e) => setRepairType(e.target.value)}>
+                <option value="">— เลือก —</option>
+                {REPAIR_TYPES.map((r) => <option key={r}>{r}</option>)}
+              </select>
+            </label>
+          )}
 
-        <label className="bf-field">
-          <span>รายการ * (อุปกรณ์ / จุดที่ซ่อม)</span>
-          <input value={item} onChange={(e) => setItem(e.target.value)} placeholder="เช่น แอร์, หลอดไฟยาว, ประตู" />
-        </label>
+          <label className="bf-field">
+            <span>รายการ * (อุปกรณ์ / จุดที่ซ่อม)</span>
+            <select value={item} onChange={(e) => setItem(e.target.value)}>
+              <option value="">— เลือก —</option>
+              {COMMON_ITEMS.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </label>
 
-        <label className="bf-field">
-          <span>ชั้น *</span>
-          <select value={floor} onChange={(e) => setFloor(e.target.value)}>
-            <option value="">— เลือก —</option>
-            {FLOORS.map((f) => <option key={f}>{f}</option>)}
-          </select>
-        </label>
+          {item === 'อื่น ๆ' && (
+            <label className="bf-field">
+              <span>ระบุรายการ *</span>
+              <input value={itemOther} onChange={(e) => setItemOther(e.target.value)}
+                placeholder="พิมพ์ชื่อรายการ" />
+            </label>
+          )}
 
-        <label className="bf-field">
-          <span>โซน / ตำแหน่ง</span>
-          <select value={zone} onChange={(e) => setZone(e.target.value)}>
-            <option value="">— เลือก —</option>
-            {ZONES.map((z) => <option key={z}>{z}</option>)}
-          </select>
-        </label>
+          <label className="bf-field">
+            <span>ชั้น *</span>
+            <select value={floor} onChange={(e) => setFloor(e.target.value)}>
+              <option value="">— เลือก —</option>
+              {FLOORS.map((f) => <option key={f}>{f}</option>)}
+            </select>
+          </label>
+
+          <label className="bf-field">
+            <span>โซน / ตำแหน่ง</span>
+            <select value={zone} onChange={(e) => setZone(e.target.value)}>
+              <option value="">— เลือก —</option>
+              {ZONES.map((z) => <option key={z}>{z}</option>)}
+            </select>
+          </label>
+        </div>
 
         <label className="bf-field">
           <span>รายละเอียดปัญหา *</span>

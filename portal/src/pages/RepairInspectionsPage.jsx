@@ -55,6 +55,9 @@ export default function RepairInspectionsPage() {
       <div className="rpr-controls">
         <input className="rpr-search" placeholder="ค้นหา IRID / ผู้ตรวจ / รายการ..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
+        <button type="button" className="rpr-new" onClick={() => navigate('/repair/inspections/new')}>
+          ＋ ตรวจใหม่
+        </button>
       </div>
 
       {err && <div className="rpr-err">{err}</div>}
