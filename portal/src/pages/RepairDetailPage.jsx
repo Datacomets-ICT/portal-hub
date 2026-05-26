@@ -152,7 +152,7 @@ export default function RepairDetailPage() {
   return (
     <div className="rpr-shell">
       <header className="rpr-head">
-        <button className="rpr-back" onClick={() => navigate('/repair')}>← กลับ</button>
+        <button className="rpr-back" onClick={() => navigate('/repair/jobs')}>← กลับ</button>
         <h1>{job.job_id}</h1>
         <span className="rpr-pill" style={{ background: pill.bg, color: pill.fg }}>
           {status}

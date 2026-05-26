@@ -2977,6 +2977,47 @@ a { color: var(--accent); text-decoration: none; }
   .rpr-table th, .rpr-table td { padding: 8px 8px; }
 }
 
+/* ── Repair menu (7-tile landing) ───────────────────────────────── */
+.rpr-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 6px;
+}
+.rpr-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.12s, transform 0.06s, box-shadow 0.12s;
+  text-align: center;
+}
+.rpr-tile:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.14);
+}
+.rpr-tile-emoji {
+  font-size: 36px;
+  line-height: 1;
+}
+.rpr-tile-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rpr-tile-desc {
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+
 /* ── Repair detail + create page ─────────────────────────────────── */
 .rpr-card-section {
   background: var(--surface);

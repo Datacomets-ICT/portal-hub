@@ -108,9 +108,9 @@ export default function RepairHubPage() {
   return (
     <div className="rpr-shell">
       <header className="rpr-head">
-        <button className="rpr-back" onClick={() => navigate('/hub')}>← กลับ</button>
-        <h1>ระบบแจ้งซ่อม</h1>
-        <span className="rpr-sub">ช่างประจำอาคาร</span>
+        <button className="rpr-back" onClick={() => navigate('/repair')}>← เมนู</button>
+        <h1>หน้าสถานะ</h1>
+        <span className="rpr-sub">รายการงานซ่อมทั้งหมด</span>
       </header>
 
       {/* Status filter chips */}
@@ -175,7 +175,7 @@ export default function RepairHubPage() {
                 return (
                   <tr
                     key={r.job_id}
-                    onClick={() => navigate(`/repair/${r.job_id}`)}
+                    onClick={() => navigate(`/repair/jobs/${r.job_id}`)}
                   >
                     <td className="rpr-td-id">{r.job_id}</td>
                     <td>{r.reporter_name || '-'}</td>

@@ -3,9 +3,15 @@ import { useAuth } from './lib/auth.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import HubPage from './pages/HubPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import RepairMenuPage from './pages/RepairMenuPage.jsx';
 import RepairHubPage from './pages/RepairHubPage.jsx';
 import RepairNewPage from './pages/RepairNewPage.jsx';
 import RepairDetailPage from './pages/RepairDetailPage.jsx';
+import RepairInspectionsPage from './pages/RepairInspectionsPage.jsx';
+import RepairEquipmentPage from './pages/RepairEquipmentPage.jsx';
+import RepairHandoversPage from './pages/RepairHandoversPage.jsx';
+import RepairFactoryPage from './pages/RepairFactoryPage.jsx';
+import RepairPdfPage from './pages/RepairPdfPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import DirectoryPage from './pages/DirectoryPage.jsx';
 import BackfillPage from './pages/BackfillPage.jsx';
@@ -33,30 +39,15 @@ export default function App() {
             </Protected>
           }
         />
-        <Route
-          path="/repair"
-          element={
-            <Protected>
-              <RepairHubPage />
-            </Protected>
-          }
-        />
-        <Route
-          path="/repair/new"
-          element={
-            <Protected>
-              <RepairNewPage />
-            </Protected>
-          }
-        />
-        <Route
-          path="/repair/:jobId"
-          element={
-            <Protected>
-              <RepairDetailPage />
-            </Protected>
-          }
-        />
+        <Route path="/repair"                    element={<Protected><RepairMenuPage /></Protected>} />
+        <Route path="/repair/new"                element={<Protected><RepairNewPage /></Protected>} />
+        <Route path="/repair/jobs"               element={<Protected><RepairHubPage /></Protected>} />
+        <Route path="/repair/jobs/:jobId"        element={<Protected><RepairDetailPage /></Protected>} />
+        <Route path="/repair/inspections"        element={<Protected><RepairInspectionsPage /></Protected>} />
+        <Route path="/repair/equipment"          element={<Protected><RepairEquipmentPage /></Protected>} />
+        <Route path="/repair/handovers"          element={<Protected><RepairHandoversPage /></Protected>} />
+        <Route path="/repair/factory-requests"   element={<Protected><RepairFactoryPage /></Protected>} />
+        <Route path="/repair/pdf"                element={<Protected><RepairPdfPage /></Protected>} />
         <Route
           path="/admin"
           element={
