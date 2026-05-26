@@ -3,7 +3,7 @@ import { useAuth } from './lib/auth.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import HubPage from './pages/HubPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
-import RepairComingSoonPage from './pages/RepairComingSoonPage.jsx';
+import RepairHubPage from './pages/RepairHubPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import DirectoryPage from './pages/DirectoryPage.jsx';
 import BackfillPage from './pages/BackfillPage.jsx';
@@ -35,7 +35,7 @@ export default function App() {
           path="/repair"
           element={
             <Protected>
-              <RepairComingSoonPage />
+              <RepairHubPage />
             </Protected>
           }
         />
