@@ -72,6 +72,9 @@ export default function RepairEquipmentPage() {
       <div className="rpr-controls">
         <input className="rpr-search" placeholder="ค้นหา รหัส / ชื่อ..."
           value={search} onChange={(e) => setSearch(e.target.value)} />
+        <button type="button" className="rpr-new" onClick={() => navigate('/repair/equipment/new')}>
+          ＋ เพิ่มอุปกรณ์
+        </button>
       </div>
 
       {err && <div className="rpr-err">{err}</div>}
@@ -90,7 +93,7 @@ export default function RepairEquipmentPage() {
             </tr></thead>
             <tbody>
               {visible.map((r) => (
-                <tr key={r.stock_id}>
+                <tr key={r.stock_id} onClick={() => navigate(`/repair/equipment/${r.stock_id}`)} style={{ cursor: 'pointer' }}>
                   <td className="rpr-td-id">{r.stock_id}</td>
                   <td className="rpr-td-dim">{r.category || '-'}</td>
                   <td>{r.name || '-'}</td>

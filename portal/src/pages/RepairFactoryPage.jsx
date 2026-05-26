@@ -48,6 +48,12 @@ export default function RepairFactoryPage() {
         <span className="rpr-sub">{rows.length} ใบ</span>
       </header>
 
+      <div className="rpr-controls">
+        <button type="button" className="rpr-new" onClick={() => navigate('/repair/factory-requests/new')}>
+          ＋ สร้างคำขอใหม่
+        </button>
+      </div>
+
       {err && <div className="rpr-err">{err}</div>}
 
       {loading ? <div className="rpr-loading">กำลังโหลด…</div> :
@@ -67,7 +73,7 @@ export default function RepairFactoryPage() {
               {rows.map((r) => {
                 const p = PILL[r.status] || { bg: '#f3f4f6', fg: '#374151' };
                 return (
-                  <tr key={r.doc_no}>
+                  <tr key={r.doc_no} onClick={() => navigate(`/repair/factory-requests/${r.doc_no}`)} style={{ cursor: 'pointer' }}>
                     <td className="rpr-td-id">{r.doc_no}</td>
                     <td className="rpr-td-dim">{fmt(r.request_date)}</td>
                     <td>{r.requester || '-'}</td>

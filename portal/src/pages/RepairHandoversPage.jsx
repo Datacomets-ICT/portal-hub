@@ -40,6 +40,12 @@ export default function RepairHandoversPage() {
         <span className="rpr-sub">{rows.length} เอกสาร</span>
       </header>
 
+      <div className="rpr-controls">
+        <button type="button" className="rpr-new" onClick={() => navigate('/repair/handovers/new')}>
+          ＋ สร้างใบส่งมอบใหม่
+        </button>
+      </div>
+
       {err && <div className="rpr-err">{err}</div>}
 
       {loading ? <div className="rpr-loading">กำลังโหลด…</div> :
@@ -57,7 +63,7 @@ export default function RepairHandoversPage() {
             </tr></thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.doc_no}>
+                <tr key={r.doc_no} onClick={() => navigate(`/repair/handovers/${r.doc_no}`)} style={{ cursor: 'pointer' }}>
                   <td className="rpr-td-id">{r.doc_no}</td>
                   <td className="rpr-td-dim">{fmt(r.delivered_at)}</td>
                   <td>{r.sender || '-'}</td>

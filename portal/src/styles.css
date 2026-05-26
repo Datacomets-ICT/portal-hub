@@ -3108,6 +3108,35 @@ a { color: var(--accent); text-decoration: none; }
 .rpr-btn-warn { background: #b91c1c; color: #fff; }
 .rpr-btn-cancel { background: var(--surface); color: var(--ink-2); border: 1px solid var(--line); }
 
+/* ── Repair item-row (dynamic line-item editor for handovers etc.) */
+.rpr-item-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.rpr-item-row input {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  background: var(--surface);
+  min-width: 60px;
+}
+.rpr-item-row input:focus { outline: 2px solid var(--accent); }
+.rpr-btn-x {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ink-3);
+}
+.rpr-btn-x:hover { color: #dc2626; border-color: #dc2626; }
+
 /* ── Backfill drill (worklist 3-level browser) ───────────────────── */
 .bf-drill {
   display: flex;

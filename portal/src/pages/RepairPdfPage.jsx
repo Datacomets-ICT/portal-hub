@@ -49,6 +49,12 @@ export default function RepairPdfPage() {
         <span className="rpr-sub">{rows.length} batch</span>
       </header>
 
+      <div className="rpr-controls">
+        <button type="button" className="rpr-new" onClick={() => navigate('/repair/pdf/new')}>
+          ＋ อัพ PDF batch ใหม่
+        </button>
+      </div>
+
       {err && <div className="rpr-err">{err}</div>}
 
       {loading ? <div className="rpr-loading">กำลังโหลด…</div> :

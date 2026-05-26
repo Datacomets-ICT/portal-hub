@@ -10,8 +10,15 @@ import RepairDetailPage from './pages/RepairDetailPage.jsx';
 import RepairInspectionsPage from './pages/RepairInspectionsPage.jsx';
 import RepairEquipmentPage from './pages/RepairEquipmentPage.jsx';
 import RepairHandoversPage from './pages/RepairHandoversPage.jsx';
+import RepairHandoverNewPage from './pages/RepairHandoverNewPage.jsx';
+import RepairHandoverDetailPage from './pages/RepairHandoverDetailPage.jsx';
 import RepairFactoryPage from './pages/RepairFactoryPage.jsx';
+import RepairFactoryNewPage from './pages/RepairFactoryNewPage.jsx';
+import RepairFactoryDetailPage from './pages/RepairFactoryDetailPage.jsx';
 import RepairPdfPage from './pages/RepairPdfPage.jsx';
+import RepairPdfNewPage from './pages/RepairPdfNewPage.jsx';
+import RepairEquipmentNewPage from './pages/RepairEquipmentNewPage.jsx';
+import RepairEquipmentDetailPage from './pages/RepairEquipmentDetailPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import DirectoryPage from './pages/DirectoryPage.jsx';
 import BackfillPage from './pages/BackfillPage.jsx';
@@ -45,9 +52,16 @@ export default function App() {
         <Route path="/repair/jobs/:jobId"        element={<Protected><RepairDetailPage /></Protected>} />
         <Route path="/repair/inspections"        element={<Protected><RepairInspectionsPage /></Protected>} />
         <Route path="/repair/equipment"          element={<Protected><RepairEquipmentPage /></Protected>} />
+        <Route path="/repair/equipment/new"      element={<Protected><RepairEquipmentNewPage /></Protected>} />
+        <Route path="/repair/equipment/:stockId" element={<Protected><RepairEquipmentDetailPage /></Protected>} />
         <Route path="/repair/handovers"          element={<Protected><RepairHandoversPage /></Protected>} />
-        <Route path="/repair/factory-requests"   element={<Protected><RepairFactoryPage /></Protected>} />
+        <Route path="/repair/handovers/new"      element={<Protected><RepairHandoverNewPage /></Protected>} />
+        <Route path="/repair/handovers/:docNo"   element={<Protected><RepairHandoverDetailPage /></Protected>} />
+        <Route path="/repair/factory-requests"          element={<Protected><RepairFactoryPage /></Protected>} />
+        <Route path="/repair/factory-requests/new"      element={<Protected><RepairFactoryNewPage /></Protected>} />
+        <Route path="/repair/factory-requests/:docNo"   element={<Protected><RepairFactoryDetailPage /></Protected>} />
         <Route path="/repair/pdf"                element={<Protected><RepairPdfPage /></Protected>} />
+        <Route path="/repair/pdf/new"            element={<Protected><RepairPdfNewPage /></Protected>} />
         <Route
           path="/admin"
           element={
