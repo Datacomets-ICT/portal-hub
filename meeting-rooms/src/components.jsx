@@ -15,6 +15,14 @@ export const fmtTimeColon = (m) => {
 };
 export const pctFromMin = (m) => ((m - DAY_START) / (DAY_END - DAY_START)) * 100;
 
+// Whitespace + case tolerant name match — old bookings can have stray
+// spaces in `booker` that would otherwise fail an exact === lookup.
+const normName = (s) => (s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+export const findEmpByName = (employees, name) => {
+  const want = normName(name);
+  return employees.find((e) => normName(e.name) === want);
+};
+
 export const THAI_DAYS = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 export const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 export const fmtDayLabel = (d) => `${THAI_DAYS[d.getDay()]} ${d.getDate()} ${THAI_MONTHS[d.getMonth()]}`;
@@ -448,8 +456,22 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
       // it just because someone else is editing).
       let lockedBooker = null;
       if (initial?.id && initial?.booker) {
-        lockedBooker = employees.find((e) => e.name === initial.booker)
-          || { code: '?', name: initial.booker, nickname: '', dept: '' };
+        // Prefer the signed-in user when they ARE the booker — avoids
+        // depending on the mtg_employees view at all for the common case.
+        const sameAsMe = currentUser
+          && normName(currentUser.name) === normName(initial.booker);
+        if (sameAsMe) {
+          lockedBooker = {
+            code: currentUser.code,
+            name: currentUser.name,
+            nickname: currentUser.nickname || '',
+            dept: currentUser.dept || '',
+            position: currentUser.position || '',
+          };
+        } else {
+          lockedBooker = findEmpByName(employees, initial.booker)
+            || { code: '?', name: initial.booker, nickname: '', dept: '' };
+        }
       } else if (currentUser) {
         lockedBooker = {
           code: currentUser.code,
@@ -578,7 +600,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
           {detailsBooking && (
             <BookingDetailsCard
               booking={detailsBooking}
-              employee={employees.find((e) => e.name === detailsBooking.booker)}
+              employee={findEmpByName(employees, detailsBooking.booker)}
               currentUser={currentUser}
               room={room}
               onClose={() => setDetailsBooking(null)}
@@ -700,7 +722,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
               booking={{ id: initial.id, bookingDate: initial.bookingDate, ...initial }}
               currentUser={currentUser}
               room={room}
-              employee={employees.find((e) => e.name === (initial?.booker || booker))}
+              employee={findEmpByName(employees, initial?.booker || booker)}
             />
           )}
         </div>
