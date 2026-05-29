@@ -1,7 +1,43 @@
 {
   "permissions": {
     "allow": [
-      "Bash(winget install:*)"
+      "Bash(npx vercel@latest whoami)",
+      "Bash(npx vercel *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(npm run *)",
+      "Bash(curl -sL \"https://portal-hub-taupe.vercel.app/meeting/index.html\")",
+      "Bash(git add *)",
+      "Bash(node scripts/sync-apps.mjs meeting)",
+      "Bash(npm install *)",
+      "Bash(curl -s \"https://dixechuojsfaypagbfqu.supabase.co/rest/v1/mtg_rooms?select=id,name,picture&limit=3\" -H 'apikey: sb_publishable_lLFnuVu8vg4GD2bkOmsxIA_IXdgwMmL')",
+      "Bash(curl -s \"https://dixechuojsfaypagbfqu.supabase.co/rest/v1/mtg_employees?select=code,name,email&limit=2\" -H 'apikey: sb_publishable_lLFnuVu8vg4GD2bkOmsxIA_IXdgwMmL')",
+      "Bash(curl -s \"https://dixechuojsfaypagbfqu.supabase.co/rest/v1/employees?select=employee_id,first_name,last_name,email&limit=2\" -H 'apikey: sb_publishable_lLFnuVu8vg4GD2bkOmsxIA_IXdgwMmL')",
+      "Bash(node scripts/sync-apps.mjs driver)",
+      "Bash(node scripts/sync-apps.mjs it)",
+      "Bash(gh api *)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('state:', d['state']\\); [print\\(f\\\\\"  {s['context']}: {s['state']} — {s['description']}\\\\\"\\) for s in d['statuses']]\")",
+      "Bash(curl -s \"https://itportal.datacomets.cloud/it/\" -o /tmp/it.html)",
+      "Read(//tmp/**)",
+      "Bash(git commit --allow-empty -m ' *)",
+      "Bash(node -e ' *)",
+      "Bash(node --check api/chat.js)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('state:', d['state']\\)\")",
+      "Bash(python -c \"import reportlab; print\\('reportlab', reportlab.__version__\\)\")",
+      "Bash(python -c \"import markdown; print\\('markdown', markdown.__version__\\)\")",
+      "Bash(pip install *)",
+      "Bash(mkdir -p \"d:/Backup/ProjectCode/docs/bot-capabilities\" && ls \"d:/Backup/ProjectCode/docs/bot-capabilities\" 2>&1)",
+      "Bash(python docs/bot-capabilities/generate-pdf.py)",
+      "Bash(npx playwright *)",
+      "Bash(tee tests/playwright-output.log)",
+      "Bash(python -c \"import openpyxl; print\\(openpyxl.__version__\\)\")",
+      "Bash(python -X utf8 scripts/generate_contact_updates.py)",
+      "Bash(python -X utf8 -c ' *)",
+      "Bash(python -X utf8 scripts/import_rooms_bookings.py)",
+      "Bash(grep -E \"\\\\.\\(sql|jsx|html\\)$\")"
+    ],
+    "additionalDirectories": [
+      "d:\\Backup\\ProjectCode\\docs"
     ]
   }
 }

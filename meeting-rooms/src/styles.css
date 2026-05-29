@@ -1603,6 +1603,18 @@ a.topbar-logout { text-decoration: none; }
   letter-spacing: 0.02em;
   vertical-align: middle;
 }
+.bc-other-tag {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--fg-2);
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
 
 /* When history card is very narrow, collapse booker column */
 @media (max-width: 700px) {
@@ -1887,6 +1899,18 @@ a.topbar-logout { text-decoration: none; }
 .cal-drawer-item:hover {
   border-color: var(--accent);
   transform: translateX(-2px);
+}
+.cal-drawer-item.is-other {
+  cursor: default;
+  background: rgba(0, 0, 0, 0.015);
+  border-style: dashed;
+}
+.cal-drawer-item.is-other:hover {
+  border-color: var(--line);
+  transform: none;
+}
+.cal-drawer-item.is-other .cdi-title {
+  color: var(--fg-2);
 }
 .cdi-time {
   flex-shrink: 0;

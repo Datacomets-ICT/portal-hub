@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python scripts/generate_contact_updates.py)",
+      "Bash(git status *)",
+      "Bash(git commit -m ' *)",
+      "Bash(python -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 python scripts/repair_import.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python scripts/repair_import_phase3.py)"
+    ]
+  }
+}

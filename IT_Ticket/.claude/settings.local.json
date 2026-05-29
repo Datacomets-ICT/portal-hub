@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vercel --prod --yes)",
+      "Bash(vercel env:*)",
+      "Bash(python -c ':*)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const html=fs.readFileSync\\('index.html','utf8'\\); const m=html.match\\(/<script>\\([\\\\s\\\\S]*?\\)<\\\\/script>/g\\); const last=m[m.length-1]; const js=last.replace\\(/^<script>/,''\\).replace\\(/<\\\\/script>$/,''\\); try { new Function\\(js\\); console.log\\('JS OK'\\); } catch\\(e\\) { console.log\\('ERR:', e.message\\); }\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

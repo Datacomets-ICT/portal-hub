@@ -34,10 +34,9 @@ export default function BookingsHistoryView({ rooms, employees, currentUser, onE
         <div>
           <h1 className="view-title">ประวัติการจอง</h1>
           <div className="view-subtitle">
-            เฉพาะการจองของคุณ
             {viewMode === 'calendar'
-              ? ' · ปฏิทินรายเดือน — คลิกวันเพื่อดูรายละเอียด'
-              : ' · 300 รายการล่าสุด'}
+              ? 'ปฏิทินรวมของทุกคน — คลิกของคุณเพื่อแก้ไข, ของคนอื่นดูได้แต่กดไม่ได้'
+              : 'เฉพาะการจองของคุณ · 300 รายการล่าสุด'}
           </div>
         </div>
 
@@ -248,11 +247,9 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
     fetchBookingsByDateRange(ymd(firstDay), ymd(lastDay))
       .then((data) => {
         if (cancelled) return;
-        // Show only the current user's own bookings
-        const own = currentUser?.name
-          ? data.filter((b) => b.booker === currentUser.name)
-          : [];
-        setBookings(own);
+        // Show ALL bookings — others' are read-only, only own can be edited.
+        // The drawer disables click on rows where booker !== currentUser.name.
+        setBookings(data || []);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || String(err));
@@ -425,12 +422,11 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
               const room = roomMap[b.roomId];
               const emp = empByName[b.booker];
               const isMine = b.booker === currentUser?.name;
-              return (
-                <button
-                  key={b.id}
-                  className="cal-drawer-item"
-                  onClick={() => onEditBooking(b)}
-                >
+              const bookerLabel = emp
+                ? `${emp.name}${emp.nickname ? ` (${emp.nickname})` : ''}${emp.position ? ` · ${emp.position}` : ''}`
+                : (b.booker || '—');
+              const inner = (
+                <>
                   <div className="cdi-time mono">
                     {fmtTimeColon(b.start)}<br />
                     <span>{fmtTimeColon(b.end)}</span>
@@ -438,22 +434,17 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
                   <div className="cdi-bar" />
                   <div className="cdi-main">
                     <div className="cdi-title">
-                      {b.title}
+                      {isMine ? b.title : 'การประชุม'}
                       {isMine && <span className="bc-mine-tag">ของคุณ</span>}
+                      {!isMine && <span className="bc-other-tag">ดูเท่านั้น</span>}
                     </div>
                     <div className="cdi-room">
                       {room?.name || b.roomId} <span className="cdi-room-meta">· {room?.location} · {room?.floor}</span>
                     </div>
                     <div className="cdi-chips">
-                      {emp ? (
-                        <span className="cdi-chip">
-                          👤 {emp.name} {emp.nickname && `(${emp.nickname})`} · {emp.dept}
-                        </span>
-                      ) : (
-                        <span className="cdi-chip">👤 {b.booker || '—'}</span>
-                      )}
-                      {b.purpose && <span className="cdi-chip">🎯 {b.purpose}</span>}
-                      {b.customerCount > 0 && (
+                      <span className="cdi-chip">👤 {bookerLabel}</span>
+                      {isMine && b.purpose && <span className="cdi-chip">🎯 {b.purpose}</span>}
+                      {isMine && b.customerCount > 0 && (
                         <span className="cdi-chip">👤 ลูกค้า {b.customerCount}</span>
                       )}
                       {b.attendees > 0 && (
@@ -461,7 +452,20 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
                       )}
                     </div>
                   </div>
+                </>
+              );
+              return isMine ? (
+                <button
+                  key={b.id}
+                  className="cal-drawer-item"
+                  onClick={() => onEditBooking(b)}
+                >
+                  {inner}
                 </button>
+              ) : (
+                <div key={b.id} className="cal-drawer-item is-other">
+                  {inner}
+                </div>
               );
             })}
           </div>
