@@ -471,7 +471,7 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
               return isMine ? (
                 <button
                   key={b.id}
-                  className="cal-drawer-item"
+                  className="cal-drawer-item is-mine"
                   onClick={() => onEditBooking(b)}
                 >
                   {inner}

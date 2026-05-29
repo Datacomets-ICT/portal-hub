@@ -1920,6 +1920,23 @@ a.topbar-logout { text-decoration: none; }
   border-color: var(--accent);
   transform: translateX(-2px);
 }
+.cal-drawer-item.is-mine {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.12);
+}
+.cal-drawer-item.is-mine .cdi-bar {
+  width: 4px;
+  background: var(--accent);
+}
+.cal-drawer-item.is-mine .cdi-title {
+  color: var(--accent-ink, var(--fg));
+  font-weight: 600;
+}
+.cal-drawer-item.is-mine:hover {
+  background: oklch(0.96 0.06 50);
+  transform: translateX(-2px);
+}
 .cal-drawer-item.is-other {
   cursor: default;
   background: rgba(0, 0, 0, 0.015);
