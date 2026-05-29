@@ -427,6 +427,11 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
 }
 
 function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, onEditBooking }) {
+  const lookupEmp = (booker) => {
+    const collapse = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const nospace  = (s) => (s || '').replace(/\s+/g, '');
+    return empByName[collapse(booker)] || empByName[nospace(booker)];
+  };
   const dateLabel = `วัน${['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'][day.getDay()]}ที่ ${day.getDate()} ${THAI_MONTHS_LONG[day.getMonth()]} ${day.getFullYear() + 543}`;
   return (
     <div className="cal-drawer-backdrop" onClick={onClose}>
