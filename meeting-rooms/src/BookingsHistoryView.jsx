@@ -233,13 +233,25 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
   const [selectedDay, setSelectedDay] = useState(null); // 'YYYY-MM-DD' or null
 
   const roomMap = useMemo(() => Object.fromEntries(rooms.map((r) => [r.id, r])), [rooms]);
-  // Bookings from the legacy CSV often have multiple spaces between first/last
-  // name ("นีรชา   สุนธวงษ์"), while the employees table stores a single space.
-  // Normalize whitespace so the lookup hits.
+  // CSV bookings often have double spaces between first/last name and may also
+  // appear nickname-first ("เอฟ"). Index employees by several normalized
+  // variants so legacy data still resolves.
   const empByName = useMemo(() => {
-    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
-    return Object.fromEntries(employees.map((e) => [norm(e.name), e]));
+    const collapse = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const nospace  = (s) => (s || '').replace(/\s+/g, '');
+    const map = {};
+    for (const e of employees) {
+      if (e.name)     map[collapse(e.name)] = e;
+      if (e.name)     map[nospace(e.name)]  = e;
+      if (e.nickname) map[collapse(e.nickname)] ??= e;
+    }
+    return map;
   }, [employees]);
+  const lookupEmp = (booker) => {
+    const collapse = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    const nospace  = (s) => (s || '').replace(/\s+/g, '');
+    return empByName[collapse(booker)] || empByName[nospace(booker)];
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -434,10 +446,11 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
             {bookings.map((b) => {
               const room = roomMap[b.roomId];
               const normBooker = (b.booker || '').replace(/\s+/g, ' ').trim();
-              const emp = empByName[normBooker];
+              const emp = lookupEmp(normBooker);
               const isMine = normBooker === (currentUser?.name || '').replace(/\s+/g, ' ').trim();
+              const role = emp?.position || emp?.dept;
               const bookerLabel = emp
-                ? `${emp.name}${emp.nickname ? ` (${emp.nickname})` : ''}${emp.position ? ` · ${emp.position}` : ''}`
+                ? `${emp.name}${emp.nickname ? ` (${emp.nickname})` : ''}${role ? ` · ${role}` : ''}`
                 : (normBooker || '—');
               const inner = (
                 <>
