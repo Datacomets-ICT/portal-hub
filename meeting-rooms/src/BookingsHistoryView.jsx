@@ -366,16 +366,24 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
                 )}
               </div>
               <div className="cal-events">
-                {c.bookings.slice(0, 3).map((b) => (
-                  <div key={b.id} className="cal-event" title={`${fmtTimeColon(b.start)} · ${b.title}`}>
-                    <span className="cal-event-time mono">
-                      {fmtTimeColon(b.start)}
-                    </span>
-                    <span className="cal-event-title">{b.title}</span>
-                  </div>
-                ))}
-                {c.bookings.length > 3 && (
-                  <div className="cal-more">+ อีก {c.bookings.length - 3} รายการ</div>
+                {c.bookings.slice(0, 4).map((b) => {
+                  const isMine = !!currentUser?.name && b.booker === currentUser.name;
+                  const label = isMine ? b.title : (b.booker || 'มีการจอง');
+                  const tip = isMine
+                    ? `${fmtTimeColon(b.start)} · ${b.title}`
+                    : `${fmtTimeColon(b.start)} · จองโดย ${b.booker || '—'}`;
+                  return (
+                    <div key={b.id} className={`cal-event${isMine ? ' is-mine' : ''}`} title={tip}>
+                      <span className="cal-event-dot" />
+                      <span className="cal-event-time mono">
+                        {fmtTimeColon(b.start)}
+                      </span>
+                      <span className="cal-event-title">{label}</span>
+                    </div>
+                  );
+                })}
+                {c.bookings.length > 4 && (
+                  <div className="cal-more">+ อีก {c.bookings.length - 4}</div>
                 )}
               </div>
             </button>

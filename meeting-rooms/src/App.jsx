@@ -605,6 +605,7 @@ function AppInner() {
                       onEventClick={openEdit}
                       currentMin={currentMin}
                       isToday={isToday && tweaks.showNowLine}
+                      currentUser={currentUser}
                     />
                   );
                 })}

@@ -1303,6 +1303,14 @@ a.topbar-logout { text-decoration: none; }
   filter: brightness(1.08);
   transform: scaleY(1.05);
 }
+.card-tl-event.is-other {
+  background: oklch(0.75 0.02 60);
+  cursor: default;
+}
+.card-tl-event.is-other:hover {
+  filter: none;
+  transform: none;
+}
 .card-tl-event-title {
   font-size: 10px;
   font-weight: 500;
@@ -1731,13 +1739,13 @@ a.topbar-logout { text-decoration: none; }
 .cal-cell {
   background: var(--surface);
   border: 0;
-  padding: 8px 8px 10px;
-  min-height: 108px;
+  padding: 6px 6px 8px;
+  min-height: 124px;
   cursor: pointer;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   transition: background 0.15s;
   font-family: inherit;
 }
@@ -1791,37 +1799,49 @@ a.topbar-logout { text-decoration: none; }
 .cal-events {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow: hidden;
 }
 .cal-event {
   display: flex;
-  gap: 4px;
+  gap: 5px;
   align-items: center;
   font-size: 10.5px;
-  padding: 2px 5px;
-  background: oklch(0.93 0.08 45);
-  color: oklch(0.35 0.13 45);
+  padding: 1px 4px;
+  background: transparent;
+  color: var(--fg-2);
   border-radius: 3px;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  border-left: 2px solid var(--accent);
+  line-height: 1.4;
 }
+.cal-event-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: oklch(0.7 0.02 60);
+  flex-shrink: 0;
+}
+.cal-event.is-mine .cal-event-dot { background: var(--accent); }
 .cal-event-time {
   font-size: 9.5px;
   font-weight: 600;
+  color: var(--fg-3);
   flex-shrink: 0;
 }
 .cal-event-title {
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--fg);
+}
+.cal-cell:hover .cal-event {
+  background: oklch(0.97 0.015 60);
 }
 .cal-more {
   font-size: 10px;
   color: var(--fg-3);
-  padding: 0 5px;
-  font-style: italic;
+  padding: 1px 4px 0;
+  font-weight: 500;
 }
 
 /* Day drawer (click a day → side drawer with all events) */
@@ -1964,9 +1984,10 @@ a.topbar-logout { text-decoration: none; }
 
 /* Responsive calendar: on mobile, stack */
 @media (max-width: 700px) {
-  .cal-cell { min-height: 72px; }
+  .cal-cell { min-height: 78px; padding: 5px; }
   .cal-events { font-size: 10px; }
-  .cal-event { padding: 1px 4px; }
+  .cal-event { padding: 0 3px; gap: 4px; }
+  .cal-event-dot { width: 4px; height: 4px; }
   .cal-daynum { font-size: 12px; }
 }
 

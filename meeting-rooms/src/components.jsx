@@ -46,7 +46,7 @@ export function TimelineHeader({ inline = false }) {
 // ───────────────────────────────────────────────────────────
 // CardTimeline — thin inline availability bar used inside RoomCard
 // ───────────────────────────────────────────────────────────
-export function CardTimeline({ room, bookings, onSlotClick, onEventClick, currentMin, isToday }) {
+export function CardTimeline({ room, bookings, onSlotClick, onEventClick, currentMin, isToday, currentUser }) {
   const barRef = useRef(null);
   const [hoverX, setHoverX] = useState(null);
 
@@ -95,18 +95,24 @@ export function CardTimeline({ room, bookings, onSlotClick, onEventClick, curren
         const right = Math.min(100, pctFromMin(b.end));
         const width = right - left;
         if (width <= 0) return null;
+        const isMine = !!currentUser?.name && b.booker === currentUser.name;
+        const label = isMine ? b.title : (b.booker || 'มีการจอง');
+        const tooltip = isMine
+          ? `${fmtTimeColon(b.start)}–${fmtTimeColon(b.end)} · ${b.title}`
+          : `${fmtTimeColon(b.start)}–${fmtTimeColon(b.end)} · จองโดย ${b.booker || '—'}`;
         return (
           <div
             key={b.id}
-            className="card-tl-event"
+            className={`card-tl-event${isMine ? '' : ' is-other'}`}
             style={{ left: `${left}%`, width: `${width}%` }}
             onClick={(e) => {
               e.stopPropagation();
+              if (!isMine) return;
               onEventClick(b, room);
             }}
-            title={`${fmtTimeColon(b.start)}–${fmtTimeColon(b.end)} · ${b.title}${b.booker ? ` · ${b.booker}` : ''}`}
+            title={tooltip}
           >
-            <span className="card-tl-event-title">{b.title}</span>
+            <span className="card-tl-event-title">{label}</span>
           </div>
         );
       })}
@@ -135,7 +141,7 @@ export function CardTimeline({ room, bookings, onSlotClick, onEventClick, curren
 // Skip edge labels to avoid overlap with the 09 / 19 ticks.
 const AXIS_HOURS = [9, 11, 13, 15, 17, 19];
 
-export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin, isToday }) {
+export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin, isToday, currentUser }) {
   const available = room.status === 'available';
   const occupiedNow =
     isToday && bookings.some((b) => currentMin >= b.start && currentMin < b.end);
@@ -189,6 +195,7 @@ export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin
             onEventClick={onEventClick}
             currentMin={currentMin}
             isToday={isToday}
+            currentUser={currentUser}
           />
           <div className="card-tl-range mono">
             {fmtTimeColon(DAY_START)} – {fmtTimeColon(DAY_END)}
