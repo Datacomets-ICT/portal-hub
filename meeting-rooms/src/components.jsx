@@ -95,11 +95,13 @@ export function CardTimeline({ room, bookings, onSlotClick, onEventClick, curren
         const right = Math.min(100, pctFromMin(b.end));
         const width = right - left;
         if (width <= 0) return null;
-        const isMine = !!currentUser?.name && b.booker === currentUser.name;
-        const label = isMine ? b.title : (b.booker || 'มีการจอง');
+        const normBooker = (b.booker || '').replace(/\s+/g, ' ').trim();
+        const normUser = (currentUser?.name || '').replace(/\s+/g, ' ').trim();
+        const isMine = !!normUser && normBooker === normUser;
+        const label = isMine ? b.title : (normBooker || 'มีการจอง');
         const tooltip = isMine
           ? `${fmtTimeColon(b.start)}–${fmtTimeColon(b.end)} · ${b.title}`
-          : `${fmtTimeColon(b.start)}–${fmtTimeColon(b.end)} · จองโดย ${b.booker || '—'}`;
+          : `${fmtTimeColon(b.start)}–${fmtTimeColon(b.end)} · จองโดย ${normBooker || '—'}`;
         return (
           <div
             key={b.id}

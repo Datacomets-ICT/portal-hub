@@ -233,10 +233,13 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
   const [selectedDay, setSelectedDay] = useState(null); // 'YYYY-MM-DD' or null
 
   const roomMap = useMemo(() => Object.fromEntries(rooms.map((r) => [r.id, r])), [rooms]);
-  const empByName = useMemo(
-    () => Object.fromEntries(employees.map((e) => [e.name, e])),
-    [employees]
-  );
+  // Bookings from the legacy CSV often have multiple spaces between first/last
+  // name ("นีรชา   สุนธวงษ์"), while the employees table stores a single space.
+  // Normalize whitespace so the lookup hits.
+  const empByName = useMemo(() => {
+    const norm = (s) => (s || '').replace(/\s+/g, ' ').trim();
+    return Object.fromEntries(employees.map((e) => [norm(e.name), e]));
+  }, [employees]);
 
   useEffect(() => {
     let cancelled = false;
@@ -367,11 +370,13 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
               </div>
               <div className="cal-events">
                 {c.bookings.slice(0, 4).map((b) => {
-                  const isMine = !!currentUser?.name && b.booker === currentUser.name;
-                  const label = isMine ? b.title : (b.booker || 'มีการจอง');
+                  const normBooker = (b.booker || '').replace(/\s+/g, ' ').trim();
+                  const normUser = (currentUser?.name || '').replace(/\s+/g, ' ').trim();
+                  const isMine = !!normUser && normBooker === normUser;
+                  const label = isMine ? b.title : (normBooker || 'มีการจอง');
                   const tip = isMine
                     ? `${fmtTimeColon(b.start)} · ${b.title}`
-                    : `${fmtTimeColon(b.start)} · จองโดย ${b.booker || '—'}`;
+                    : `${fmtTimeColon(b.start)} · จองโดย ${normBooker || '—'}`;
                   return (
                     <div key={b.id} className={`cal-event${isMine ? ' is-mine' : ''}`} title={tip}>
                       <span className="cal-event-dot" />
@@ -428,11 +433,12 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
           <div className="cal-drawer-list">
             {bookings.map((b) => {
               const room = roomMap[b.roomId];
-              const emp = empByName[b.booker];
-              const isMine = b.booker === currentUser?.name;
+              const normBooker = (b.booker || '').replace(/\s+/g, ' ').trim();
+              const emp = empByName[normBooker];
+              const isMine = normBooker === (currentUser?.name || '').replace(/\s+/g, ' ').trim();
               const bookerLabel = emp
                 ? `${emp.name}${emp.nickname ? ` (${emp.nickname})` : ''}${emp.position ? ` · ${emp.position}` : ''}`
-                : (b.booker || '—');
+                : (normBooker || '—');
               const inner = (
                 <>
                   <div className="cdi-time mono">
