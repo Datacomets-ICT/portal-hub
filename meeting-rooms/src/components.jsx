@@ -748,7 +748,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
             </>
           ) : (
             <>
-              {initial?.id && (
+              {initial?.id && currentUser?.name && normName(initial.booker) === normName(currentUser.name) && (
                 <button className="btn-ghost danger" onClick={() => onSave({ _delete: true, id: initial.id })}>
                   ลบการจอง
                 </button>

@@ -1121,6 +1121,10 @@ a.topbar-logout { text-decoration: none; }
   gap: 16px;
   margin-bottom: 28px;
 }
+/* The 3 density toggle buttons (≡ ☰ ▤) drive how dense the card grid packs */
+.room-grid.density-compact { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.room-grid.density-cozy    { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.room-grid.density-comfort { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
 
 .room-card {
   background: var(--surface);

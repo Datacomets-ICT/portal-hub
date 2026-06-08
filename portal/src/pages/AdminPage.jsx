@@ -163,13 +163,14 @@ export default function AdminPage() {
                   <th>IT-Ticket</th>
                   <th>Driver</th>
                   <th>Meeting</th>
+                  <th>Repair</th>
                   <th>สถานะ</th>
                 </tr>
               </thead>
               <tbody>
                 {visible.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="admin-empty">ไม่พบข้อมูล</td>
+                    <td colSpan={8} className="admin-empty">ไม่พบข้อมูล</td>
                   </tr>
                 )}
                 {visible.map((e) => {
@@ -205,6 +206,13 @@ export default function AdminPage() {
                           value={e.meeting_role}
                           busy={savingId === `${e.employee_id}:meeting`}
                           onChange={(v) => updateRole(e.employee_id, 'meeting', v)}
+                        />
+                      </td>
+                      <td>
+                        <RoleSelect
+                          value={e.repair_role}
+                          busy={savingId === `${e.employee_id}:repair`}
+                          onChange={(v) => updateRole(e.employee_id, 'repair', v)}
                         />
                       </td>
                       <td>

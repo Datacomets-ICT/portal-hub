@@ -65,7 +65,7 @@ function AppInner() {
     accentHue: 45,
     showNowLine: true,
     showRoomId: true,
-    groupBy: 'location',
+    groupBy: 'floor',
   };
   const [tweaks, setTweaks] = useState(TWEAKS);
   const [tweaksOpen, setTweaksOpen] = useState(false);
@@ -314,11 +314,20 @@ function AppInner() {
   const grouped = useMemo(() => {
     const groups = {};
     for (const r of filteredRooms) {
-      const key = tweaks.groupBy === 'floor' ? r.floor : r.location;
+      const key = (tweaks.groupBy === 'floor' ? r.floor : r.location) || '— ไม่ระบุ —';
       groups[key] = groups[key] || [];
       groups[key].push(r);
     }
-    return groups;
+    // Sort group keys by trailing number when grouping by floor so "ชั้น 1"
+    // comes before "ชั้น 10"; otherwise alphabetic.
+    const numFromKey = (k) => {
+      const m = String(k).match(/(\d+)/);
+      return m ? Number(m[1]) : 9999;
+    };
+    const sortedKeys = Object.keys(groups).sort((a, b) =>
+      tweaks.groupBy === 'floor' ? numFromKey(a) - numFromKey(b) : a.localeCompare(b, 'th'),
+    );
+    return Object.fromEntries(sortedKeys.map((k) => [k, groups[k]]));
   }, [filteredRooms, tweaks.groupBy]);
 
   const countsByLocation = useMemo(() => {
@@ -512,7 +521,10 @@ function AppInner() {
             <span className="swatch" />ทุกชั้น<span className="count">{totalAvailable}</span>
           </button>
           {Object.keys(countsByFloor)
-            .sort()
+            .sort((a, b) => {
+              const numFrom = (s) => { const m = String(s).match(/(\d+)/); return m ? Number(m[1]) : 9999; };
+              return numFrom(a) - numFrom(b);
+            })
             .map((fl) => (
               <button
                 key={fl}
@@ -591,7 +603,7 @@ function AppInner() {
                 </div>
               </div>
 
-              <div className="room-grid">
+              <div className={`room-grid density-${tweaks.density}`}>
                 {groupRooms.map((room) => {
                   const roomBookings = bookings.filter(
                     (b) => b.roomId === room.id && b.bookingDate === currentDateStr
