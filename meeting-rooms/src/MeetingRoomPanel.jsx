@@ -15,6 +15,13 @@ function normName(s) {
   return (s || '').replace(/\s+/g, ' ').trim();
 }
 
+// Old rows may only have public_url; pull the path out of the URL.
+function extractStoragePath(publicUrl) {
+  if (!publicUrl) return null;
+  const m = publicUrl.match(/\/object\/(?:public|sign)\/meeting-files\/(.+?)(?:\?|$)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 export default function MeetingRoomPanel({ booking, room, currentUser, onClose, popout = false }) {
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,16 +61,36 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Initial agenda + attachments fetch (agenda comes from the booking row itself)
+  // Refresh attachments + mint fresh signed URLs (1h validity) so leaked
+  // links die quickly. Re-runs whenever the booking changes.
+  const refreshAttachments = useCallback(async () => {
+    if (!booking?.id) return;
+    const { data } = await supabase.rpc('mtg_list_attachments', { p_booking_id: booking.id });
+    const rows = data || [];
+    const withSigned = await Promise.all(rows.map(async (a) => {
+      try {
+        // mtg_list_attachments returns public_url as the legacy field;
+        // ignore it and mint a fresh signed URL from the storage_path we
+        // also persisted. Newer rows don't even have public_url anymore.
+        const path = a.storage_path || extractStoragePath(a.public_url);
+        if (!path) return { ...a, signed_url: a.public_url || '' };
+        const { data: signed } = await supabase.storage
+          .from('meeting-files')
+          .createSignedUrl(path, 3600);
+        return { ...a, signed_url: signed?.signedUrl || '' };
+      } catch {
+        return { ...a, signed_url: '' };
+      }
+    }));
+    setAttachments(withSigned);
+  }, [booking?.id]);
+
   useEffect(() => {
     if (!booking?.id) return;
     setAgenda(Array.isArray(booking.agenda) ? booking.agenda : []);
     setAutoSummary(booking.autoSummary || null);
-    (async () => {
-      const { data } = await supabase.rpc('mtg_list_attachments', { p_booking_id: booking.id });
-      setAttachments(data || []);
-    })();
-  }, [booking?.id, booking?.autoSummary]);
+    refreshAttachments();
+  }, [booking?.id, booking?.autoSummary, refreshAttachments]);
 
   // Has the meeting ended? Compare booking end time against now.
   const isPast = (() => {
@@ -133,20 +160,19 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
       const path = `${booking.id}/${Date.now()}_${safeName}`;
       const { error: upErr } = await supabase.storage.from('meeting-files').upload(path, file, { upsert: false });
       if (upErr) throw upErr;
-      const { data: urlData } = supabase.storage.from('meeting-files').getPublicUrl(path);
-      const publicUrl = urlData?.publicUrl || '';
+      // Bucket is now private — we don't store a public URL anymore. The
+      // client mints a fresh signed URL on each list (see refreshAttachments).
       const { error: rpcErr } = await supabase.rpc('mtg_add_attachment', {
         p_booking_id: booking.id,
         p_employee_id: currentUser.code,
         p_file_name: file.name,
         p_storage_path: path,
-        p_public_url: publicUrl,
+        p_public_url: null,
         p_mime_type: file.type || null,
         p_size_bytes: file.size,
       });
       if (rpcErr) throw rpcErr;
-      const { data: list } = await supabase.rpc('mtg_list_attachments', { p_booking_id: booking.id });
-      setAttachments(list || []);
+      await refreshAttachments();
       showToast(`อัปโหลด "${file.name}" แล้ว`);
     } catch (err) {
       showToast(err.message || 'อัปโหลดไม่สำเร็จ', 'err');
@@ -319,6 +345,12 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
           <button className="mtg-room-close" onClick={onClose}>✕</button>
         </header>
 
+        {isPast && (
+          <div className="mtg-past-banner">
+            ⏱ <b>ประชุมจบแล้ว</b> — เพิ่มข้อความ/วาระ/ไฟล์ ใหม่ไม่ได้ แต่ดูของเก่ายังได้
+          </div>
+        )}
+
         <div className="mtg-room-stats">
           <div className="mtg-stat mtg-stat-ok">
             <span className="mtg-stat-num">{joinedCount}</span>
@@ -488,17 +520,17 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
                     <input
                       type="checkbox" checked={!!it.done}
                       onChange={() => toggleAgendaItem(it.id)}
-                      disabled={!isJoined}
+                      disabled={!isJoined || isPast}
                     />
                     <span className="mtg-agenda-text">{it.text}</span>
-                    {isJoined && (
+                    {isJoined && !isPast && (
                       <button className="mtg-agenda-x" onClick={() => removeAgendaItem(it.id)} title="ลบ">×</button>
                     )}
                   </li>
                 ))}
               </ul>
             )}
-            {isJoined && (
+            {isJoined && !isPast && (
               <div className="mtg-agenda-input-row">
                 <input
                   className="mtg-invite-input"
@@ -527,18 +559,26 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
                 {attachments.map((a) => (
                   <li key={a.id} className="mtg-file-item">
                     <span className="mtg-file-icon">📄</span>
-                    <a className="mtg-file-link" href={a.public_url} target="_blank" rel="noreferrer">{a.file_name}</a>
+                    <a
+                      className="mtg-file-link"
+                      href={a.signed_url || a.public_url || '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="ลิงก์หมดอายุใน 1 ชั่วโมง — ถ้าโหลดไม่ได้ refresh หน้าใหม่"
+                    >
+                      {a.file_name}
+                    </a>
                     <span className="mtg-file-meta">
                       {a.size_bytes ? `${(a.size_bytes / 1024).toFixed(0)} KB · ` : ''}{a.uploader_name}
                     </span>
-                    {a.uploaded_by === currentUser?.code && (
+                    {a.uploaded_by === currentUser?.code && !isPast && (
                       <button className="mtg-agenda-x" onClick={() => removeAttachment(a)} title="ลบ">×</button>
                     )}
                   </li>
                 ))}
               </ul>
             )}
-            {isJoined && (
+            {isJoined && !isPast && (
               <div className="mtg-file-upload">
                 <input
                   ref={fileInputRef}
@@ -589,20 +629,24 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
               )}
               <div ref={messagesEndRef} />
             </div>
-            <div className="mtg-chat-input-row">
-              <input
-                className="mtg-chat-input"
-                placeholder="พิมพ์ข้อความ..."
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                disabled={sending}
-                maxLength={4000}
-              />
-              <button className="btn-primary" onClick={sendMessage} disabled={sending || !draft.trim()}>
-                ส่ง
-              </button>
-            </div>
+            {isPast ? (
+              <div className="mtg-chat-locked">🔒 ประชุมจบแล้ว — ส่งข้อความใหม่ไม่ได้</div>
+            ) : (
+              <div className="mtg-chat-input-row">
+                <input
+                  className="mtg-chat-input"
+                  placeholder="พิมพ์ข้อความ..."
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  disabled={sending}
+                  maxLength={4000}
+                />
+                <button className="btn-primary" onClick={sendMessage} disabled={sending || !draft.trim()}>
+                  ส่ง
+                </button>
+              </div>
+            )}
           </section>
         )}
 
