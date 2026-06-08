@@ -12,6 +12,7 @@ export default function DirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [dept, setDept] = useState('all');
+  const [company, setCompany] = useState('all');
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
@@ -31,16 +32,28 @@ export default function DirectoryPage() {
     return () => { alive = false; };
   }, []);
 
-  // Distinct department list for the filter dropdown
+  // Distinct department list — narrowed to the selected company so the
+  // dropdown doesn't show departments that have zero people after filtering.
   const departments = useMemo(() => {
     const s = new Set();
-    rows.forEach((r) => r.department && s.add(r.department));
+    rows.forEach((r) => {
+      if (company !== 'all' && r.company !== company) return;
+      if (r.department) s.add(r.department);
+    });
+    return Array.from(s).sort();
+  }, [rows, company]);
+
+  // Companies present in the data (CM / ICT / JA in current setup)
+  const companies = useMemo(() => {
+    const s = new Set();
+    rows.forEach((r) => r.company && s.add(r.company));
     return Array.from(s).sort();
   }, [rows]);
 
   const visible = useMemo(() => {
     const q = filter.trim().toLowerCase();
     return rows.filter((r) => {
+      if (company !== 'all' && r.company !== company) return false;
       if (dept !== 'all' && r.department !== dept) return false;
       if (!q) return true;
       const hay = [
@@ -59,7 +72,7 @@ export default function DirectoryPage() {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, filter, dept]);
+  }, [rows, filter, dept, company]);
 
   return (
     <div className="dir-shell">
@@ -78,6 +91,19 @@ export default function DirectoryPage() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        <select
+          className="dir-filter"
+          value={company}
+          onChange={(e) => {
+            setCompany(e.target.value);
+            setDept('all');
+          }}
+        >
+          <option value="all">ทุกบริษัท</option>
+          {companies.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
         <select
           className="dir-filter"
           value={dept}
