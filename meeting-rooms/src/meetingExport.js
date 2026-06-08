@@ -317,6 +317,8 @@ export function buildReportHtml({ booking, room, employee, note, includeStyles =
       font-weight: 800;
       font-size: 16px;
       letter-spacing: 0.3px;
+      page-break-after: avoid;
+      break-after: avoid-page;
       display: flex;
       align-items: center;
       gap: 10px;

@@ -438,7 +438,7 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
   );
 }
 
-export function BookingModal({ open, onClose, onSave, room, date, initial, employees = [], roomBookings = [], currentUser = null }) {
+export function BookingModal({ open, onClose, onSave, room, date, initial, employees = [], roomBookings = [], currentUser = null, onJoinMeeting = null }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [start, setStart] = useState(initial?.start ?? 9 * 60);
   const [end, setEnd] = useState(initial?.end ?? 10 * 60);
@@ -751,6 +751,16 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
               {initial?.id && currentUser?.name && normName(initial.booker) === normName(currentUser.name) && (
                 <button className="btn-ghost danger" onClick={() => onSave({ _delete: true, id: initial.id })}>
                   ลบการจอง
+                </button>
+              )}
+              {initial?.id && onJoinMeeting && (
+                <button
+                  className="btn-ghost"
+                  style={{ background: 'oklch(0.95 0.06 200)', color: 'oklch(0.35 0.15 230)', fontWeight: 600 }}
+                  onClick={() => onJoinMeeting(initial, room)}
+                  title="เปิดหน้าต่างประชุม"
+                >
+                  🎯 เข้าร่วมประชุม
                 </button>
               )}
               <div style={{ flex: 1 }} />

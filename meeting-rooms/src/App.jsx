@@ -3,6 +3,7 @@ import LoginScreen from './LoginScreen.jsx';
 import BookingsHistoryView from './BookingsHistoryView.jsx';
 import BookingWizard from './BookingWizard.jsx';
 import RoomEditorView from './RoomEditorView.jsx';
+import MeetingRoomPanel from './MeetingRoomPanel.jsx';
 import {
   RoomCard,
   BookingModal,
@@ -214,6 +215,7 @@ function AppInner() {
   const isToday = dateIdx === 0;
 
   const [modal, setModal] = useState(null);
+  const [meetingPanel, setMeetingPanel] = useState(null); // { booking, room }
   const [wizardOpen, setWizardOpen] = useState(false);
   const openCreate = (room, start, end) =>
     setModal({ room, initial: { start, end, booker: currentUser?.name || '' } });
@@ -680,6 +682,15 @@ function AppInner() {
         }}
       />
 
+      {meetingPanel && (
+        <MeetingRoomPanel
+          booking={meetingPanel.booking}
+          room={meetingPanel.room}
+          currentUser={currentUser}
+          onClose={() => setMeetingPanel(null)}
+        />
+      )}
+
       <BookingModal
         open={!!modal}
         onClose={closeModal}
@@ -689,6 +700,7 @@ function AppInner() {
         initial={modal?.initial}
         employees={employees}
         currentUser={currentUser}
+        onJoinMeeting={(b, r) => { setModal(null); setMeetingPanel({ booking: b, room: r }); }}
         roomBookings={
           modal
             ? bookings.filter(
