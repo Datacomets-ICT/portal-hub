@@ -15,7 +15,7 @@ function normName(s) {
   return (s || '').replace(/\s+/g, ' ').trim();
 }
 
-export default function MeetingRoomPanel({ booking, room, currentUser, onClose }) {
+export default function MeetingRoomPanel({ booking, room, currentUser, onClose, popout = false }) {
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inviteIds, setInviteIds] = useState('');
@@ -293,9 +293,16 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose }
     ? `${date.getDate()} ${THAI_MONTHS_LONG[date.getMonth()]} ${date.getFullYear() + 543}`
     : '';
 
+  const wrapperProps = popout
+    ? { className: 'mtg-room-popout' }
+    : { className: 'mtg-room-backdrop', onClick: onClose };
+  const panelProps = popout
+    ? { className: 'mtg-room-panel mtg-room-panel-popout' }
+    : { className: 'mtg-room-panel', onClick: (e) => e.stopPropagation() };
+
   return (
-    <div className="mtg-room-backdrop" onClick={onClose}>
-      <div className="mtg-room-panel" onClick={(e) => e.stopPropagation()}>
+    <div {...wrapperProps}>
+      <div {...panelProps}>
         <header className="mtg-room-head">
           <div>
             <div className="mtg-room-kicker">🎯 หน้าต่างประชุม</div>
@@ -399,8 +406,9 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose }
           </section>
         )}
 
-        {/* Auto AI summary (Phase 4) — show after meeting ends */}
-        {isPast && (
+        {/* Auto AI summary (Phase 4) — show after meeting ends, only to
+            booker / joined attendees (others don't see private summaries). */}
+        {isPast && isJoined && (
           <section className="mtg-room-section mtg-auto-summary">
             <div className="mtg-room-section-head">
               🤖 สรุปการประชุม (AI)
@@ -458,6 +466,10 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose }
                 <button className="btn-primary" onClick={generateSummary} disabled={genBusy}>
                   {genBusy ? 'กำลังสรุป...' : '✨ สร้างสรุป AI'}
                 </button>
+                <div className="mtg-summary-quota">
+                  ℹ️ ใช้ Gemini Flash (ฟรี) · จำกัด 15 ครั้ง/นาที · <b>1,500 ครั้ง/วัน</b>
+                  ทั้งบริษัท (เผื่อ 50× ของการใช้ปัจจุบัน)
+                </div>
               </div>
             )}
           </section>

@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import LoginScreen from './LoginScreen.jsx';
 import BookingsHistoryView from './BookingsHistoryView.jsx';
 import BookingWizard from './BookingWizard.jsx';
 import RoomEditorView from './RoomEditorView.jsx';
 import MeetingRoomPanel from './MeetingRoomPanel.jsx';
+import InviteNotificationBar from './InviteNotificationBar.jsx';
 import {
   RoomCard,
   BookingModal,
@@ -215,7 +216,17 @@ function AppInner() {
   const isToday = dateIdx === 0;
 
   const [modal, setModal] = useState(null);
-  const [meetingPanel, setMeetingPanel] = useState(null); // { booking, room }
+
+  // Opens the meeting room window as a SEPARATE browser tab/popup so the
+  // user can navigate the main app without closing it. URL is captured by
+  // main.jsx which mounts MeetingPopoutPage when ?room= is present.
+  const openMeetingPopout = useCallback((bookingId) => {
+    if (!bookingId) return;
+    const base = import.meta.env.BASE_URL || '/';
+    const url = `${base}?room=${encodeURIComponent(bookingId)}`;
+    const name = `meeting-${bookingId}`;
+    window.open(url, name, 'width=760,height=920,resizable=yes,scrollbars=yes');
+  }, []);
   const [wizardOpen, setWizardOpen] = useState(false);
   const openCreate = (room, start, end) =>
     setModal({ room, initial: { start, end, booker: currentUser?.name || '' } });
@@ -682,14 +693,10 @@ function AppInner() {
         }}
       />
 
-      {meetingPanel && (
-        <MeetingRoomPanel
-          booking={meetingPanel.booking}
-          room={meetingPanel.room}
-          currentUser={currentUser}
-          onClose={() => setMeetingPanel(null)}
-        />
-      )}
+      <InviteNotificationBar
+        currentUser={currentUser}
+        onOpenMeeting={(inv) => openMeetingPopout(inv.booking_id)}
+      />
 
       <BookingModal
         open={!!modal}
@@ -700,7 +707,7 @@ function AppInner() {
         initial={modal?.initial}
         employees={employees}
         currentUser={currentUser}
-        onJoinMeeting={(b, r) => { setModal(null); setMeetingPanel({ booking: b, room: r }); }}
+        onJoinMeeting={(b) => { setModal(null); openMeetingPopout(b.id); }}
         roomBookings={
           modal
             ? bookings.filter(
