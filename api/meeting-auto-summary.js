@@ -6,9 +6,9 @@
 //   body: { booking_id, include_files?: boolean (default true) }
 // returns { ok: true, summary: {...} } or { ok: false, error: '...' }
 
-import pdfParse from 'pdf-parse';
-import * as XLSX from 'xlsx';
-import mammoth from 'mammoth';
+// Note: text-extract libs are loaded LAZILY inside extractText() so that
+// a single broken parser (pdf-parse, in particular, can fail at module
+// init in serverless) doesn't kill the whole endpoint with a 500.
 
 const GEMINI_BASE  = 'https://generativelanguage.googleapis.com';
 const GEMINI_MODEL = 'gemini-2.0-flash';
@@ -75,10 +75,13 @@ async function extractText(file, buf) {
   const kind = detectKind(file.file_name, file.mime_type);
   try {
     if (kind === 'pdf') {
-      const { text } = await pdfParse(buf);
-      return text.trim();
+      const mod = await import('pdf-parse');
+      const pdfParse = mod.default || mod;
+      const result = await pdfParse(buf);
+      return (result.text || '').trim();
     }
     if (kind === 'sheet') {
+      const XLSX = await import('xlsx');
       const wb = XLSX.read(buf, { type: 'buffer' });
       const parts = [];
       for (const name of wb.SheetNames.slice(0, 5)) {
@@ -89,6 +92,8 @@ async function extractText(file, buf) {
       return parts.join('\n\n').trim();
     }
     if (kind === 'docx') {
+      const mod = await import('mammoth');
+      const mammoth = mod.default || mod;
       const { value } = await mammoth.extractRawText({ buffer: buf });
       return (value || '').trim();
     }
@@ -96,21 +101,26 @@ async function extractText(file, buf) {
       return buf.toString('utf8').trim();
     }
   } catch (err) {
-    return `(extract failed: ${err.message})`;
+    console.error(`extract failed for ${file.file_name}:`, err.message);
+    return '';
   }
   return '';
 }
 
 async function collectAttachmentTexts(bookingId) {
-  const atts = await listAttachments(bookingId);
-  if (!atts.length) return [];
+  let atts;
+  try { atts = await listAttachments(bookingId); }
+  catch (err) {
+    console.error('listAttachments failed:', err.message);
+    return [];
+  }
+  if (!atts || !atts.length) return [];
   const results = [];
   for (const a of atts) {
     try {
       const buf = await downloadFile(a.storage_path);
       let text = await extractText(a, buf);
       if (!text || text.length < 30) {
-        // Likely a scanned PDF or image-only file — skip text path, mark it.
         results.push({ file_name: a.file_name, status: 'no-text', text: '' });
         continue;
       }
@@ -118,7 +128,8 @@ async function collectAttachmentTexts(bookingId) {
       if (truncated) text = text.slice(0, PER_FILE_CHAR_CAP) + '\n... [ตัดท้ายเพราะไฟล์ยาว]';
       results.push({ file_name: a.file_name, status: truncated ? 'truncated' : 'ok', text });
     } catch (err) {
-      results.push({ file_name: a.file_name, status: `error: ${err.message}`, text: '' });
+      console.error(`attachment ${a.file_name} failed:`, err.message);
+      results.push({ file_name: a.file_name, status: `error`, text: '' });
     }
   }
   return results;

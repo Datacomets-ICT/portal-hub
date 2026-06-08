@@ -150,7 +150,15 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ booking_id: booking.id, include_files: includeFiles }),
       });
-      const data = await r.json();
+      // Server may return HTML on crash/timeout — read as text first then
+      // attempt JSON.parse so we surface a useful message either way.
+      const raw = await r.text();
+      let data;
+      try { data = JSON.parse(raw); }
+      catch {
+        const snippet = raw.slice(0, 120).replace(/\s+/g, ' ');
+        throw new Error(`เซิร์ฟเวอร์ตอบไม่ใช่ JSON (${r.status}): ${snippet}`);
+      }
       if (!data.ok) throw new Error(data.error || 'สรุปไม่สำเร็จ');
       setAutoSummary(data.summary);
       showToast('สร้างสรุปสำเร็จ');
