@@ -5,7 +5,8 @@
   "outputDirectory": "portal/dist",
   "framework": null,
   "functions": {
-    "api/meeting-summary.js": { "maxDuration": 60 }
+    "api/meeting-summary.js":      { "maxDuration": 60 },
+    "api/meeting-auto-summary.js": { "maxDuration": 30 }
   },
   "crons": [
     { "path": "/api/meeting-cleanup", "schedule": "0 4 * * *" }

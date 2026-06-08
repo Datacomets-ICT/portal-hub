@@ -2,7 +2,7 @@
 // clicks "เข้าร่วมประชุม". Phase 1: attendee list + invite by employee_id +
 // join / decline buttons. Future phases will add chat, files, and the
 // post-meeting AI summary.
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from './lib/supabase.js';
 import { fmtTimeColon } from './components.jsx';
 
@@ -21,6 +21,17 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose }
   const [inviteIds, setInviteIds] = useState('');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef(null);
+  const [agenda, setAgenda] = useState([]);
+  const [agendaDraft, setAgendaDraft] = useState('');
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+  const [autoSummary, setAutoSummary] = useState(null);
+  const [genBusy, setGenBusy] = useState(false);
 
   const showToast = (msg, kind = 'ok') => {
     setToast({ msg, kind });
@@ -42,6 +53,162 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose }
   }, [booking?.id]);
 
   useEffect(() => { reload(); }, [reload]);
+
+  // Initial agenda + attachments fetch (agenda comes from the booking row itself)
+  useEffect(() => {
+    if (!booking?.id) return;
+    setAgenda(Array.isArray(booking.agenda) ? booking.agenda : []);
+    setAutoSummary(booking.autoSummary || null);
+    (async () => {
+      const { data } = await supabase.rpc('mtg_list_attachments', { p_booking_id: booking.id });
+      setAttachments(data || []);
+    })();
+  }, [booking?.id, booking?.autoSummary]);
+
+  // Has the meeting ended? Compare booking end time against now.
+  const isPast = (() => {
+    if (!booking?.bookingDate || booking.end == null) return false;
+    const d = new Date(booking.bookingDate);
+    const endAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(),
+                           Math.floor(booking.end / 60), booking.end % 60);
+    return endAt.getTime() < Date.now();
+  })();
+
+  const generateSummary = async () => {
+    setGenBusy(true);
+    try {
+      const r = await fetch('/api/meeting-auto-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: booking.id }),
+      });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error || 'สรุปไม่สำเร็จ');
+      setAutoSummary(data.summary);
+      showToast('สร้างสรุปสำเร็จ');
+    } catch (err) {
+      showToast(err.message || 'สรุปไม่สำเร็จ', 'err');
+    } finally {
+      setGenBusy(false);
+    }
+  };
+
+  const persistAgenda = async (next) => {
+    setAgenda(next);
+    try {
+      await supabase.rpc('mtg_update_agenda', {
+        p_booking_id: booking.id,
+        p_employee_id: currentUser.code,
+        p_agenda: next,
+      });
+    } catch (err) {
+      showToast(err.message || 'บันทึก agenda ไม่สำเร็จ', 'err');
+    }
+  };
+
+  const addAgendaItem = () => {
+    const text = agendaDraft.trim();
+    if (!text) return;
+    persistAgenda([...agenda, { id: Date.now(), text, done: false }]);
+    setAgendaDraft('');
+  };
+  const toggleAgendaItem = (id) => {
+    persistAgenda(agenda.map((it) => (it.id === id ? { ...it, done: !it.done } : it)));
+  };
+  const removeAgendaItem = (id) => {
+    persistAgenda(agenda.filter((it) => it.id !== id));
+  };
+
+  const onFilePick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser?.code) return;
+    if (file.size > 25 * 1024 * 1024) {
+      showToast('ไฟล์ใหญ่เกิน 25 MB', 'err');
+      e.target.value = '';
+      return;
+    }
+    setUploading(true);
+    try {
+      const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+      const path = `${booking.id}/${Date.now()}_${safeName}`;
+      const { error: upErr } = await supabase.storage.from('meeting-files').upload(path, file, { upsert: false });
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from('meeting-files').getPublicUrl(path);
+      const publicUrl = urlData?.publicUrl || '';
+      const { error: rpcErr } = await supabase.rpc('mtg_add_attachment', {
+        p_booking_id: booking.id,
+        p_employee_id: currentUser.code,
+        p_file_name: file.name,
+        p_storage_path: path,
+        p_public_url: publicUrl,
+        p_mime_type: file.type || null,
+        p_size_bytes: file.size,
+      });
+      if (rpcErr) throw rpcErr;
+      const { data: list } = await supabase.rpc('mtg_list_attachments', { p_booking_id: booking.id });
+      setAttachments(list || []);
+      showToast(`อัปโหลด "${file.name}" แล้ว`);
+    } catch (err) {
+      showToast(err.message || 'อัปโหลดไม่สำเร็จ', 'err');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = async (att) => {
+    if (!confirm(`ลบ "${att.file_name}"?`)) return;
+    try {
+      const { data: pathToDel, error } = await supabase.rpc('mtg_delete_attachment', {
+        p_attachment_id: att.id,
+        p_employee_id: currentUser.code,
+      });
+      if (error) throw error;
+      if (pathToDel) {
+        await supabase.storage.from('meeting-files').remove([pathToDel]);
+      }
+      setAttachments((list) => list.filter((x) => x.id !== att.id));
+      showToast('ลบไฟล์แล้ว');
+    } catch (err) {
+      showToast(err.message || 'ลบไม่สำเร็จ', 'err');
+    }
+  };
+
+  // Initial messages fetch + realtime subscription
+  useEffect(() => {
+    if (!booking?.id) return;
+    let alive = true;
+
+    (async () => {
+      const { data, error } = await supabase.rpc('mtg_list_messages', { p_booking_id: booking.id });
+      if (alive && !error) setMessages(data || []);
+    })();
+
+    const channel = supabase
+      .channel(`mtg-chat-${booking.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mtg_messages', filter: `booking_id=eq.${booking.id}` },
+        async () => {
+          // Re-fetch via RPC so we get the joined employee fields
+          const { data } = await supabase.rpc('mtg_list_messages', { p_booking_id: booking.id });
+          if (alive) setMessages(data || []);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      alive = false;
+      supabase.removeChannel(channel);
+    };
+  }, [booking?.id]);
+
+  // Auto-scroll to the newest message
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [messages.length]);
 
   const myRow = attendees.find((a) => a.employee_id === currentUser?.code);
   const isBooker = currentUser?.name && normName(booking?.booker) === normName(currentUser.name);
@@ -78,6 +245,26 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose }
       showToast(err.message || 'เชิญไม่สำเร็จ', 'err');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    const text = draft.trim();
+    if (!text || !currentUser?.code) return;
+    setSending(true);
+    try {
+      const { error } = await supabase.rpc('mtg_post_message', {
+        p_booking_id: booking.id,
+        p_employee_id: currentUser.code,
+        p_body: text,
+      });
+      if (error) throw error;
+      setDraft('');
+      // Realtime subscription will refresh the list — no manual fetch needed
+    } catch (err) {
+      showToast(err.message || 'ส่งข้อความไม่สำเร็จ', 'err');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -208,6 +395,201 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose }
             </div>
             <div className="mtg-invite-hint">
               พิมพ์รหัสพนักงาน (employee_id) ที่จะเชิญ คั่นด้วย comma หรือ space
+            </div>
+          </section>
+        )}
+
+        {/* Auto AI summary (Phase 4) — show after meeting ends */}
+        {isPast && (
+          <section className="mtg-room-section mtg-auto-summary">
+            <div className="mtg-room-section-head">
+              🤖 สรุปการประชุม (AI)
+              {autoSummary && <span className="mtg-chat-count">สร้างแล้ว</span>}
+            </div>
+            {autoSummary ? (
+              <div className="mtg-summary-card">
+                {autoSummary.tldr && (
+                  <div className="mtg-summary-tldr">
+                    <span className="mtg-summary-label">TL;DR</span>
+                    <span>{autoSummary.tldr}</span>
+                  </div>
+                )}
+                {autoSummary.key_points?.length > 0 && (
+                  <div className="mtg-summary-block">
+                    <div className="mtg-summary-label">ประเด็นสำคัญ</div>
+                    <ul>{autoSummary.key_points.map((p, i) => <li key={i}>{p}</li>)}</ul>
+                  </div>
+                )}
+                {autoSummary.decisions?.length > 0 && (
+                  <div className="mtg-summary-block">
+                    <div className="mtg-summary-label">ข้อตัดสินใจ</div>
+                    <ul>{autoSummary.decisions.map((p, i) => <li key={i}>{p}</li>)}</ul>
+                  </div>
+                )}
+                {autoSummary.action_items?.length > 0 && (
+                  <div className="mtg-summary-block">
+                    <div className="mtg-summary-label">Action Items</div>
+                    <ul>
+                      {autoSummary.action_items.map((a, i) => (
+                        <li key={i}>
+                          {a.task}
+                          {a.owner && <span className="mtg-owner"> · {a.owner}</span>}
+                          {a.due && <span className="mtg-due"> · กำหนด {a.due}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {autoSummary.next_steps?.length > 0 && (
+                  <div className="mtg-summary-block">
+                    <div className="mtg-summary-label">ขั้นถัดไป</div>
+                    <ul>{autoSummary.next_steps.map((p, i) => <li key={i}>{p}</li>)}</ul>
+                  </div>
+                )}
+                <div className="mtg-summary-actions">
+                  <button className="btn-ghost" onClick={generateSummary} disabled={genBusy}>
+                    🔄 สร้างใหม่
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mtg-summary-empty">
+                <p>ประชุมจบแล้ว — กดสร้างสรุปจาก agenda + แชทที่บันทึกไว้</p>
+                <button className="btn-primary" onClick={generateSummary} disabled={genBusy}>
+                  {genBusy ? 'กำลังสรุป...' : '✨ สร้างสรุป AI'}
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Agenda (Phase 3) — visible to all, editable by booker/joined */}
+        {(agenda.length > 0 || isJoined) && (
+          <section className="mtg-room-section">
+            <div className="mtg-room-section-head">📋 วาระการประชุม</div>
+            {agenda.length === 0 ? (
+              <div className="mtg-room-empty">ยังไม่มีวาระ — เพิ่มหัวข้อด้านล่าง</div>
+            ) : (
+              <ul className="mtg-agenda-list">
+                {agenda.map((it) => (
+                  <li key={it.id} className={`mtg-agenda-item ${it.done ? 'done' : ''}`}>
+                    <input
+                      type="checkbox" checked={!!it.done}
+                      onChange={() => toggleAgendaItem(it.id)}
+                      disabled={!isJoined}
+                    />
+                    <span className="mtg-agenda-text">{it.text}</span>
+                    {isJoined && (
+                      <button className="mtg-agenda-x" onClick={() => removeAgendaItem(it.id)} title="ลบ">×</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {isJoined && (
+              <div className="mtg-agenda-input-row">
+                <input
+                  className="mtg-invite-input"
+                  placeholder="เพิ่มหัวข้อใหม่ + Enter"
+                  value={agendaDraft}
+                  onChange={(e) => setAgendaDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAgendaItem(); } }}
+                />
+                <button className="btn-primary" onClick={addAgendaItem} disabled={!agendaDraft.trim()}>เพิ่ม</button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Files (Phase 3) */}
+        {(attachments.length > 0 || isJoined) && (
+          <section className="mtg-room-section">
+            <div className="mtg-room-section-head">
+              📎 ไฟล์แนบ
+              <span className="mtg-chat-count">{attachments.length}</span>
+            </div>
+            {attachments.length === 0 ? (
+              <div className="mtg-room-empty">ยังไม่มีไฟล์ — อัปโหลดได้ด้านล่าง (สูงสุด 25 MB)</div>
+            ) : (
+              <ul className="mtg-files-list">
+                {attachments.map((a) => (
+                  <li key={a.id} className="mtg-file-item">
+                    <span className="mtg-file-icon">📄</span>
+                    <a className="mtg-file-link" href={a.public_url} target="_blank" rel="noreferrer">{a.file_name}</a>
+                    <span className="mtg-file-meta">
+                      {a.size_bytes ? `${(a.size_bytes / 1024).toFixed(0)} KB · ` : ''}{a.uploader_name}
+                    </span>
+                    {a.uploaded_by === currentUser?.code && (
+                      <button className="mtg-agenda-x" onClick={() => removeAttachment(a)} title="ลบ">×</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {isJoined && (
+              <div className="mtg-file-upload">
+                <input
+                  ref={fileInputRef}
+                  type="file" id="mtg-file-pick"
+                  style={{ display: 'none' }}
+                  onChange={onFilePick}
+                  disabled={uploading}
+                />
+                <label htmlFor="mtg-file-pick" className={`btn-primary ${uploading ? 'is-busy' : ''}`} style={{ cursor: 'pointer', display: 'inline-block' }}>
+                  {uploading ? 'กำลังอัปโหลด...' : '⬆ เลือกไฟล์'}
+                </label>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Chat (Phase 2) — visible only to booker / joined attendees */}
+        {isJoined && (
+          <section className="mtg-room-section mtg-chat-section">
+            <div className="mtg-room-section-head">
+              💬 แชทระหว่างประชุม
+              <span className="mtg-chat-count">{messages.length} ข้อความ</span>
+            </div>
+            <div className="mtg-chat-list">
+              {messages.length === 0 ? (
+                <div className="mtg-room-empty">ยังไม่มีข้อความ — เริ่มแชทได้เลย</div>
+              ) : (
+                messages.map((m) => {
+                  const mine = m.employee_id === currentUser?.code;
+                  const senderName = [m.first_name, m.last_name].filter(Boolean).join(' ')
+                    || m.nickname || m.employee_id;
+                  const t = new Date(m.created_at);
+                  const ts = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+                  return (
+                    <div key={m.id} className={`mtg-msg ${mine ? 'mine' : 'theirs'}`}>
+                      {!mine && (
+                        <div className="mtg-msg-sender">
+                          {senderName}{m.nickname && <span> ({m.nickname})</span>}
+                        </div>
+                      )}
+                      <div className="mtg-msg-bubble">
+                        <span className="mtg-msg-body">{m.body}</span>
+                        <span className="mtg-msg-time mono">{ts}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+            <div className="mtg-chat-input-row">
+              <input
+                className="mtg-chat-input"
+                placeholder="พิมพ์ข้อความ..."
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                disabled={sending}
+                maxLength={4000}
+              />
+              <button className="btn-primary" onClick={sendMessage} disabled={sending || !draft.trim()}>
+                ส่ง
+              </button>
             </div>
           </section>
         )}

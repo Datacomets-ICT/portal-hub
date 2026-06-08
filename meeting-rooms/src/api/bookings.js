@@ -15,6 +15,9 @@ function fromRow(row) {
     customerCount: row.customer_count,
     equipment: row.equipment || [],
     refreshments: row.refreshments || [],
+    agenda: row.agenda || [],
+    autoSummary: row.auto_summary || null,
+    autoSummaryAt: row.auto_summary_at || null,
   };
 }
 
