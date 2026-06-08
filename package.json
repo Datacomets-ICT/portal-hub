@@ -4,7 +4,10 @@
   "description": "Vercel serverless functions for portal-hub (chat + forgot-password). Portal frontend has its own package.json under portal/.",
   "type": "module",
   "dependencies": {
-    "nodemailer": "^6.9.16"
+    "mammoth": "^1.12.0",
+    "nodemailer": "^6.9.16",
+    "pdf-parse": "^2.4.5",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0"

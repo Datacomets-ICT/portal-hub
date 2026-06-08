@@ -3775,3 +3775,27 @@ body.ms-preview-open .modal-backdrop {
 }
 .mtg-end-btn:hover { background: oklch(0.85 0.16 25); }
 .mtg-end-hint { font-size: 11.5px; color: var(--fg-3); flex: 1; }
+
+/* Auto-summary attachment toggle + file pills */
+.mtg-summary-toggle {
+  display: inline-flex; gap: 8px; align-items: center;
+  margin: 4px 0 10px;
+  font-size: 12.5px;
+  color: var(--fg-2);
+  cursor: pointer;
+}
+.mtg-summary-toggle input { cursor: pointer; }
+.mtg-summary-files-used {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  font-size: 11.5px;
+  color: var(--fg-3);
+  background: oklch(0.97 0.04 280);
+  padding: 8px 10px; border-radius: 6px;
+  margin-top: 8px;
+}
+.mtg-file-used {
+  padding: 2px 8px; border-radius: 999px;
+  font-weight: 500;
+}
+.mtg-file-ok   { background: oklch(0.9 0.1 145);  color: oklch(0.3 0.15 145); }
+.mtg-file-skip { background: oklch(0.92 0.06 60); color: oklch(0.4 0.13 50); }

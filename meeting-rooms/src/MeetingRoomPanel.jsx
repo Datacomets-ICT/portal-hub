@@ -40,6 +40,7 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
   const fileInputRef = useRef(null);
   const [autoSummary, setAutoSummary] = useState(null);
   const [genBusy, setGenBusy] = useState(false);
+  const [includeFiles, setIncludeFiles] = useState(true);
 
   const showToast = (msg, kind = 'ok') => {
     setToast({ msg, kind });
@@ -147,7 +148,7 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
       const r = await fetch('/api/meeting-auto-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: booking.id }),
+        body: JSON.stringify({ booking_id: booking.id, include_files: includeFiles }),
       });
       const data = await r.json();
       if (!data.ok) throw new Error(data.error || 'สรุปไม่สำเร็จ');
@@ -563,6 +564,18 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
                     <ul>{autoSummary.next_steps.map((p, i) => <li key={i}>{p}</li>)}</ul>
                   </div>
                 )}
+                {autoSummary._files && autoSummary._files.length > 0 && (
+                  <div className="mtg-summary-files-used">
+                    📎 ไฟล์ที่ใช้ในการสรุป:{' '}
+                    {autoSummary._files.map((f, i) => (
+                      <span key={i} className={`mtg-file-used mtg-file-${f.status === 'ok' || f.status === 'truncated' ? 'ok' : 'skip'}`}>
+                        {f.file_name}
+                        {f.status === 'truncated' && ' (ตัดท้าย)'}
+                        {f.status === 'no-text' && ' (อ่านไม่ได้)'}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="mtg-summary-actions">
                   <button className="btn-ghost" onClick={generateSummary} disabled={genBusy}>
                     🔄 สร้างใหม่
@@ -571,7 +584,17 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
               </div>
             ) : (
               <div className="mtg-summary-empty">
-                <p>ประชุมจบแล้ว — กดสร้างสรุปจาก agenda + แชทที่บันทึกไว้</p>
+                <p>ประชุมจบแล้ว — กดสร้างสรุปจาก agenda + แชท{attachments.length > 0 && includeFiles ? ` + ไฟล์แนบ ${attachments.length} ไฟล์` : ''} ที่บันทึกไว้</p>
+                {attachments.length > 0 && (
+                  <label className="mtg-summary-toggle">
+                    <input
+                      type="checkbox"
+                      checked={includeFiles}
+                      onChange={(e) => setIncludeFiles(e.target.checked)}
+                    />
+                    <span>รวมเนื้อหาไฟล์แนบ ({attachments.length} ไฟล์) เข้าไปด้วย</span>
+                  </label>
+                )}
                 <button className="btn-primary" onClick={generateSummary} disabled={genBusy}>
                   {genBusy ? 'กำลังสรุป...' : '✨ สร้างสรุป AI'}
                 </button>

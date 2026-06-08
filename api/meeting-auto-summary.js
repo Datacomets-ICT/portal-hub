@@ -1,13 +1,22 @@
 // Vercel serverless: generate an auto-summary for a meeting from
-// chat + agenda + attendees + meta (no audio). Uses Gemini Flash via
-// the existing key. Triggered on demand from MeetingRoomPanel after
-// the meeting end time.
+// chat + agenda + attendees + meta + attachment text. Uses Gemini Flash
+// via the existing key. Triggered on demand from MeetingRoomPanel.
 //
-// POST /api/meeting-auto-summary  body: { note_id?: ignored, booking_id }
+// POST /api/meeting-auto-summary
+//   body: { booking_id, include_files?: boolean (default true) }
 // returns { ok: true, summary: {...} } or { ok: false, error: '...' }
+
+import pdfParse from 'pdf-parse';
+import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 
 const GEMINI_BASE  = 'https://generativelanguage.googleapis.com';
 const GEMINI_MODEL = 'gemini-2.0-flash';
+
+// Per-file safety cap so one giant Excel doesn't blow the prompt. Roughly
+// ~12k tokens at ~4 chars/token. Total prompt stays under ~80k tokens even
+// with 5 big files attached.
+const PER_FILE_CHAR_CAP = 50_000;
 
 const geminiKey = () =>
   process.env.GEMINI_MEETING_API_KEY || process.env.GEMINI_API_KEY || '';
@@ -30,7 +39,92 @@ async function sbRpc(name, body) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
-function buildPrompt(inputs) {
+// ------------------- attachments → text -------------------
+async function listAttachments(bookingId) {
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/mtg_attachments?booking_id=eq.${bookingId}&select=*`,
+    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
+  );
+  if (!r.ok) return [];
+  try { return await r.json(); } catch { return []; }
+}
+
+async function downloadFile(storagePath) {
+  // service-role / anon key can read the bucket via REST. Signed URL works
+  // too but adds a round-trip; direct object endpoint is faster on server.
+  const url = `${SUPABASE_URL}/storage/v1/object/meeting-files/${storagePath}`;
+  const r = await fetch(url, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!r.ok) throw new Error(`download ${storagePath}: ${r.status}`);
+  const buf = Buffer.from(await r.arrayBuffer());
+  return buf;
+}
+
+function detectKind(fileName = '', mime = '') {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  const m = (mime || '').toLowerCase();
+  if (ext === 'pdf' || m.includes('pdf')) return 'pdf';
+  if (['xlsx', 'xls', 'csv'].includes(ext) || m.includes('spreadsheet') || m.includes('excel') || m === 'text/csv') return 'sheet';
+  if (['docx', 'doc'].includes(ext) || m.includes('wordprocessingml')) return 'docx';
+  if (['txt', 'md', 'log'].includes(ext) || m.startsWith('text/')) return 'text';
+  return 'unknown';
+}
+
+async function extractText(file, buf) {
+  const kind = detectKind(file.file_name, file.mime_type);
+  try {
+    if (kind === 'pdf') {
+      const { text } = await pdfParse(buf);
+      return text.trim();
+    }
+    if (kind === 'sheet') {
+      const wb = XLSX.read(buf, { type: 'buffer' });
+      const parts = [];
+      for (const name of wb.SheetNames.slice(0, 5)) {
+        const ws = wb.Sheets[name];
+        const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false });
+        if (csv.trim()) parts.push(`# ${name}\n${csv}`);
+      }
+      return parts.join('\n\n').trim();
+    }
+    if (kind === 'docx') {
+      const { value } = await mammoth.extractRawText({ buffer: buf });
+      return (value || '').trim();
+    }
+    if (kind === 'text') {
+      return buf.toString('utf8').trim();
+    }
+  } catch (err) {
+    return `(extract failed: ${err.message})`;
+  }
+  return '';
+}
+
+async function collectAttachmentTexts(bookingId) {
+  const atts = await listAttachments(bookingId);
+  if (!atts.length) return [];
+  const results = [];
+  for (const a of atts) {
+    try {
+      const buf = await downloadFile(a.storage_path);
+      let text = await extractText(a, buf);
+      if (!text || text.length < 30) {
+        // Likely a scanned PDF or image-only file — skip text path, mark it.
+        results.push({ file_name: a.file_name, status: 'no-text', text: '' });
+        continue;
+      }
+      const truncated = text.length > PER_FILE_CHAR_CAP;
+      if (truncated) text = text.slice(0, PER_FILE_CHAR_CAP) + '\n... [ตัดท้ายเพราะไฟล์ยาว]';
+      results.push({ file_name: a.file_name, status: truncated ? 'truncated' : 'ok', text });
+    } catch (err) {
+      results.push({ file_name: a.file_name, status: `error: ${err.message}`, text: '' });
+    }
+  }
+  return results;
+}
+
+function buildPrompt(inputs, fileTexts = []) {
   const b = inputs.booking || {};
   const messages = inputs.messages || [];
   const attendees = inputs.attendees || [];
@@ -62,6 +156,16 @@ function buildPrompt(inputs) {
     lines.push('');
   } else {
     lines.push('(ไม่มีบทสนทนาในแชท ใช้ข้อมูลจากวาระ + meta สรุปแทน)');
+  }
+
+  const usable = fileTexts.filter((f) => f.text);
+  if (usable.length) {
+    lines.push('เนื้อหาไฟล์แนบ (extract เป็นข้อความ):');
+    for (const f of usable) {
+      lines.push(`--- ${f.file_name} ---`);
+      lines.push(f.text);
+      lines.push('');
+    }
   }
 
   lines.push('');
@@ -102,14 +206,19 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Use POST' });
   }
   try {
-    const { booking_id } = req.body || {};
+    const { booking_id, include_files = true } = req.body || {};
     if (!booking_id) return res.status(400).json({ ok: false, error: 'booking_id required' });
 
     const inputs = await sbRpc('mtg_summary_inputs', { p_booking_id: booking_id });
     if (!inputs?.booking) return res.status(404).json({ ok: false, error: 'booking not found' });
 
-    const prompt = buildPrompt(inputs);
+    const fileTexts = include_files ? await collectAttachmentTexts(booking_id) : [];
+    const prompt = buildPrompt(inputs, fileTexts);
     const summary = await callGemini(prompt);
+
+    // Tag the file-usage stats onto the summary so the UI can show how many
+    // files were actually included vs skipped (e.g. scanned PDFs).
+    summary._files = fileTexts.map((f) => ({ file_name: f.file_name, status: f.status }));
 
     await sbRpc('mtg_save_auto_summary', { p_booking_id: booking_id, p_summary: summary });
 
