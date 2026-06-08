@@ -128,14 +128,22 @@ function buildPrompt(inputs, fileTexts = []) {
   const b = inputs.booking || {};
   const messages = inputs.messages || [];
   const attendees = inputs.attendees || [];
+  const audio = inputs.audio_note || null;
   const agenda = Array.isArray(b.agenda) ? b.agenda : [];
 
   const lines = [];
-  lines.push('คุณคือผู้ช่วยสรุปการประชุม สรุปจากข้อมูลด้านล่างเป็นภาษาไทย');
+  lines.push('คุณคือผู้ช่วยสรุปการประชุม สรุปจากข้อมูลด้านล่าง — รวมทุกแหล่ง (meta + agenda + ผู้เข้าร่วม + แชท + เนื้อหาไฟล์แนบ + บันทึกเสียงประชุม) — เป็นภาษาไทย ใช้ข้อมูลทุกส่วนที่มี');
   lines.push('');
   lines.push(`หัวข้อ: ${b.title || '-'}`);
   lines.push(`ผู้จัด: ${b.booker || '-'}`);
   lines.push(`วัตถุประสงค์: ${b.purpose || '-'}`);
+  if (b.company) lines.push(`บริษัท/ลูกค้า: ${b.company}`);
+  if (b.attendees) lines.push(`จำนวนผู้เข้าร่วมที่จองไว้: ${b.attendees} คน`);
+  if (b.booking_date) lines.push(`วันที่: ${b.booking_date}`);
+  if (b.start_min != null && b.end_min != null) {
+    const fmt = (m) => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+    lines.push(`เวลา: ${fmt(b.start_min)}–${fmt(b.end_min)}`);
+  }
   lines.push('');
 
   if (agenda.length) {
@@ -164,6 +172,23 @@ function buildPrompt(inputs, fileTexts = []) {
     for (const f of usable) {
       lines.push(`--- ${f.file_name} ---`);
       lines.push(f.text);
+      lines.push('');
+    }
+  }
+
+  if (audio) {
+    lines.push('บันทึกเสียงประชุม (transcribe จาก audio):');
+    if (audio.duration_sec) lines.push(`(ความยาว ~${Math.round(audio.duration_sec/60)} นาที)`);
+    if (audio.transcript) {
+      // cap transcript at 80k chars to keep room for everything else
+      const t = audio.transcript.length > 80000 ? audio.transcript.slice(0, 80000) + '\n... [ตัดท้าย]' : audio.transcript;
+      lines.push('Transcript:');
+      lines.push(t);
+      lines.push('');
+    }
+    if (audio.summary) {
+      lines.push('Summary (จากตัวอัดเสียง):');
+      lines.push(typeof audio.summary === 'string' ? audio.summary : JSON.stringify(audio.summary));
       lines.push('');
     }
   }
@@ -206,11 +231,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Use POST' });
   }
   try {
-    const { booking_id, include_files = true } = req.body || {};
+    const { booking_id, include_files = true, include_audio = true } = req.body || {};
     if (!booking_id) return res.status(400).json({ ok: false, error: 'booking_id required' });
 
     const inputs = await sbRpc('mtg_summary_inputs', { p_booking_id: booking_id });
     if (!inputs?.booking) return res.status(404).json({ ok: false, error: 'booking not found' });
+
+    if (!include_audio) inputs.audio_note = null;
 
     const fileTexts = include_files ? await collectAttachmentTexts(booking_id) : [];
     const prompt = buildPrompt(inputs, fileTexts);
@@ -219,6 +246,7 @@ export default async function handler(req, res) {
     // Tag the file-usage stats onto the summary so the UI can show how many
     // files were actually included vs skipped (e.g. scanned PDFs).
     summary._files = fileTexts.map((f) => ({ file_name: f.file_name, status: f.status }));
+    summary._used_audio = !!(include_audio && inputs.audio_note && inputs.audio_note.transcript);
 
     await sbRpc('mtg_save_auto_summary', { p_booking_id: booking_id, p_summary: summary });
 

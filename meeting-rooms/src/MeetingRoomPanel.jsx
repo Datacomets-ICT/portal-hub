@@ -564,18 +564,20 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
                     <ul>{autoSummary.next_steps.map((p, i) => <li key={i}>{p}</li>)}</ul>
                   </div>
                 )}
-                {autoSummary._files && autoSummary._files.length > 0 && (
-                  <div className="mtg-summary-files-used">
-                    📎 ไฟล์ที่ใช้ในการสรุป:{' '}
-                    {autoSummary._files.map((f, i) => (
-                      <span key={i} className={`mtg-file-used mtg-file-${f.status === 'ok' || f.status === 'truncated' ? 'ok' : 'skip'}`}>
-                        {f.file_name}
-                        {f.status === 'truncated' && ' (ตัดท้าย)'}
-                        {f.status === 'no-text' && ' (อ่านไม่ได้)'}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <div className="mtg-summary-files-used">
+                  <span style={{ marginRight: 6 }}>📥 แหล่งข้อมูลที่ใช้:</span>
+                  <span className="mtg-file-used mtg-file-ok">agenda + chat + meta</span>
+                  {autoSummary._used_audio && (
+                    <span className="mtg-file-used mtg-file-ok">🎙️ transcript เสียง</span>
+                  )}
+                  {autoSummary._files && autoSummary._files.map((f, i) => (
+                    <span key={i} className={`mtg-file-used mtg-file-${f.status === 'ok' || f.status === 'truncated' ? 'ok' : 'skip'}`}>
+                      {f.file_name}
+                      {f.status === 'truncated' && ' (ตัดท้าย)'}
+                      {f.status === 'no-text' && ' (อ่านไม่ได้)'}
+                    </span>
+                  ))}
+                </div>
                 <div className="mtg-summary-actions">
                   <button className="btn-ghost" onClick={generateSummary} disabled={genBusy}>
                     🔄 สร้างใหม่
@@ -584,7 +586,7 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
               </div>
             ) : (
               <div className="mtg-summary-empty">
-                <p>ประชุมจบแล้ว — กดสร้างสรุปจาก agenda + แชท{attachments.length > 0 && includeFiles ? ` + ไฟล์แนบ ${attachments.length} ไฟล์` : ''} ที่บันทึกไว้</p>
+                <p>กดเพื่อให้ AI สรุปจาก<b>ทุกข้อมูลในหน้านี้</b> — meta · ผู้เข้าร่วม · agenda · แชท{attachments.length > 0 ? ` · ไฟล์แนบ ${attachments.length} ไฟล์` : ''} · transcript เสียง (ถ้ามี)</p>
                 {attachments.length > 0 && (
                   <label className="mtg-summary-toggle">
                     <input

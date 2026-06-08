@@ -27,7 +27,9 @@ $body$;
 revoke all on function public.mtg_save_auto_summary(uuid, jsonb) from public;
 grant execute on function public.mtg_save_auto_summary(uuid, jsonb) to anon, authenticated;
 
--- Used by the API to pull the inputs (chat + agenda + meta) in one shot
+-- Updated v28 — also returns the audio transcript / summary / decisions /
+-- action_items from mtg_meeting_notes (if recording was uploaded), so the
+-- auto-summarizer can blend voice content with chat + agenda + files.
 create or replace function public.mtg_summary_inputs(p_booking_id uuid)
 returns json
 language sql
