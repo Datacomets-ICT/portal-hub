@@ -5,6 +5,7 @@ import BookingWizard from './BookingWizard.jsx';
 import RoomEditorView from './RoomEditorView.jsx';
 import MeetingRoomPanel from './MeetingRoomPanel.jsx';
 import InviteNotificationBar from './InviteNotificationBar.jsx';
+import ActiveMeetingBadge from './ActiveMeetingBadge.jsx';
 import {
   RoomCard,
   BookingModal,
@@ -424,6 +425,10 @@ function AppInner() {
           )}
         </nav>
         <div className="topbar-grow" />
+        <ActiveMeetingBadge
+          currentUser={currentUser}
+          onOpen={(b) => openMeetingPopout(b.id)}
+        />
         <button
           className="topbar-book-btn"
           onClick={() => setWizardOpen(true)}

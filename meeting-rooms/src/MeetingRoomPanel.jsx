@@ -200,7 +200,9 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
     }
   };
 
-  // Initial messages fetch + realtime subscription
+  // Realtime: chat messages AND attendee status (so people don't see stale
+  // "ยังไม่ตอบ" when someone in another tab just clicked "เข้าร่วม"). One
+  // channel listens to both tables, both filtered to this booking.
   useEffect(() => {
     if (!booking?.id) return;
     let alive = true;
@@ -211,15 +213,19 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
     })();
 
     const channel = supabase
-      .channel(`mtg-chat-${booking.id}`)
+      .channel(`mtg-room-${booking.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'mtg_messages', filter: `booking_id=eq.${booking.id}` },
         async () => {
-          // Re-fetch via RPC so we get the joined employee fields
           const { data } = await supabase.rpc('mtg_list_messages', { p_booking_id: booking.id });
           if (alive) setMessages(data || []);
         },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mtg_attendees', filter: `booking_id=eq.${booking.id}` },
+        () => { if (alive) reload(); },
       )
       .subscribe();
 
@@ -227,7 +233,7 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
       alive = false;
       supabase.removeChannel(channel);
     };
-  }, [booking?.id]);
+  }, [booking?.id, reload]);
 
   // Auto-scroll to the newest message
   useEffect(() => {

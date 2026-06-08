@@ -3705,3 +3705,51 @@ body.ms-preview-open .modal-backdrop {
   font-size: 12.5px; color: var(--fg-3);
   margin-top: 8px;
 }
+
+/* "You're currently in a meeting" badge in the top bar */
+.active-meeting-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 12px 6px 10px;
+  background: oklch(0.96 0.06 25);
+  border: 1px solid oklch(0.78 0.16 25);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: oklch(0.32 0.18 25);
+  cursor: pointer;
+  margin-right: 10px;
+  animation: amb-pulse 2.4s ease-in-out infinite;
+  transition: transform 0.12s ease;
+}
+.active-meeting-badge:hover { transform: translateY(-1px); background: oklch(0.94 0.07 25); }
+.amb-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: oklch(0.6 0.22 25);
+  box-shadow: 0 0 0 0 oklch(0.6 0.22 25 / 0.5);
+  animation: amb-blink 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.amb-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
+.amb-label { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; opacity: 0.8; text-transform: uppercase; }
+.amb-title { font-weight: 600; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.amb-time {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px; font-weight: 600;
+  padding-left: 9px;
+  border-left: 1px solid oklch(0.78 0.16 25);
+  opacity: 0.75;
+}
+@keyframes amb-blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(0.6 0.22 25 / 0.6); }
+  50%      { opacity: 0.55; box-shadow: 0 0 0 6px oklch(0.6 0.22 25 / 0); }
+}
+@keyframes amb-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.78 0.16 25 / 0.4); }
+  50%      { box-shadow: 0 0 0 6px oklch(0.78 0.16 25 / 0); }
+}
+@media (max-width: 720px) {
+  .amb-title { max-width: 90px; }
+  .amb-time  { display: none; }
+}
