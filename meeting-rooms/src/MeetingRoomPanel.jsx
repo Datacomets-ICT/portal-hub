@@ -92,14 +92,39 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
     refreshAttachments();
   }, [booking?.id, booking?.autoSummary, refreshAttachments]);
 
-  // Has the meeting ended? Compare booking end time against now.
+  // Track manual-end timestamp locally so "End meeting" button reflects
+  // immediately (booking prop won't update without reloading).
+  const [endedAt, setEndedAt] = useState(booking?.endedAt ? new Date(booking.endedAt) : null);
+  useEffect(() => {
+    setEndedAt(booking?.endedAt ? new Date(booking.endedAt) : null);
+  }, [booking?.endedAt]);
+
+  // Has the meeting ended? Either its scheduled end_min has passed, OR
+  // the booker manually pressed "End meeting" (ended_at).
   const isPast = (() => {
+    const nowMs = Date.now();
+    if (endedAt && endedAt.getTime() <= nowMs) return true;
     if (!booking?.bookingDate || booking.end == null) return false;
     const d = new Date(booking.bookingDate);
     const endAt = new Date(d.getFullYear(), d.getMonth(), d.getDate(),
                            Math.floor(booking.end / 60), booking.end % 60);
-    return endAt.getTime() < Date.now();
+    return endAt.getTime() < nowMs;
   })();
+
+  const endMeeting = async () => {
+    if (!confirm('ปิดประชุมเดี๋ยวนี้? หลังจากนี้ส่ง chat / แก้ agenda / อัปโหลดไฟล์ ไม่ได้แล้ว')) return;
+    try {
+      const { data, error } = await supabase.rpc('mtg_end_meeting', {
+        p_booking_id: booking.id,
+        p_employee_id: currentUser.code,
+      });
+      if (error) throw error;
+      setEndedAt(new Date(data || Date.now()));
+      showToast('ปิดประชุมแล้ว — สามารถสร้างสรุป AI ได้เลย');
+    } catch (err) {
+      showToast(err.message || 'ปิดประชุมไม่สำเร็จ', 'err');
+    }
+  };
 
   const generateSummary = async () => {
     setGenBusy(true);
@@ -353,7 +378,21 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
 
         {isPast && (
           <div className="mtg-past-banner">
-            ⏱ <b>ประชุมจบแล้ว</b> — เพิ่มข้อความ/วาระ/ไฟล์ ใหม่ไม่ได้ แต่ดูของเก่ายังได้
+            ⏱ <b>ประชุมจบแล้ว</b>
+            {endedAt && <span> · ปิดเอง {endedAt.getHours().toString().padStart(2, '0')}:{endedAt.getMinutes().toString().padStart(2, '0')}</span>}
+             — เพิ่มข้อความ/วาระ/ไฟล์ ใหม่ไม่ได้ แต่ดูของเก่ายังได้
+          </div>
+        )}
+
+        {isBooker && !isPast && (
+          <div className="mtg-end-row">
+            <button className="mtg-end-btn" onClick={endMeeting}>
+              🛑 จบประชุมเดี๋ยวนี้
+            </button>
+            <span className="mtg-end-hint">
+              ตอนนี้ประชุมจะจบอัตโนมัติเวลา {String(Math.floor(booking.end / 60)).padStart(2, '0')}:{String(booking.end % 60).padStart(2, '0')}
+              — กดเพื่อปิดก่อน
+            </span>
           </div>
         )}
 

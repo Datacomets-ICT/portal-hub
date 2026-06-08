@@ -47,6 +47,7 @@ export default function MeetingPopoutPage({ bookingId }) {
           agenda: bRes.data.agenda || [],
           autoSummary: bRes.data.auto_summary || null,
           autoSummaryAt: bRes.data.auto_summary_at || null,
+          endedAt: bRes.data.ended_at || null,
         };
         if (alive) setState({ loading: false, booking, room, error: null });
       } catch (err) {

@@ -18,6 +18,7 @@ function fromRow(row) {
     agenda: row.agenda || [],
     autoSummary: row.auto_summary || null,
     autoSummaryAt: row.auto_summary_at || null,
+    endedAt: row.ended_at || null,
   };
 }
 
