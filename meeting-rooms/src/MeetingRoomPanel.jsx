@@ -5,6 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from './lib/supabase.js';
 import { fmtTimeColon } from './components.jsx';
+import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
 
 const THAI_MONTHS_LONG = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -494,6 +495,23 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
             <div className="mtg-invite-hint">
               พิมพ์รหัสพนักงาน (employee_id) ที่จะเชิญ คั่นด้วย comma หรือ space
             </div>
+          </section>
+        )}
+
+        {/* Audio recording + AI summary from speech.
+            Reuses the rich MeetingSummaryPanel used in the booking modal —
+            includes record button, file upload, status, final summary +
+            export to PDF/DOC/email. Lives independently from the chat-based
+            auto-summary further down. */}
+        {isJoined && (
+          <section className="mtg-room-section">
+            <div className="mtg-room-section-head">🎙️ บันทึกเสียง + สรุปจากเสียง</div>
+            <MeetingSummaryPanel
+              booking={booking}
+              currentUser={currentUser}
+              room={room}
+              employee={null}
+            />
           </section>
         )}
 

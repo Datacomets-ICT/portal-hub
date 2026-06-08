@@ -33,20 +33,24 @@ export default function ActiveMeetingBadge({ currentUser, onOpen }) {
       const [bookerRes, invitedRes] = await Promise.all([
         supabase
           .from('mtg_bookings')
-          .select('id, room_id, title, start_min, end_min, booker')
+          .select('id, room_id, title, start_min, end_min, booker, ended_at')
           .eq('booking_date', todayStr)
           .lte('start_min', minNow)
           .gte('end_min', minNow + 1),
         supabase.rpc('mtg_my_invites', { p_employee_id: currentUser.code }),
       ]);
 
-      const mine = (bookerRes.data || []).filter(
-        (b) => normName(b.booker) === normName(currentUser.name),
-      );
+      // Drop bookings that were manually ended early (ended_at <= now)
+      const isStillRunning = (b) => !b.ended_at || new Date(b.ended_at) > now;
+
+      const mine = (bookerRes.data || [])
+        .filter((b) => normName(b.booker) === normName(currentUser.name))
+        .filter(isStillRunning);
 
       const joined = (invitedRes.data || [])
         .filter((i) => i.status === 'joined' && i.booking_date === todayStr)
         .filter((i) => i.start_min <= minNow && i.end_min > minNow)
+        .filter((i) => !i.ended_at || new Date(i.ended_at) > now)
         .map((i) => ({
           id: i.booking_id,
           room_id: i.room_id,
@@ -54,6 +58,7 @@ export default function ActiveMeetingBadge({ currentUser, onOpen }) {
           start_min: i.start_min,
           end_min: i.end_min,
           booker: i.booker,
+          ended_at: i.ended_at,
         }));
 
       const all = [...mine, ...joined];

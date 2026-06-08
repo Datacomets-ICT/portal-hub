@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase.js';
 import MeetingRoomPanel from './MeetingRoomPanel.jsx';
+import { RecordingProvider } from './RecordingContext.jsx';
 
 function readUser() {
   try {
@@ -72,12 +73,14 @@ export default function MeetingPopoutPage({ bookingId }) {
   }
 
   return (
-    <MeetingRoomPanel
-      booking={state.booking}
-      room={state.room}
-      currentUser={currentUser}
-      onClose={() => window.close()}
-      popout
-    />
+    <RecordingProvider>
+      <MeetingRoomPanel
+        booking={state.booking}
+        room={state.room}
+        currentUser={currentUser}
+        onClose={() => window.close()}
+        popout
+      />
+    </RecordingProvider>
   );
 }
