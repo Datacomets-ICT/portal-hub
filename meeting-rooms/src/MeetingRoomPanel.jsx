@@ -514,12 +514,13 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
             auto-summary further down. */}
         {isJoined && (
           <section className="mtg-room-section">
-            <div className="mtg-room-section-head">🎙️ บันทึกเสียง + สรุปจากเสียง</div>
+            <div className="mtg-room-section-head">🎙️ บันทึกเสียงประชุม</div>
             <MeetingSummaryPanel
               booking={booking}
               currentUser={currentUser}
               room={room}
               employee={null}
+              compact
             />
           </section>
         )}

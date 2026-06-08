@@ -58,7 +58,13 @@ function fmtDuration(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export default function MeetingSummaryPanel({ booking, currentUser, room = null, employee = null }) {
+// `compact` mode is used inside MeetingRoomPanel — it strips the panel
+// title, descriptive blurb, and the post-processing summary display.
+// All that remains is the record/upload controls + a small status pill
+// so the user can capture audio without seeing a second AI-summary UI
+// (the consolidated "✨ สร้างสรุป AI" lives in MeetingRoomPanel and
+// already reads transcript from mtg_meeting_notes).
+export default function MeetingSummaryPanel({ booking, currentUser, room = null, employee = null, compact = false }) {
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stage, setStage] = useState('');     // storage | upload | processing | generate | done
@@ -383,23 +389,25 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
   const isProcessing = !!stage && stage !== 'done';
 
   return (
-    <div className="ms-panel">
-      <div className="ms-panel-head">
-        <div className="ms-panel-title">📝 สรุปการประชุม (AI)</div>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {note && note.status === 'done' && !isProcessing && !editMode && (
-            <>
-              <button type="button" className="ms-btn-ghost" onClick={handleStartEdit} title="แก้ไข">✏️</button>
-              <button type="button" className="ms-btn-ghost" onClick={() => setPreviewOpen(o => !o)} title="ดู Preview">
-                {previewOpen ? '🙈' : '👁️'}
-              </button>
-            </>
-          )}
-          {note && !isProcessing && !editMode && (
-            <button type="button" className="ms-btn-ghost" onClick={handleDelete} title="ลบ">🗑️</button>
-          )}
+    <div className={`ms-panel${compact ? ' ms-panel-compact' : ''}`}>
+      {!compact && (
+        <div className="ms-panel-head">
+          <div className="ms-panel-title">📝 สรุปการประชุม (AI)</div>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {note && note.status === 'done' && !isProcessing && !editMode && (
+              <>
+                <button type="button" className="ms-btn-ghost" onClick={handleStartEdit} title="แก้ไข">✏️</button>
+                <button type="button" className="ms-btn-ghost" onClick={() => setPreviewOpen(o => !o)} title="ดู Preview">
+                  {previewOpen ? '🙈' : '👁️'}
+                </button>
+              </>
+            )}
+            {note && !isProcessing && !editMode && (
+              <button type="button" className="ms-btn-ghost" onClick={handleDelete} title="ลบ">🗑️</button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* In-progress UI — covers fresh starts AND resumed pipelines */}
       {isProcessing && (
@@ -416,21 +424,23 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
 
       {!note && !isProcessing && (
         <div className="ms-empty">
-          <div className="ms-empty-hint">
-            อัดเสียงประชุมหรืออัปโหลดไฟล์เสียงที่อัดไว้แล้ว — AI จะถอดเสียงและสรุปประเด็น/action items ให้
-            <br />
-            <small style={{opacity:0.7}}>
-              {(() => {
-                const s = getResumableUploadStatus();
-                return s.ok
-                  ? <>✅ Resumable upload พร้อม (สูงสุด 500MB) · ลบอัตโนมัติ 24 ชม.</>
-                  : <>⚠️ Resumable upload <b>ยังไม่พร้อม</b> — สูงสุด 50MB เท่านั้น<br />
-                     <span style={{color:'#B45309'}}>
-                       ตั้ง <code>VITE_SUPABASE_LEGACY_JWT</code> ใน Vercel เพื่อรองรับไฟล์ใหญ่กว่า
-                     </span></>;
-              })()}
-            </small>
-          </div>
+          {!compact && (
+            <div className="ms-empty-hint">
+              อัดเสียงประชุมหรืออัปโหลดไฟล์เสียงที่อัดไว้แล้ว — AI จะถอดเสียงและสรุปประเด็น/action items ให้
+              <br />
+              <small style={{opacity:0.7}}>
+                {(() => {
+                  const s = getResumableUploadStatus();
+                  return s.ok
+                    ? <>✅ Resumable upload พร้อม (สูงสุด 500MB) · ลบอัตโนมัติ 24 ชม.</>
+                    : <>⚠️ Resumable upload <b>ยังไม่พร้อม</b> — สูงสุด 50MB เท่านั้น<br />
+                       <span style={{color:'#B45309'}}>
+                         ตั้ง <code>VITE_SUPABASE_LEGACY_JWT</code> ใน Vercel เพื่อรองรับไฟล์ใหญ่กว่า
+                       </span></>;
+                })()}
+              </small>
+            </div>
+          )}
           <div className="ms-empty-actions">
             {!recording && !recordedBlob && (
               <>
@@ -493,7 +503,13 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
         </div>
       )}
 
-      {note && note.status === 'done' && !isProcessing && (
+      {compact && note && note.status === 'done' && !isProcessing && (
+        <div className="ms-status ms-status-done">
+          ✅ ถอดเสียงเสร็จแล้ว — กดปุ่ม "✨ สร้างสรุป AI" ด้านล่างเพื่อรวมทุกข้อมูล
+        </div>
+      )}
+
+      {!compact && note && note.status === 'done' && !isProcessing && (
         <div className="ms-result">
           {note.audio_url && (() => {
             const tl = formatTimeLeft(note.audio_expires_at);
