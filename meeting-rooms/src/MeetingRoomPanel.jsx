@@ -61,6 +61,20 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
 
   useEffect(() => { reload(); }, [reload]);
 
+  // First time the booker opens their own meeting: ensure they're registered
+  // as a joined attendee (so the count + invite UI + chat all light up).
+  useEffect(() => {
+    if (!booking?.id || !booking?.booker || !currentUser?.code || !currentUser?.name) return;
+    if (normName(booking.booker) !== normName(currentUser.name)) return;
+    supabase
+      .rpc('mtg_ensure_booker_joined', {
+        p_booking_id: booking.id,
+        p_employee_id: currentUser.code,
+      })
+      .then(() => reload())
+      .catch(() => { /* silent — non-fatal */ });
+  }, [booking?.id, booking?.booker, currentUser?.code, currentUser?.name, reload]);
+
   // Refresh attachments + mint fresh signed URLs (1h validity) so leaked
   // links die quickly. Re-runs whenever the booking changes.
   const refreshAttachments = useCallback(async () => {
