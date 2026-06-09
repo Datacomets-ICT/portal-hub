@@ -466,41 +466,6 @@ function BookingAttendeesAndFiles({ booking, isPast = false }) {
   const [attendees, setAttendees] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState(booking?.autoSummary || null);
-  const [summaryBusy, setSummaryBusy] = useState(false);
-  const [summaryErr, setSummaryErr] = useState(null);
-  const [includeFiles, setIncludeFiles] = useState(true);
-
-  useEffect(() => {
-    setSummary(booking?.autoSummary || null);
-    setSummaryErr(null);
-  }, [booking?.id, booking?.autoSummary]);
-
-  const generateSummary = async () => {
-    if (!booking?.id) return;
-    setSummaryBusy(true);
-    setSummaryErr(null);
-    try {
-      const r = await fetch('/api/meeting-auto-summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: booking.id, include_files: includeFiles }),
-      });
-      const raw = await r.text();
-      let data;
-      try { data = JSON.parse(raw); }
-      catch {
-        const snip = raw.slice(0, 120).replace(/\s+/g, ' ');
-        throw new Error(`เซิร์ฟเวอร์ตอบไม่ใช่ JSON (${r.status}): ${snip}`);
-      }
-      if (!data.ok) throw new Error(data.error || 'สรุปไม่สำเร็จ');
-      setSummary(data.summary);
-    } catch (e) {
-      setSummaryErr(e.message || 'สรุปไม่สำเร็จ');
-    } finally {
-      setSummaryBusy(false);
-    }
-  };
 
   useEffect(() => {
     if (!bookingId) return;
@@ -597,96 +562,15 @@ function BookingAttendeesAndFiles({ booking, isPast = false }) {
       {isPast && (
         <section className="bm-extra-section">
           <div className="bm-extra-head">🤖 สรุปการประชุม (AI)</div>
-          {summary ? (
-            <div className="bm-summary-card">
-              {summary.tldr && (
-                <div className="mtg-summary-tldr">
-                  <span className="mtg-summary-label">TL;DR</span>
-                  <span>{summary.tldr}</span>
-                </div>
-              )}
-              {summary.key_points?.length > 0 && (
-                <div className="mtg-summary-block">
-                  <div className="mtg-summary-label">ประเด็นสำคัญ</div>
-                  <ul>{summary.key_points.map((p, i) => <li key={i}>{p}</li>)}</ul>
-                </div>
-              )}
-              {summary.decisions?.length > 0 && (
-                <div className="mtg-summary-block">
-                  <div className="mtg-summary-label">ข้อตัดสินใจ</div>
-                  <ul>{summary.decisions.map((p, i) => <li key={i}>{p}</li>)}</ul>
-                </div>
-              )}
-              {summary.action_items?.length > 0 && (
-                <div className="mtg-summary-block">
-                  <div className="mtg-summary-label">Action Items</div>
-                  <ul>
-                    {summary.action_items.map((a, i) => (
-                      <li key={i}>
-                        {a.task}
-                        {a.owner && <span className="mtg-owner"> · {a.owner}</span>}
-                        {a.due && <span className="mtg-due"> · กำหนด {a.due}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {summary.next_steps?.length > 0 && (
-                <div className="mtg-summary-block">
-                  <div className="mtg-summary-label">ขั้นถัดไป</div>
-                  <ul>{summary.next_steps.map((p, i) => <li key={i}>{p}</li>)}</ul>
-                </div>
-              )}
-              <div className="mtg-summary-files-used">
-                <span style={{ marginRight: 6 }}>📥 แหล่งข้อมูลที่ใช้:</span>
-                <span className="mtg-file-used mtg-file-ok">agenda + chat + meta</span>
-                {summary._used_audio && <span className="mtg-file-used mtg-file-ok">🎙️ transcript เสียง</span>}
-                {(summary._files || []).map((f, i) => (
-                  <span key={i} className={`mtg-file-used mtg-file-${f.status === 'ok' || f.status === 'truncated' ? 'ok' : 'skip'}`}>
-                    {f.file_name}
-                    {f.status === 'truncated' && ' (ตัดท้าย)'}
-                    {f.status === 'no-text' && ' (อ่านไม่ได้)'}
-                  </span>
-                ))}
+          <div className="bm-summary-wip">
+            <div className="bm-summary-wip-icon">🚧</div>
+            <div>
+              <div className="bm-summary-wip-title">ระบบกำลังพัฒนา</div>
+              <div className="bm-summary-wip-desc">
+                การสรุปประชุมอัตโนมัติยังอยู่ระหว่างการพัฒนา — เร็ว ๆ นี้
               </div>
-              <div className="bm-summary-actions">
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={generateSummary}
-                  disabled={summaryBusy}
-                >
-                  {summaryBusy ? '⏳ กำลังสรุป...' : '🔄 สร้างใหม่'}
-                </button>
-              </div>
-              {summaryErr && <div className="view-error" style={{ marginTop: 10 }}>{summaryErr}</div>}
             </div>
-          ) : (
-            <div className="bm-summary-empty">
-              <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--fg-2)' }}>
-                ยังไม่มีสรุปสำหรับการประชุมนี้ — กดเพื่อให้ AI สรุปจาก meta · agenda · แชท
-                {files.length > 0 ? ` · ไฟล์แนบ ${files.length} ไฟล์` : ''} · transcript เสียง (ถ้ามี)
-              </p>
-              {files.length > 0 && (
-                <label className="mtg-summary-toggle" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 10 }}>
-                  <input type="checkbox" checked={includeFiles} onChange={(e) => setIncludeFiles(e.target.checked)} />
-                  <span>รวมเนื้อหาไฟล์แนบ ({files.length} ไฟล์) เข้าไปด้วย</span>
-                </label>
-              )}
-              <button
-                type="button"
-                className="btn-primary bm-summary-open"
-                onClick={generateSummary}
-                disabled={summaryBusy}
-              >
-                {summaryBusy ? '⏳ กำลังสรุป...' : '✨ สร้างสรุป AI'}
-              </button>
-              <div className="mtg-summary-quota" style={{ marginTop: 8, fontSize: 12, color: 'var(--fg-3)' }}>
-                ℹ️ ใช้ Gemini Flash (ฟรี) · จำกัด 15 ครั้ง/นาที · <b>1,500 ครั้ง/วัน</b> ทั้งบริษัท
-              </div>
-              {summaryErr && <div className="view-error" style={{ marginTop: 10 }}>{summaryErr}</div>}
-            </div>
-          )}
+          </div>
         </section>
       )}
     </div>
@@ -843,7 +727,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
         <div className="modal-body">
           {isPast && (
             <div className="past-meeting-banner">
-              ⏱ <b>ประชุมผ่านไปแล้ว</b> — แก้ไขรายละเอียดไม่ได้ ใช้ได้แค่ "สรุปการประชุม" ด้านล่าง
+              ⏱ <b>ประชุมผ่านไปแล้ว</b> — แก้ไขรายละเอียดไม่ได้
             </div>
           )}
           <fieldset className="booking-form-fields" disabled={isPast}>
@@ -1013,7 +897,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
             // Single "Close" button instead of save/delete/cancel.
             <>
               <div style={{ flex: 1, fontSize: '12.5px', color: 'var(--fg-3)' }}>
-                ⏱ ประชุมผ่านไปแล้ว — แก้ไขรายละเอียดไม่ได้ ใช้ได้แค่สรุปการประชุม
+                ⏱ ประชุมผ่านไปแล้ว — แก้ไขรายละเอียดไม่ได้
               </div>
               <button className="btn-primary" onClick={onClose}>ปิด</button>
             </>

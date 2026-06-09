@@ -4135,3 +4135,29 @@ body.ms-preview-open .modal-backdrop {
   justify-content: flex-end;
   margin-top: 10px;
 }
+
+/* Work-in-progress placeholder for AI summary (past meetings) */
+.bm-summary-wip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: oklch(0.97 0.03 250);
+  border: 1px dashed oklch(0.75 0.08 250);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.bm-summary-wip-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+.bm-summary-wip-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: oklch(0.35 0.12 250);
+  margin-bottom: 2px;
+}
+.bm-summary-wip-desc {
+  font-size: 13px;
+  color: var(--fg-2);
+  line-height: 1.5;
+}
