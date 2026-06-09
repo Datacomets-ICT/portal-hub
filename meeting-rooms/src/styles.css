@@ -3972,3 +3972,28 @@ body.ms-preview-open .modal-backdrop {
   background: var(--bg-2);
   color: var(--fg);
 }
+
+/* Upcoming-meeting variant of the active-meeting-badge — softer amber
+   color + slower blink to differentiate from the live red one. */
+.active-meeting-badge.is-upcoming {
+  background: oklch(0.96 0.07 80);
+  border-color: oklch(0.78 0.16 80);
+  color: oklch(0.35 0.18 60);
+  animation: amb-pulse-upcoming 3s ease-in-out infinite;
+}
+.active-meeting-badge.is-upcoming:hover { background: oklch(0.94 0.09 80); }
+.active-meeting-badge.is-upcoming .amb-dot {
+  background: oklch(0.7 0.18 70);
+  animation: amb-blink-upcoming 1.8s ease-in-out infinite;
+}
+.active-meeting-badge.is-upcoming .amb-time {
+  border-left-color: oklch(0.78 0.16 80);
+}
+@keyframes amb-blink-upcoming {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(0.7 0.18 70 / 0.6); }
+  50%      { opacity: 0.6; box-shadow: 0 0 0 5px oklch(0.7 0.18 70 / 0); }
+}
+@keyframes amb-pulse-upcoming {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.78 0.16 80 / 0.35); }
+  50%      { box-shadow: 0 0 0 5px oklch(0.78 0.16 80 / 0); }
+}
