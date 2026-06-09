@@ -4093,3 +4093,15 @@ body.ms-preview-open .modal-backdrop {
   color: oklch(0.35 0.18 25);
 }
 .bm-attendee-noshow { opacity: 0.75; }
+
+/* Banner shown while a meeting is in progress (started but not ended) */
+.mt-locked-banner {
+  background: oklch(0.96 0.07 80);
+  border: 1px solid oklch(0.78 0.16 80);
+  color: oklch(0.35 0.18 60);
+  padding: 9px 13px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}

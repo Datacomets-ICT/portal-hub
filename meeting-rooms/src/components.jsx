@@ -660,6 +660,27 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
     } catch { return false; }
   })();
 
+  // Once the meeting STARTS (but isn't past yet), lock the core slot
+  // fields — start / end / attendee count / purpose — but leave title
+  // editable and let invitees still be added via the popout meeting
+  // window. Past meetings are already covered by isPast.
+  const isStarted = (() => {
+    if (!initial?.id || !date) return false;
+    try {
+      const baseDate = new Date(date);
+      const initialStart = initial.start ?? start;
+      const startTime = new Date(
+        baseDate.getFullYear(),
+        baseDate.getMonth(),
+        baseDate.getDate(),
+        Math.floor(initialStart / 60),
+        initialStart % 60
+      );
+      return startTime.getTime() <= Date.now();
+    } catch { return false; }
+  })();
+  const lockSlot = isPast || isStarted;
+
   const canSave = title.trim() && booker.trim() && end > start && !hasConflict && !isPast;
 
   const filteredEmp = employees
@@ -699,22 +720,28 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
             <input className="field-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="เช่น Weekly Sync, Product Review" autoFocus readOnly={isPast} style={isPast ? {background:'var(--surface-2)',cursor:'not-allowed'} : undefined} />
           </label>
 
+          {isStarted && !isPast && (
+            <div className="mt-locked-banner">
+              ⏱ <b>ประชุมเริ่มแล้ว</b> — เวลาเริ่ม/สิ้นสุด · จำนวนคน · วัตถุประสงค์ แก้ไม่ได้แล้ว (เชิญคนเพิ่มได้ผ่าน "เข้าร่วมประชุม")
+            </div>
+          )}
+
           <div className="field-row">
             <label className="field">
               <span className="field-label">เริ่ม</span>
-              <select className="field-input" value={start} onChange={(e) => setStart(+e.target.value)}>
+              <select className="field-input" value={start} onChange={(e) => setStart(+e.target.value)} disabled={lockSlot}>
                 {timeOptions.filter((t) => t < DAY_END).map((t) => <option key={t} value={t}>{fmtTimeColon(t)}</option>)}
               </select>
             </label>
             <label className="field">
               <span className="field-label">สิ้นสุด</span>
-              <select className="field-input" value={end} onChange={(e) => setEnd(+e.target.value)}>
+              <select className="field-input" value={end} onChange={(e) => setEnd(+e.target.value)} disabled={lockSlot}>
                 {timeOptions.filter((t) => t > start).map((t) => <option key={t} value={t}>{fmtTimeColon(t)}</option>)}
               </select>
             </label>
             <label className="field">
               <span className="field-label">จำนวนคน</span>
-              <input type="number" className="field-input" min={1} max={room.seats} value={attendees} onChange={(e) => setAttendees(+e.target.value)} />
+              <input type="number" className="field-input" min={1} max={room.seats} value={attendees} onChange={(e) => setAttendees(+e.target.value)} disabled={lockSlot} />
             </label>
           </div>
 
@@ -772,7 +799,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
           <div className="field-row">
             <label className="field">
               <span className="field-label">วัตถุประสงค์{isPast && <em style={{fontWeight:400,fontSize:11,color:'#9aa7bd',marginLeft:6}}>(ล็อก)</em>}</span>
-              <select className="field-input" value={purpose} onChange={(e) => setPurpose(e.target.value)} disabled={isPast} style={isPast ? {background:'var(--surface-2)',cursor:'not-allowed'} : undefined}>
+              <select className="field-input" value={purpose} onChange={(e) => setPurpose(e.target.value)} disabled={lockSlot} style={lockSlot ? {background:'var(--surface-2)',cursor:'not-allowed'} : undefined}>
                 <option>ประชุมภายใน</option>
                 <option>รับรองลูกค้า</option>
                 <option>สัมภาษณ์งาน</option>
