@@ -349,6 +349,23 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
     }
   };
 
+  const kickAttendee = async (att) => {
+    const label = att.first_name ? `${att.first_name} ${att.last_name || ''}`.trim() : att.employee_id;
+    if (!confirm(`เอาออก ${label} จากประชุมนี้?`)) return;
+    try {
+      const { error } = await supabase.rpc('mtg_remove_attendee', {
+        p_booking_id: booking.id,
+        p_target_id: att.employee_id,
+        p_requester_id: currentUser.code,
+      });
+      if (error) throw error;
+      showToast(`เอา ${label} ออกแล้ว`);
+      reload();
+    } catch (err) {
+      showToast(err.message || 'เอาออกไม่สำเร็จ', 'err');
+    }
+  };
+
   const setMyStatus = async (status) => {
     if (!currentUser?.code) return;
     setBusy(true);
@@ -470,6 +487,9 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
                   .map((s) => (s || '').trim())
                   .find(Boolean) || '?';
                 const initial = seedRaw.charAt(0).toUpperCase();
+                // Booker can kick anyone except themselves. Comparison
+                // by employee_id is safer than name normalization.
+                const canKick = isBooker && a.employee_id !== currentUser?.code;
                 return (
                   <li key={a.employee_id} className={`mtg-attendee mtg-attendee-${a.status}`}>
                     <div className="mtg-attendee-avatar">{initial}</div>
@@ -483,6 +503,17 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
                     <span className={`mtg-status-pill mtg-status-${a.status}`}>
                       {a.status === 'joined' ? 'เข้าร่วม' : a.status === 'declined' ? 'ปฏิเสธ' : 'รอตอบ'}
                     </span>
+                    {canKick && (
+                      <button
+                        type="button"
+                        className="mtg-kick-btn"
+                        onClick={() => kickAttendee(a)}
+                        title="เตะออกจากประชุม"
+                        aria-label="เตะออก"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </li>
                 );
               })}
@@ -611,43 +642,8 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
           </section>
         )}
 
-        {/* Agenda (Phase 3) — visible to all, editable by booker/joined */}
-        {(agenda.length > 0 || isJoined) && (
-          <section className="mtg-room-section">
-            <div className="mtg-room-section-head">📋 วาระการประชุม</div>
-            {agenda.length === 0 ? (
-              <div className="mtg-room-empty">ยังไม่มีวาระ — เพิ่มหัวข้อด้านล่าง</div>
-            ) : (
-              <ul className="mtg-agenda-list">
-                {agenda.map((it) => (
-                  <li key={it.id} className={`mtg-agenda-item ${it.done ? 'done' : ''}`}>
-                    <input
-                      type="checkbox" checked={!!it.done}
-                      onChange={() => toggleAgendaItem(it.id)}
-                      disabled={!isJoined || isPast}
-                    />
-                    <span className="mtg-agenda-text">{it.text}</span>
-                    {isJoined && !isPast && (
-                      <button className="mtg-agenda-x" onClick={() => removeAgendaItem(it.id)} title="ลบ">×</button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {isJoined && !isPast && (
-              <div className="mtg-agenda-input-row">
-                <input
-                  className="mtg-invite-input"
-                  placeholder="เพิ่มหัวข้อใหม่ + Enter"
-                  value={agendaDraft}
-                  onChange={(e) => setAgendaDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAgendaItem(); } }}
-                />
-                <button className="btn-primary" onClick={addAgendaItem} disabled={!agendaDraft.trim()}>เพิ่ม</button>
-              </div>
-            )}
-          </section>
-        )}
+        {/* Agenda section removed per user request — file attachments +
+            chat are enough for tracking what was discussed. */}
 
         {/* Files (Phase 3) */}
         {(attachments.length > 0 || isJoined) && (

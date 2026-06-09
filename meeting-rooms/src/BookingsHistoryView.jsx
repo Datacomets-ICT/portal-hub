@@ -4,7 +4,6 @@ import {
   fetchBookingsByDateRange,
 } from './api/bookings';
 import { fmtTimeColon } from './components.jsx';
-import BookingSummaryModal from './BookingSummaryModal.jsx';
 
 const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const THAI_MONTHS_LONG = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
@@ -232,7 +231,6 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null); // 'YYYY-MM-DD' or null
-  const [summaryFor, setSummaryFor] = useState(null);   // booking obj or null
 
   const roomMap = useMemo(() => Object.fromEntries(rooms.map((r) => [r.id, r])), [rooms]);
   // CSV bookings often have double spaces between first/last name and may also
@@ -410,14 +408,6 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
         </div>
       </div>
 
-      {summaryFor && (
-        <BookingSummaryModal
-          booking={summaryFor}
-          attachments={[]}
-          onClose={() => setSummaryFor(null)}
-        />
-      )}
-
       {selectedDay && (
         <DayDrawer
           day={selectedDayDate}
@@ -426,7 +416,6 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
           empByName={empByName}
           currentUser={currentUser}
           onClose={() => setSelectedDay(null)}
-          onOpenSummary={(b) => setSummaryFor(b)}
           onEditBooking={(b) => {
             onEditBooking(b, roomMap[b.roomId]);
             setSelectedDay(null);
@@ -437,7 +426,7 @@ function CalendarView({ rooms, employees, currentUser, onEditBooking, refreshKey
   );
 }
 
-function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, onEditBooking, onOpenSummary }) {
+function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, onEditBooking }) {
   const lookupEmp = (booker) => {
     const collapse = (s) => (s || '').replace(/\s+/g, ' ').trim();
     const nospace  = (s) => (s || '').replace(/\s+/g, '');
@@ -498,23 +487,13 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
                 </>
               );
               return isMine ? (
-                <div key={b.id} className="cdi-mine-wrap">
-                  <button
-                    type="button"
-                    className="cal-drawer-item is-mine"
-                    onClick={() => onEditBooking(b)}
-                  >
-                    {inner}
-                  </button>
-                  <button
-                    type="button"
-                    className="cdi-summary-pill"
-                    onClick={() => onOpenSummary?.(b)}
-                    title="สรุป AI ของการประชุมนี้"
-                  >
-                    🤖 ดูสรุป AI
-                  </button>
-                </div>
+                <button
+                  key={b.id}
+                  className="cal-drawer-item is-mine"
+                  onClick={() => onEditBooking(b)}
+                >
+                  {inner}
+                </button>
               ) : (
                 <div key={b.id} className="cal-drawer-item is-other">
                   {inner}
