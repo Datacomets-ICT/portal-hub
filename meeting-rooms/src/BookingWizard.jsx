@@ -191,6 +191,27 @@ export default function BookingWizard({
     };
   }, [open, bookingDate]);
 
+  // Keep start/end consistent:
+  //   1. If today + start is before now, bump start to the next 15-min slot
+  //   2. end must always be > start (auto-bump to start + 60 min when not)
+  useEffect(() => {
+    if (!open) return;
+    const today = ymd(new Date());
+    if (bookingDate === today) {
+      const now = new Date();
+      const minNow = now.getHours() * 60 + now.getMinutes();
+      // Round up to next 15-min slot
+      const nextSlot = Math.ceil(minNow / 15) * 15;
+      if (start < nextSlot && nextSlot < DAY_END) {
+        setStart(nextSlot);
+        return; // the next render will fix end
+      }
+    }
+    if (end <= start) {
+      setEnd(Math.min(DAY_END, start + 60));
+    }
+  }, [open, bookingDate, start, end]);
+
   const totalPeople = (attendees || 0) + (customerCount || 0);
 
   const availableLocations = useMemo(() => {
