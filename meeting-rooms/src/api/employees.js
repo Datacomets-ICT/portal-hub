@@ -13,6 +13,7 @@ export async function fetchEmployees() {
     nickname: e.nickname,
     dept: e.department,
     position: e.position,
+    company: e.company,
   }));
 }
 

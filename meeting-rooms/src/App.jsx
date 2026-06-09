@@ -64,7 +64,7 @@ function RecordingIndicatorWithJump() {
 
 function AppInner() {
   const TWEAKS = {
-    density: 'comfort',
+    density: 'cozy',
     accentHue: 45,
     showNowLine: true,
     showRoomId: true,

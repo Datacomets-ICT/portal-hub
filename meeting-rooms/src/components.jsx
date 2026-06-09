@@ -417,6 +417,7 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
             </div>
             <div className="mt-details-meta">
               รหัส {employee.code}
+              {employee.company && <> · <b>{employee.company}</b></>}
               {employee.dept && <> · {employee.dept}</>}
             </div>
             {employee.position && (
@@ -433,7 +434,13 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
         </div>
       )}
 
-      <MeetingSummaryPanel booking={booking} currentUser={currentUser} room={room} employee={employee} />
+      {/* Audio recording + AI summary belongs to the meeting room, not the
+          read-only inspect card. Only the booker sees it here (so they can
+          start a recording from the modal). Everyone else uses the popout
+          "หน้าต่างประชุม" via the join button. */}
+      {currentUser?.name
+        && normName(booking.booker) === normName(currentUser.name)
+        && <MeetingSummaryPanel booking={booking} currentUser={currentUser} room={room} employee={employee} />}
     </div>
   );
 }
@@ -723,10 +730,14 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
 
           </fieldset>
 
-          {/* Meeting summary panel — outside the disabled fieldset so it
-              stays interactive even when the meeting has already ended.
-              Only shown for existing bookings (has an id). */}
-          {initial?.id && (
+          {/* Meeting summary panel — only the original booker sees the
+              record/upload controls here. Invitees use the popout
+              "หน้าต่างประชุม" to record (they can join via the button
+              below). */}
+          {initial?.id
+            && currentUser?.name
+            && normName(initial?.booker || booker) === normName(currentUser.name)
+            && (
             <MeetingSummaryPanel
               booking={{ id: initial.id, bookingDate: initial.bookingDate, ...initial }}
               currentUser={currentUser}
@@ -753,16 +764,33 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
                   ลบการจอง
                 </button>
               )}
-              {initial?.id && onJoinMeeting && (
-                <button
-                  className="btn-ghost"
-                  style={{ background: 'oklch(0.95 0.06 200)', color: 'oklch(0.35 0.15 230)', fontWeight: 600 }}
-                  onClick={() => onJoinMeeting(initial, room)}
-                  title="เปิดหน้าต่างประชุม"
-                >
-                  🎯 เข้าร่วมประชุม
-                </button>
-              )}
+              {(() => {
+                // Only allow joining during the meeting window itself
+                // (with a 10-min grace before start so people can prep).
+                if (!initial?.id || !onJoinMeeting || !date) return null;
+                const baseDate = new Date(date);
+                const minNow = new Date().getHours() * 60 + new Date().getMinutes();
+                const todayStr = (() => {
+                  const d = new Date();
+                  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                })();
+                const bookingDateStr = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')}`;
+                const isToday = bookingDateStr === todayStr;
+                const inWindow = isToday
+                  && minNow >= (initial.start || 0) - 10  // 10-min pre-start grace
+                  && minNow < (initial.end || 0);
+                if (!inWindow) return null;
+                return (
+                  <button
+                    className="btn-ghost"
+                    style={{ background: 'oklch(0.95 0.06 200)', color: 'oklch(0.35 0.15 230)', fontWeight: 600 }}
+                    onClick={() => onJoinMeeting(initial, room)}
+                    title="เปิดหน้าต่างประชุม (เฉพาะระหว่างเวลาที่ประชุม)"
+                  >
+                    🎯 เข้าร่วมประชุม
+                  </button>
+                );
+              })()}
               <div style={{ flex: 1 }} />
               <button className="btn-ghost" onClick={onClose}>ยกเลิก</button>
               <button
