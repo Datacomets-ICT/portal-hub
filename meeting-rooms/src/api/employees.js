@@ -14,6 +14,7 @@ export async function fetchEmployees() {
     dept: e.department,
     position: e.position,
     company: e.company,
+    avatar_url: e.avatar_url,
   }));
 }
 

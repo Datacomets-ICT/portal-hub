@@ -58,7 +58,7 @@ function AttendeePicker({ picked, onChange, currentUser, max = 999, onLimitHit }
   };
 
   return (
-    <div className="attendee-picker" style={{ marginTop: 14 }}>
+    <div className="attendee-picker attendee-picker-wide" style={{ marginTop: 14 }}>
       <div className="field-label" style={{ marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span>ผู้เข้าร่วม (พิมพ์เพื่อค้น · เลือกจาก dropdown)</span>
         <span style={{
@@ -84,22 +84,35 @@ function AttendeePicker({ picked, onChange, currentUser, max = 999, onLimitHit }
         />
         {open && matches.length > 0 && (
           <div className="attendee-dropdown">
-            {matches.map((e) => (
-              <button
-                key={e.employee_id}
-                type="button"
-                className="attendee-option"
-                onMouseDown={(ev) => { ev.preventDefault(); add(e); }}
-              >
-                <div className="attendee-option-name">
-                  {[e.first_name, e.last_name].filter(Boolean).join(' ')}
-                  {e.nickname && <span style={{ color: 'var(--fg-3)' }}> ({e.nickname})</span>}
-                </div>
-                <div className="attendee-option-sub">
-                  {e.employee_id} {e.department && <>· {e.department}</>}
-                </div>
-              </button>
-            ))}
+            {matches.map((e) => {
+              const initial = (e.nickname || e.first_name || e.employee_id || '?')
+                .trim().charAt(0).toUpperCase() || '?';
+              return (
+                <button
+                  key={e.employee_id}
+                  type="button"
+                  className="attendee-option"
+                  onMouseDown={(ev) => { ev.preventDefault(); add(e); }}
+                >
+                  <div className="attendee-option-avatar">
+                    {e.avatar_url
+                      ? <img src={e.avatar_url} alt="" />
+                      : <span>{initial}</span>}
+                  </div>
+                  <div className="attendee-option-body">
+                    <div className="attendee-option-name">
+                      {[e.first_name, e.last_name].filter(Boolean).join(' ')}
+                      {e.nickname && <span style={{ color: 'var(--fg-3)' }}> ({e.nickname})</span>}
+                    </div>
+                    <div className="attendee-option-sub">
+                      {e.employee_id}
+                      {e.company && <> · <b>{e.company}</b></>}
+                      {e.department && <> · {e.department}</>}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
