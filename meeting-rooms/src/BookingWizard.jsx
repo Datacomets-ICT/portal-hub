@@ -173,7 +173,6 @@ export default function BookingWizard({
       setSelectedRoom(null);
       setTitle('');
       setCompany('');
-      setEquipment([]);
       setRefreshments([]);
     }
   }, [open]);
