@@ -11,7 +11,7 @@ import { supabase } from './lib/supabase.js';
 
 // Searchable employee picker — typing filters via list_employees_public RPC,
 // pick from dropdown to add as invitee. Used inside BookingWizard.
-function AttendeePicker({ picked, onChange, currentUser }) {
+function AttendeePicker({ picked, onChange, currentUser, max = 999, onLimitHit }) {
   const [employees, setEmployees] = useState([]);
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -39,6 +39,10 @@ function AttendeePicker({ picked, onChange, currentUser }) {
   }, [employees, query, picked, currentUser?.code]);
 
   const add = (e) => {
+    if (picked.length >= max) {
+      onLimitHit && onLimitHit();
+      return;
+    }
     onChange([...picked, {
       code: e.employee_id,
       name: [e.first_name, e.last_name].filter(Boolean).join(' '),
@@ -55,18 +59,28 @@ function AttendeePicker({ picked, onChange, currentUser }) {
 
   return (
     <div className="attendee-picker" style={{ marginTop: 14 }}>
-      <div className="field-label" style={{ marginBottom: 6 }}>
-        ผู้เข้าร่วม (พิมพ์เพื่อค้น · เลือกจาก dropdown)
+      <div className="field-label" style={{ marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span>ผู้เข้าร่วม (พิมพ์เพื่อค้น · เลือกจาก dropdown)</span>
+        <span style={{
+          fontSize: 11,
+          color: picked.length >= max ? 'oklch(0.5 0.2 25)' : 'var(--fg-3)',
+          fontWeight: picked.length >= max ? 600 : 400,
+        }}>
+          {picked.length} / {max} คน (ไม่นับตัวคุณ)
+        </span>
       </div>
       <div style={{ position: 'relative' }}>
         <input
           type="text"
           className="field-input"
-          placeholder="พิมพ์ชื่อ / ชื่อเล่น / รหัส / แผนก"
+          placeholder={picked.length >= max
+            ? `เต็มแล้ว (${max} คน) — เพิ่มจำนวนคนด้านบนถ้าต้องการเชิญเพิ่ม`
+            : 'พิมพ์ชื่อ / ชื่อเล่น / รหัส / แผนก'}
           value={query}
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
+          disabled={picked.length >= max}
         />
         {open && matches.length > 0 && (
           <div className="attendee-dropdown">
@@ -211,6 +225,15 @@ export default function BookingWizard({
       setEnd(Math.min(DAY_END, start + 60));
     }
   }, [open, bookingDate, start, end]);
+
+  // If user lowers "จำนวนคน" below current picked invitees, trim the
+  // picked list so we never end up with 6 invitees but a 4-person meeting.
+  useEffect(() => {
+    const maxInvitees = Math.max(0, (attendees || 0) - 1);
+    if (pickedAttendees.length > maxInvitees) {
+      setPickedAttendees((prev) => prev.slice(0, maxInvitees));
+    }
+  }, [attendees, pickedAttendees.length]);
 
   const totalPeople = (attendees || 0) + (customerCount || 0);
 
@@ -460,6 +483,10 @@ export default function BookingWizard({
               picked={pickedAttendees}
               onChange={setPickedAttendees}
               currentUser={currentUser}
+              max={Math.max(0, (attendees || 0) - 1)}
+              onLimitHit={() =>
+                toast?.(`เชิญได้สูงสุด ${Math.max(0, attendees - 1)} คน — เพิ่ม "จำนวนคน" ด้านบนก่อน`)
+              }
             />
 
             {/* Title moved up here per user request — used to live in the
