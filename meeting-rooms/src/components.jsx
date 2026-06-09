@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
+import { supabase } from './lib/supabase.js';
 
 export const DAY_START = 8 * 60 + 30;   // 08:30
 export const DAY_END = 20 * 60 + 30;    // 20:30
@@ -457,6 +458,103 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
   );
 }
 
+// Own-booking only: shows the attendee list + attached files inside the
+// booking modal so the owner can review them without opening the popout
+// meeting window. Pulls fresh from the same RPCs the popout uses.
+function BookingAttendeesAndFiles({ bookingId }) {
+  const [attendees, setAttendees] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!bookingId) return;
+    let alive = true;
+    setLoading(true);
+    Promise.all([
+      supabase.rpc('mtg_list_attendees', { p_booking_id: bookingId }),
+      supabase.rpc('mtg_list_attachments', { p_booking_id: bookingId }),
+    ]).then(async ([attRes, fileRes]) => {
+      const baseFiles = fileRes.data || [];
+      // Mint fresh signed URLs (bucket is private)
+      const filesWithSigned = await Promise.all(baseFiles.map(async (f) => {
+        if (!f.storage_path) return f;
+        try {
+          const { data } = await supabase.storage
+            .from('meeting-files')
+            .createSignedUrl(f.storage_path, 3600);
+          return { ...f, signed_url: data?.signedUrl || '' };
+        } catch { return f; }
+      }));
+      if (!alive) return;
+      setAttendees(attRes.data || []);
+      setFiles(filesWithSigned);
+      setLoading(false);
+    }).catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [bookingId]);
+
+  if (loading && attendees.length === 0 && files.length === 0) return null;
+  if (attendees.length === 0 && files.length === 0) return null;
+
+  return (
+    <div className="bm-extra">
+      {attendees.length > 0 && (
+        <section className="bm-extra-section">
+          <div className="bm-extra-head">👥 ผู้เข้าร่วม ({attendees.length} คน)</div>
+          <ul className="bm-attendee-list">
+            {attendees.map((a) => {
+              const fullName = [a.first_name, a.last_name].filter(Boolean).join(' ') || a.employee_id;
+              const sub = [a.position, a.department].filter(Boolean).join(' · ');
+              const initial = ([a.nickname, a.first_name, a.employee_id, '?']
+                .map((s) => (s || '').trim()).find(Boolean) || '?').charAt(0).toUpperCase();
+              const statusLabel = a.status === 'joined' ? 'เข้าร่วม'
+                : a.status === 'declined' ? 'ปฏิเสธ' : 'รอตอบ';
+              return (
+                <li key={a.employee_id} className={`bm-attendee bm-attendee-${a.status}`}>
+                  <div className="bm-attendee-avatar">{initial}</div>
+                  <div className="bm-attendee-info">
+                    <div className="bm-attendee-name">
+                      {fullName}
+                      {a.nickname && <span className="bm-attendee-nick"> ({a.nickname})</span>}
+                    </div>
+                    {sub && <div className="bm-attendee-sub">{sub}</div>}
+                  </div>
+                  <span className={`bm-attendee-status bm-status-${a.status}`}>{statusLabel}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {files.length > 0 && (
+        <section className="bm-extra-section">
+          <div className="bm-extra-head">📎 ไฟล์แนบ ({files.length})</div>
+          <ul className="bm-file-list">
+            {files.map((f) => (
+              <li key={f.id} className="bm-file-item">
+                <span className="bm-file-icon">📄</span>
+                <a
+                  className="bm-file-link"
+                  href={f.signed_url || f.public_url || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="ลิงก์หมดอายุใน 1 ชั่วโมง — refresh หน้านี้ถ้าโหลดไม่ได้"
+                >
+                  {f.file_name}
+                </a>
+                <span className="bm-file-meta">
+                  {f.size_bytes ? `${(f.size_bytes / 1024).toFixed(0)} KB · ` : ''}{f.uploader_name}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
 export function BookingModal({ open, onClose, onSave, room, date, initial, employees = [], roomBookings = [], currentUser = null, onJoinMeeting = null }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [start, setStart] = useState(initial?.start ?? 9 * 60);
@@ -742,9 +840,13 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
 
           </fieldset>
 
-          {/* Meeting summary + recording panel moved out — see
-              BookingsHistoryView's day drawer for "✨ สร้างสรุป AI".
-              Audio recording feature has been removed entirely. */}
+          {/* Own-booking only: attendees + attachments overview so the
+              owner can see who joined and what files were attached
+              without opening the popout meeting window. */}
+          {initial?.id
+            && currentUser?.name
+            && normName(initial.booker || booker) === normName(currentUser.name)
+            && <BookingAttendeesAndFiles bookingId={initial.id} />}
         </div>
 
         <div className="modal-foot">
