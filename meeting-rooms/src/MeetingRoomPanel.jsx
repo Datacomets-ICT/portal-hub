@@ -421,7 +421,7 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
           <div className="mtg-past-banner">
             ⏱ <b>ประชุมจบแล้ว</b>
             {endedAt && <span> · ปิดเอง {endedAt.getHours().toString().padStart(2, '0')}:{endedAt.getMinutes().toString().padStart(2, '0')}</span>}
-             — เพิ่มข้อความ/วาระ/ไฟล์ ใหม่ไม่ได้ แต่ดูของเก่ายังได้
+             — ข้อมูลจะเก็บไว้ <b>2 อาทิตย์</b>
           </div>
         )}
 
