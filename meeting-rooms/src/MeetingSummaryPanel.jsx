@@ -447,16 +447,20 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
                 <button type="button" className="ms-btn-primary" onClick={handleStartRecording}>
                   🎤 บันทึกเสียง
                 </button>
-                <button type="button" className="ms-btn-secondary" onClick={handleFilePick}>
-                  📁 อัปโหลดไฟล์
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="audio/*,video/webm,video/mp4"
-                  onChange={handleFileChange}
-                  style={{ display: 'none' }}
-                />
+                {!compact && (
+                  <>
+                    <button type="button" className="ms-btn-secondary" onClick={handleFilePick}>
+                      📁 อัปโหลดไฟล์
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*,video/webm,video/mp4"
+                      onChange={handleFileChange}
+                      style={{ display: 'none' }}
+                    />
+                  </>
+                )}
               </>
             )}
             {recording && (

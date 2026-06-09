@@ -464,9 +464,15 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
               {attendees.map((a) => {
                 const fullName = [a.first_name, a.last_name].filter(Boolean).join(' ') || a.employee_id;
                 const sub = [a.position, a.department].filter(Boolean).join(' · ');
+                // Pick first NON-whitespace character so trailing-space nicknames
+                // don't render an invisible avatar.
+                const seedRaw = [a.nickname, a.first_name, a.employee_id, '?']
+                  .map((s) => (s || '').trim())
+                  .find(Boolean) || '?';
+                const initial = seedRaw.charAt(0).toUpperCase();
                 return (
                   <li key={a.employee_id} className={`mtg-attendee mtg-attendee-${a.status}`}>
-                    <div className="mtg-attendee-avatar">{(a.nickname || a.first_name || a.employee_id || '?').charAt(0).toUpperCase()}</div>
+                    <div className="mtg-attendee-avatar">{initial}</div>
                     <div className="mtg-attendee-info">
                       <div className="mtg-attendee-name">
                         {fullName}

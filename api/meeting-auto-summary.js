@@ -10,8 +10,15 @@
 // a single broken parser (pdf-parse, in particular, can fail at module
 // init in serverless) doesn't kill the whole endpoint with a 500.
 
-const GEMINI_BASE  = 'https://generativelanguage.googleapis.com';
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com';
+// Google has been moving models in/out of the free tier without notice
+// — when the primary returns 429 with limit:0, retry through the
+// fallbacks below. All three accept the same generateContent payload.
+const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+];
 
 // Per-file safety cap so one giant Excel doesn't blow the prompt. Roughly
 // ~12k tokens at ~4 chars/token. Total prompt stays under ~80k tokens even
@@ -219,22 +226,33 @@ function buildPrompt(inputs, fileTexts = []) {
 async function callGemini(prompt) {
   const key = geminiKey();
   if (!key) throw new Error('GEMINI key not set');
-  const url = `${GEMINI_BASE}/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.3 },
-    }),
+  const body = JSON.stringify({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.3 },
   });
-  const text = await r.text();
-  if (!r.ok) throw new Error(`gemini: ${r.status} ${text}`);
-  const data = JSON.parse(text);
-  const out = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  // strip ```json fences if any
-  const cleaned = out.replace(/^```(?:json)?\n?|\n?```$/g, '').trim();
-  try { return JSON.parse(cleaned); } catch { return { tldr: cleaned, key_points: [], decisions: [], action_items: [], next_steps: [] }; }
+
+  let lastErr = null;
+  for (const model of GEMINI_MODELS) {
+    const url = `${GEMINI_BASE}/v1beta/models/${model}:generateContent?key=${key}`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    const text = await r.text();
+    if (r.ok) {
+      const data = JSON.parse(text);
+      const out = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const cleaned = out.replace(/^```(?:json)?\n?|\n?```$/g, '').trim();
+      try { return JSON.parse(cleaned); }
+      catch { return { tldr: cleaned, key_points: [], decisions: [], action_items: [], next_steps: [] }; }
+    }
+    // 429 / 403 / "limit: 0" mean this model isn't available on free tier
+    // for this key — try the next one. 5xx also worth retrying once.
+    lastErr = `gemini ${model}: ${r.status} ${text.slice(0, 300)}`;
+    if (r.status !== 429 && r.status !== 403 && r.status < 500) break;
+  }
+  throw new Error(lastErr || 'gemini failed');
 }
 
 export default async function handler(req, res) {
