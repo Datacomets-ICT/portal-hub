@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
+import BookingSummaryModal from './BookingSummaryModal.jsx';
 import { supabase } from './lib/supabase.js';
 
 export const DAY_START = 8 * 60 + 30;   // 08:30
@@ -461,10 +462,12 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
 // Own-booking only: shows the attendee list + attached files inside the
 // booking modal so the owner can review them without opening the popout
 // meeting window. Pulls fresh from the same RPCs the popout uses.
-function BookingAttendeesAndFiles({ bookingId, isPast = false }) {
+function BookingAttendeesAndFiles({ booking, isPast = false }) {
+  const bookingId = booking?.id;
   const [attendees, setAttendees] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -493,8 +496,8 @@ function BookingAttendeesAndFiles({ bookingId, isPast = false }) {
     return () => { alive = false; };
   }, [bookingId]);
 
-  if (loading && attendees.length === 0 && files.length === 0) return null;
-  if (attendees.length === 0 && files.length === 0) return null;
+  if (loading && attendees.length === 0 && files.length === 0 && !isPast) return null;
+  if (attendees.length === 0 && files.length === 0 && !isPast) return null;
 
   return (
     <div className="bm-extra">
@@ -556,6 +559,47 @@ function BookingAttendeesAndFiles({ bookingId, isPast = false }) {
             ))}
           </ul>
         </section>
+      )}
+
+      {isPast && (
+        <section className="bm-extra-section">
+          <div className="bm-extra-head">🤖 สรุปการประชุม (AI)</div>
+          {booking?.autoSummary ? (
+            <div className="bm-summary-card">
+              {booking.autoSummary.tldr && (
+                <div className="bm-summary-tldr"><b>TL;DR</b> · {booking.autoSummary.tldr}</div>
+              )}
+              <button
+                type="button"
+                className="btn-ghost bm-summary-open"
+                onClick={() => setSummaryOpen(true)}
+              >
+                📖 ดู / สร้างใหม่
+              </button>
+            </div>
+          ) : (
+            <div className="bm-summary-empty">
+              <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--fg-2)' }}>
+                ยังไม่มีสรุปสำหรับการประชุมนี้ — กดเพื่อให้ AI สรุปจากแชท · ไฟล์แนบ · transcript เสียง (ถ้ามี)
+              </p>
+              <button
+                type="button"
+                className="btn-primary bm-summary-open"
+                onClick={() => setSummaryOpen(true)}
+              >
+                ✨ สร้างสรุป AI
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {summaryOpen && (
+        <BookingSummaryModal
+          booking={booking}
+          attachments={files}
+          onClose={() => setSummaryOpen(false)}
+        />
       )}
     </div>
   );
@@ -872,7 +916,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
           {initial?.id
             && currentUser?.name
             && normName(initial.booker || booker) === normName(currentUser.name)
-            && <BookingAttendeesAndFiles bookingId={initial.id} isPast={isPast} />}
+            && <BookingAttendeesAndFiles booking={initial} isPast={isPast} />}
         </div>
 
         <div className="modal-foot">

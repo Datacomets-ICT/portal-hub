@@ -4105,3 +4105,26 @@ body.ms-preview-open .modal-backdrop {
   line-height: 1.45;
   margin-bottom: 10px;
 }
+
+/* AI-summary section inside BookingModal (past meetings, owner only) */
+.bm-summary-empty,
+.bm-summary-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.bm-summary-tldr {
+  font-size: 13.5px;
+  color: var(--fg-1);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.bm-summary-tldr b {
+  color: oklch(0.45 0.16 230);
+  margin-right: 4px;
+}
+.bm-summary-open {
+  width: 100%;
+  justify-content: center;
+}
