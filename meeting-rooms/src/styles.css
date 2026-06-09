@@ -4128,3 +4128,10 @@ body.ms-preview-open .modal-backdrop {
   width: 100%;
   justify-content: center;
 }
+
+/* Action row inside the inline summary card */
+.bm-summary-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
