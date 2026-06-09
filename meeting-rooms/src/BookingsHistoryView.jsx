@@ -498,18 +498,18 @@ function DayDrawer({ day, bookings, roomMap, empByName, currentUser, onClose, on
                 </>
               );
               return isMine ? (
-                <div key={b.id} className="cal-drawer-item is-mine cdi-stacked">
+                <div key={b.id} className="cdi-mine-wrap">
                   <button
                     type="button"
-                    className="cdi-stacked-main"
+                    className="cal-drawer-item is-mine"
                     onClick={() => onEditBooking(b)}
                   >
                     {inner}
                   </button>
                   <button
                     type="button"
-                    className="cdi-summary-btn"
-                    onClick={(e) => { e.stopPropagation(); onOpenSummary?.(b); }}
+                    className="cdi-summary-pill"
+                    onClick={() => onOpenSummary?.(b)}
                     title="สรุป AI ของการประชุมนี้"
                   >
                     🤖 ดูสรุป AI

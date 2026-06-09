@@ -3814,23 +3814,26 @@ body.ms-preview-open .modal-backdrop {
   text-align: center;
 }
 
-/* Own-booking drawer item: stacked layout with edit + summary buttons */
-.cal-drawer-item.cdi-stacked {
-  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+/* Own-booking drawer item: keep the original cal-drawer-item button
+   exactly as it was, and put a small "🤖 ดูสรุป AI" pill BELOW it
+   (separate element so we don't touch the original layout). */
+.cdi-mine-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.cdi-stacked-main {
-  display: flex; gap: 10px; padding: 12px 14px;
-  background: transparent; border: 0; text-align: left;
-  font: inherit; color: inherit; cursor: pointer; width: 100%;
-}
-.cdi-stacked-main:hover { background: oklch(0.97 0.06 50); }
-.cdi-summary-btn {
-  background: linear-gradient(135deg, oklch(0.94 0.06 280), oklch(0.97 0.03 280));
+.cdi-summary-pill {
+  align-self: flex-end;
+  background: linear-gradient(135deg, oklch(0.95 0.06 280), oklch(0.97 0.03 280));
   color: oklch(0.32 0.18 280);
-  border: 0; border-top: 1px solid oklch(0.85 0.1 280);
-  padding: 8px 14px; font-weight: 600; font-size: 12.5px;
-  font-family: inherit; cursor: pointer;
-  text-align: left;
-  display: flex; align-items: center; gap: 6px;
+  border: 1px solid oklch(0.85 0.1 280);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
 }
-.cdi-summary-btn:hover { background: linear-gradient(135deg, oklch(0.9 0.08 280), oklch(0.94 0.05 280)); }
+.cdi-summary-pill:hover {
+  background: linear-gradient(135deg, oklch(0.9 0.08 280), oklch(0.94 0.05 280));
+}
