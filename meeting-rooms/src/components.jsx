@@ -400,58 +400,59 @@ function ModalTimeline({
   );
 }
 
-// Click an existing booking in the modal timeline → render this inline card
+// Click an existing booking in the modal timeline → render this inline card.
+// Styling matches the .cal-drawer-item rows in BookingsHistoryView so the
+// "ดูข้อมูลคนจอง" look and feel is consistent across the app.
 function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
+  const isMine = currentUser?.name
+    && normName(booking.booker) === normName(currentUser.name);
+  const role = employee?.position || employee?.dept;
+  const bookerLabel = employee
+    ? `${employee.name}${employee.nickname ? ` (${employee.nickname})` : ''}${role ? ` · ${role}` : ''}`
+    : (booking.booker || '—');
+
   return (
-    <div className="mt-details">
-      <div className="mt-details-head">
-        <div className="mt-details-title">{booking.title}</div>
-        <button
-          type="button"
-          className="mt-details-close"
-          onClick={onClose}
-          aria-label="ปิด"
-        >
-          ✕
-        </button>
-      </div>
-      <div className="mt-details-time mono">
-        {fmtTimeColon(booking.start)}–{fmtTimeColon(booking.end)}
-        {booking.attendees ? ` · ${booking.attendees} คน` : ''}
-      </div>
-
-      {employee ? (
-        <div className="mt-details-booker">
-          <div className="booker-avatar">
-            {(employee.nickname || employee.name || '?')[0]}
-          </div>
-          <div className="mt-details-info">
-            <div className="mt-details-name">
-              {employee.name}
-              {employee.nickname && (
-                <span className="mt-details-nick"> ({employee.nickname})</span>
-              )}
-            </div>
-            <div className="mt-details-meta">
-              รหัส {employee.code}
-              {employee.company && <> · <b>{employee.company}</b></>}
-              {employee.dept && <> · {employee.dept}</>}
-            </div>
-            {employee.position && (
-              <div className="mt-details-pos">{employee.position}</div>
-            )}
-          </div>
+    <div className="mt-details-wrap">
+      <button
+        type="button"
+        className="mt-details-close-floating"
+        onClick={onClose}
+        aria-label="ปิด"
+      >
+        ✕
+      </button>
+      <div className={`cal-drawer-item ${isMine ? 'is-mine' : 'is-other'}`} style={{ cursor: 'default' }}>
+        <div className="cdi-time mono">
+          {fmtTimeColon(booking.start)}<br />
+          <span>{fmtTimeColon(booking.end)}</span>
         </div>
-      ) : (
-        <div className="mt-details-booker-fallback">
-          ผู้จอง: <b>{booking.booker || '—'}</b>
-          <div className="mt-details-hint">
-            (ไม่พบในทะเบียนพนักงานปัจจุบัน — อาจเป็น booking เก่า)
+        <div className="cdi-bar" />
+        <div className="cdi-main">
+          <div className="cdi-title">
+            {isMine ? booking.title : 'การประชุม'}
+            {isMine && <span className="bc-mine-tag">ของคุณ</span>}
+            {!isMine && <span className="bc-other-tag">ดูเท่านั้น</span>}
           </div>
+          {room && (
+            <div className="cdi-room">
+              {room.name || booking.roomId}
+              <span className="cdi-room-meta"> · {room.location || ''}{room.floor ? ` · ${room.floor}` : ''}</span>
+            </div>
+          )}
+          <div className="cdi-chips">
+            <span className="cdi-chip">👤 {bookerLabel}</span>
+            {employee?.code && <span className="cdi-chip mono">รหัส {employee.code}</span>}
+            {employee?.company && <span className="cdi-chip">🏢 {employee.company}</span>}
+            {booking.attendees > 0 && <span className="cdi-chip">👥 {booking.attendees}</span>}
+            {isMine && booking.purpose && <span className="cdi-chip">🎯 {booking.purpose}</span>}
+          </div>
+          {!employee && (
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 6, fontStyle: 'italic' }}>
+              (ไม่พบในทะเบียนพนักงานปัจจุบัน — อาจเป็น booking เก่า)
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Audio recording + AI summary moved to BookingsHistoryView drawer. */}
+      </div>
     </div>
   );
 }

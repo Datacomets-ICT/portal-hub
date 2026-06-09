@@ -432,7 +432,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
                 {(() => {
                   const s = getResumableUploadStatus();
                   return s.ok
-                    ? <>✅ Resumable upload พร้อม (สูงสุด 500MB) · ลบอัตโนมัติ 24 ชม.</>
+                    ? <>✅ Resumable upload พร้อม (สูงสุด 500MB) · ลบอัตโนมัติใน 14 วัน</>
                     : <>⚠️ Resumable upload <b>ยังไม่พร้อม</b> — สูงสุด 50MB เท่านั้น<br />
                        <span style={{color:'#B45309'}}>
                          ตั้ง <code>VITE_SUPABASE_LEGACY_JWT</code> ใน Vercel เพื่อรองรับไฟล์ใหญ่กว่า
@@ -535,7 +535,7 @@ export default function MeetingSummaryPanel({ booking, currentUser, room = null,
           })()}
           {!note.audio_url && (
             <div className="ms-audio-meta ms-audio-purged">
-              🗑 ไฟล์เสียงถูกลบอัตโนมัติแล้ว (เก็บไว้แค่ 24 ชม.) — สรุปด้านล่างยังใช้ได้
+              🗑 ไฟล์เสียงถูกลบอัตโนมัติแล้ว (เก็บไว้ 14 วัน) — สรุปด้านล่างยังใช้ได้
             </div>
           )}
 

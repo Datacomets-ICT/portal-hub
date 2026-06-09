@@ -39,15 +39,42 @@ async function listExpired(limit = 100) {
   return await r.json();
 }
 
-async function deleteFromStorage(paths) {
+async function deleteFromStorage(bucket, paths) {
   if (paths.length === 0) return;
-  const r = await sb(`/storage/v1/object/mtg-audio`, {
+  const r = await sb(`/storage/v1/object/${bucket}`, {
     method: 'DELETE',
     body: JSON.stringify({ prefixes: paths }),
   });
   if (!r.ok) {
     const txt = (await r.text()).slice(0, 200);
-    console.warn(`[cleanup] storage delete ${r.status}: ${txt}`);
+    console.warn(`[cleanup] storage delete ${bucket} ${r.status}: ${txt}`);
+  }
+}
+
+async function listExpiredAttachments(limit = 200) {
+  const nowIso = new Date().toISOString();
+  const url = `/rest/v1/mtg_attachments`
+    + `?select=id,storage_path&storage_path=not.is.null`
+    + `&expires_at=lt.${encodeURIComponent(nowIso)}`
+    + `&limit=${limit}`;
+  const r = await sb(url);
+  if (!r.ok) throw new Error(`list expired attachments ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  return await r.json();
+}
+
+async function clearAttachmentRows(ids) {
+  if (ids.length === 0) return;
+  const orFilter = ids.map(id => `id.eq.${id}`).join(',');
+  const r = await sb(`/rest/v1/mtg_attachments?or=(${orFilter})`, {
+    method: 'PATCH',
+    headers: { 'Prefer': 'return=minimal' },
+    body: JSON.stringify({
+      storage_path: null,
+      public_url: null,
+    }),
+  });
+  if (!r.ok) {
+    console.warn(`[cleanup] PATCH attachments ${r.status}: ${(await r.text()).slice(0, 200)}`);
   }
 }
 
@@ -80,16 +107,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    const expired = await listExpired(200);
-    if (expired.length === 0) {
-      return res.status(200).json({ ok: true, reaped: 0 });
-    }
-    const paths = expired.map(r => r.audio_path).filter(Boolean);
-    const ids = expired.map(r => r.id);
-    await deleteFromStorage(paths);
-    await clearAudioColumns(ids);
-    console.log(`[cleanup] reaped ${expired.length} expired audio file(s)`);
-    return res.status(200).json({ ok: true, reaped: expired.length, ids });
+    // 1) audio (mtg-audio bucket)
+    const audioRows = await listExpired(200);
+    const audioPaths = audioRows.map(r => r.audio_path).filter(Boolean);
+    const audioIds   = audioRows.map(r => r.id);
+    await deleteFromStorage('mtg-audio', audioPaths);
+    await clearAudioColumns(audioIds);
+
+    // 2) meeting-files (attachments)
+    const attRows = await listExpiredAttachments(200);
+    const attPaths = attRows.map(r => r.storage_path).filter(Boolean);
+    const attIds   = attRows.map(r => r.id);
+    await deleteFromStorage('meeting-files', attPaths);
+    await clearAttachmentRows(attIds);
+
+    const total = audioRows.length + attRows.length;
+    console.log(`[cleanup] reaped ${audioRows.length} audio + ${attRows.length} attachment file(s)`);
+    return res.status(200).json({
+      ok: true,
+      reaped: total,
+      audio: audioRows.length,
+      attachments: attRows.length,
+    });
   } catch (err) {
     console.error('[cleanup]', err);
     return res.status(500).json({ error: String(err.message || err) });

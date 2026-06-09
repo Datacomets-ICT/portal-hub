@@ -3944,3 +3944,31 @@ body.ms-preview-open .modal-backdrop {
   background: var(--accent);
   color: white;
 }
+
+/* BookingDetailsCard wrapper — gives the floating × button a fixed home
+   without overriding the inner .cal-drawer-item layout. */
+.mt-details-wrap {
+  position: relative;
+  margin-top: 12px;
+}
+.mt-details-close-floating {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--fg-2);
+  font-size: 13px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+.mt-details-close-floating:hover {
+  background: var(--bg-2);
+  color: var(--fg);
+}
