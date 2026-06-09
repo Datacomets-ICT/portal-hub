@@ -167,6 +167,9 @@ export default function BookingWizard({
       onSaved?.(inserted, selectedRoom);
       toast?.(`จอง "${title.trim()}" ในห้อง ${selectedRoom.name} แล้ว`);
       onClose();
+      // Hard refresh so the new booking shows up everywhere (timeline,
+      // mybookings count, badges) without having to navigate around.
+      setTimeout(() => window.location.reload(), 400);
     } catch (err) {
       console.error(err);
       toast?.('เกิดข้อผิดพลาด: ' + (err.message || String(err)));

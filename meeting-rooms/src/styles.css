@@ -3813,3 +3813,24 @@ body.ms-preview-open .modal-backdrop {
   font-size: 12.5px;
   text-align: center;
 }
+
+/* Own-booking drawer item: stacked layout with edit + summary buttons */
+.cal-drawer-item.cdi-stacked {
+  display: flex; flex-direction: column; padding: 0; overflow: hidden;
+}
+.cdi-stacked-main {
+  display: flex; gap: 10px; padding: 12px 14px;
+  background: transparent; border: 0; text-align: left;
+  font: inherit; color: inherit; cursor: pointer; width: 100%;
+}
+.cdi-stacked-main:hover { background: oklch(0.97 0.06 50); }
+.cdi-summary-btn {
+  background: linear-gradient(135deg, oklch(0.94 0.06 280), oklch(0.97 0.03 280));
+  color: oklch(0.32 0.18 280);
+  border: 0; border-top: 1px solid oklch(0.85 0.1 280);
+  padding: 8px 14px; font-weight: 600; font-size: 12.5px;
+  font-family: inherit; cursor: pointer;
+  text-align: left;
+  display: flex; align-items: center; gap: 6px;
+}
+.cdi-summary-btn:hover { background: linear-gradient(135deg, oklch(0.9 0.08 280), oklch(0.94 0.05 280)); }

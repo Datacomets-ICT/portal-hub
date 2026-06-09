@@ -507,6 +507,7 @@ function SupportFAB({ onCopy }) {
       key: 'line',
       label: 'LINE ID',
       value: '0647241793',
+      badge: '⚡ ตอบกลับไวที่สุด',
       href: 'https://line.me/ti/p/~0647241793',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -543,11 +544,14 @@ function SupportFAB({ onCopy }) {
             </button>
           </div>
           {items.map((it) => (
-            <div key={it.key} className="support-pop-row">
+            <div key={it.key} className={`support-pop-row${it.badge ? ' support-pop-row--featured' : ''}`}>
               <a className="support-pop-link" href={it.href} target="_blank" rel="noreferrer">
                 <span className="support-pop-icon">{it.icon}</span>
                 <span className="support-pop-text">
-                  <span className="support-pop-label">{it.label}</span>
+                  <span className="support-pop-label">
+                    {it.label}
+                    {it.badge && <span className="support-pop-badge">{it.badge}</span>}
+                  </span>
                   <span className="support-pop-value">{it.value}</span>
                 </span>
               </a>

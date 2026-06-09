@@ -434,13 +434,7 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
         </div>
       )}
 
-      {/* Audio recording + AI summary belongs to the meeting room, not the
-          read-only inspect card. Only the booker sees it here (so they can
-          start a recording from the modal). Everyone else uses the popout
-          "หน้าต่างประชุม" via the join button. */}
-      {currentUser?.name
-        && normName(booking.booker) === normName(currentUser.name)
-        && <MeetingSummaryPanel booking={booking} currentUser={currentUser} room={room} employee={employee} />}
+      {/* Audio recording + AI summary moved to BookingsHistoryView drawer. */}
     </div>
   );
 }
@@ -730,21 +724,9 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
 
           </fieldset>
 
-          {/* Meeting summary panel — only the original booker sees the
-              record/upload controls here. Invitees use the popout
-              "หน้าต่างประชุม" to record (they can join via the button
-              below). */}
-          {initial?.id
-            && currentUser?.name
-            && normName(initial?.booker || booker) === normName(currentUser.name)
-            && (
-            <MeetingSummaryPanel
-              booking={{ id: initial.id, bookingDate: initial.bookingDate, ...initial }}
-              currentUser={currentUser}
-              room={room}
-              employee={findEmpByName(employees, initial?.booker || booker)}
-            />
-          )}
+          {/* Meeting summary + recording panel moved out — see
+              BookingsHistoryView's day drawer for "✨ สร้างสรุป AI".
+              Audio recording feature has been removed entirely. */}
         </div>
 
         <div className="modal-foot">

@@ -513,27 +513,14 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
           </section>
         )}
 
-        {/* Audio recording + AI summary from speech.
-            Reuses the rich MeetingSummaryPanel used in the booking modal —
-            includes record button, file upload, status, final summary +
-            export to PDF/DOC/email. Lives independently from the chat-based
-            auto-summary further down. */}
-        {isJoined && (
-          <section className="mtg-room-section">
-            <div className="mtg-room-section-head">🎙️ บันทึกเสียงประชุม</div>
-            <MeetingSummaryPanel
-              booking={booking}
-              currentUser={currentUser}
-              room={room}
-              employee={null}
-              compact
-            />
-          </section>
-        )}
+        {/* Audio recording + AI summary have been moved to the booking
+            history drawer (ประวัติการจอง). The meeting room is now purely
+            for live collaboration — chat / agenda / files / invite. */}
 
         {/* Auto AI summary (Phase 4) — show after meeting ends, only to
-            booker / joined attendees (others don't see private summaries). */}
-        {isPast && isJoined && (
+            booker / joined attendees (others don't see private summaries).
+            DISABLED in meeting room — moved to history drawer. */}
+        {false && isPast && isJoined && (
           <section className="mtg-room-section mtg-auto-summary">
             <div className="mtg-room-section-head">
               🤖 สรุปการประชุม (AI)

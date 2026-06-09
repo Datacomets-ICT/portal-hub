@@ -3443,3 +3443,20 @@ a { color: var(--accent); text-decoration: none; }
   border-color: var(--accent);
   color: var(--accent-2);
 }
+
+/* Support popup: highlight the "fastest reply" channel (LINE) */
+.support-pop-row--featured {
+  background: linear-gradient(135deg, rgba(6, 199, 85, 0.08), rgba(6, 199, 85, 0.02));
+  border-radius: 10px;
+}
+.support-pop-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: oklch(0.72 0.18 145);
+  color: white;
+  font-size: 10.5px;
+  font-weight: 700;
+  vertical-align: middle;
+}
