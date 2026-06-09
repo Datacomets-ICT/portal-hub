@@ -440,6 +440,19 @@ export default function BookingWizard({
               onChange={setPickedAttendees}
               currentUser={currentUser}
             />
+
+            {/* Title moved up here per user request — used to live in the
+                final-details section after a room is picked, but users
+                wanted to type the meeting topic right after times. */}
+            <label className="field field-full" style={{ marginTop: 14 }}>
+              <span className="field-label">หัวข้อการประชุม</span>
+              <input
+                className="field-input"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="เช่น Weekly Sync, Product Review"
+              />
+            </label>
           </div>
 
           {/* Suggested rooms */}
@@ -511,21 +524,11 @@ export default function BookingWizard({
             )}
           </div>
 
-          {/* Final details — shows after room selected */}
+          {/* Final details — shows after room selected. Title field moved
+              up to the time/count section per user request. */}
           {selectedRoom && !selectedRoom._conflict && (
             <div className="wizard-section wizard-section-details">
               <div className="wizard-section-h">รายละเอียดการประชุม</div>
-              <label className="field field-full">
-                <span className="field-label">หัวข้อการประชุม</span>
-                <input
-                  className="field-input"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="เช่น Weekly Sync, Product Review"
-                  autoFocus
-                />
-              </label>
-
               {currentUser && (
                 <div className="booker-card" style={{ marginTop: 4 }}>
                   <div className="booker-avatar">
