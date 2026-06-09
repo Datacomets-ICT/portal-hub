@@ -695,60 +695,9 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
           </section>
         )}
 
-        {/* Chat (Phase 2) — visible only to booker / joined attendees */}
-        {isJoined && (
-          <section className="mtg-room-section mtg-chat-section">
-            <div className="mtg-room-section-head">
-              💬 แชทระหว่างประชุม
-              <span className="mtg-chat-count">{messages.length} ข้อความ</span>
-            </div>
-            <div className="mtg-chat-list">
-              {messages.length === 0 ? (
-                <div className="mtg-room-empty">ยังไม่มีข้อความ — เริ่มแชทได้เลย</div>
-              ) : (
-                messages.map((m) => {
-                  const mine = m.employee_id === currentUser?.code;
-                  const senderName = [m.first_name, m.last_name].filter(Boolean).join(' ')
-                    || m.nickname || m.employee_id;
-                  const t = new Date(m.created_at);
-                  const ts = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
-                  return (
-                    <div key={m.id} className={`mtg-msg ${mine ? 'mine' : 'theirs'}`}>
-                      {!mine && (
-                        <div className="mtg-msg-sender">
-                          {senderName}{m.nickname && <span> ({m.nickname})</span>}
-                        </div>
-                      )}
-                      <div className="mtg-msg-bubble">
-                        <span className="mtg-msg-body">{m.body}</span>
-                        <span className="mtg-msg-time mono">{ts}</span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-            {isPast ? (
-              <div className="mtg-chat-locked">🔒 ประชุมจบแล้ว — ส่งข้อความใหม่ไม่ได้</div>
-            ) : (
-              <div className="mtg-chat-input-row">
-                <input
-                  className="mtg-chat-input"
-                  placeholder="พิมพ์ข้อความ..."
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                  disabled={sending}
-                  maxLength={4000}
-                />
-                <button className="btn-primary" onClick={sendMessage} disabled={sending || !draft.trim()}>
-                  ส่ง
-                </button>
-              </div>
-            )}
-          </section>
-        )}
+        {/* Chat section removed per user request — meeting window is purely
+            attendee list + file attachments now. The mtg_messages table and
+            realtime subscription stay in place in case we re-enable later. */}
 
         {toast && (
           <div className={`mtg-room-toast mtg-room-toast--${toast.kind}`}>{toast.msg}</div>
