@@ -6,6 +6,7 @@ import RoomEditorView from './RoomEditorView.jsx';
 import MeetingRoomPanel from './MeetingRoomPanel.jsx';
 import InviteNotificationBar from './InviteNotificationBar.jsx';
 import ActiveMeetingBadge from './ActiveMeetingBadge.jsx';
+import RoomBookingsDrawer from './RoomBookingsDrawer.jsx';
 import {
   RoomCard,
   BookingModal,
@@ -217,6 +218,7 @@ function AppInner() {
   const isToday = dateIdx === 0;
 
   const [modal, setModal] = useState(null);
+  const [roomDrawer, setRoomDrawer] = useState(null); // room obj or null
 
   // Opens the meeting room window as a SEPARATE browser tab/popup so the
   // user can navigate the main app without closing it. URL is captured by
@@ -636,6 +638,7 @@ function AppInner() {
                       currentMin={currentMin}
                       isToday={isToday && tweaks.showNowLine}
                       currentUser={currentUser}
+                      onShowRoomBookings={(r) => setRoomDrawer(r)}
                     />
                   );
                 })}
@@ -702,6 +705,23 @@ function AppInner() {
         currentUser={currentUser}
         onOpenMeeting={(inv) => openMeetingPopout(inv.booking_id)}
       />
+
+      {roomDrawer && (
+        <RoomBookingsDrawer
+          room={roomDrawer}
+          date={currentDate}
+          bookings={bookings.filter((b) => b.bookingDate === currentDateStr)}
+          empByName={Object.fromEntries(
+            employees.map((e) => [(e.name || '').replace(/\s+/g, ' ').trim().toLowerCase(), e])
+          )}
+          currentUser={currentUser}
+          onClose={() => setRoomDrawer(null)}
+          onEditBooking={(b, r) => {
+            setRoomDrawer(null);
+            openEdit(b, r);
+          }}
+        />
+      )}
 
       <BookingModal
         open={!!modal}

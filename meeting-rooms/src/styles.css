@@ -3906,3 +3906,41 @@ body.ms-preview-open .modal-backdrop {
   cursor: pointer; font-size: 11px;
 }
 .attendee-chip button:hover { background: oklch(0.88 0.12 240); color: white; }
+
+/* RoomCard: title is now a button — strip default button styling but
+   keep the typography of .rc-title intact. Also a "See bookings" overlay
+   on the photo for quick access. */
+.rc-title-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  width: auto;
+  display: block;
+}
+.rc-title-btn:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.rc-bookings-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--accent-ink);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.rc-bookings-btn:hover {
+  background: var(--accent);
+  color: white;
+}

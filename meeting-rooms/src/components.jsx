@@ -143,7 +143,7 @@ export function CardTimeline({ room, bookings, onSlotClick, onEventClick, curren
 // Skip edge labels to avoid overlap with the 09 / 19 ticks.
 const AXIS_HOURS = [9, 11, 13, 15, 17, 19];
 
-export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin, isToday, currentUser }) {
+export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin, isToday, currentUser, onShowRoomBookings }) {
   const available = room.status === 'available';
   const occupiedNow =
     isToday && bookings.some((b) => currentMin >= b.start && currentMin < b.end);
@@ -160,10 +160,27 @@ export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin
 
       <div className="rc-photo" style={{ backgroundImage: `url(${room.picture})` }}>
         {occupiedNow && <div className="rc-occupied-badge">ใช้งานอยู่</div>}
+        {onShowRoomBookings && bookings.length > 0 && (
+          <button
+            type="button"
+            className="rc-bookings-btn"
+            onClick={(e) => { e.stopPropagation(); onShowRoomBookings(room); }}
+            title="ดูตารางของห้องนี้"
+          >
+            📋 {bookings.length} การจอง
+          </button>
+        )}
       </div>
 
       <div className="rc-body">
-        <div className="rc-title">{room.name}</div>
+        <button
+          type="button"
+          className="rc-title rc-title-btn"
+          onClick={() => onShowRoomBookings && onShowRoomBookings(room)}
+          title="ดูตารางของห้องนี้"
+        >
+          {room.name}
+        </button>
         <div className="rc-meta">
           <span className={`rc-status ${available ? 'ok' : 'off'}`}>
             <span className="rc-dot" /> {available ? 'available' : 'unavailable'}
