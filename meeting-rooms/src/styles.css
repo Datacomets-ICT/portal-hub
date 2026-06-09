@@ -3287,7 +3287,7 @@ body.ms-preview-open .modal-backdrop {
 @keyframes rpFade { from { opacity: 0; } to { opacity: 1; } }
 
 .room-preview-pane {
-  width: min(420px, 92vw);
+  width: min(560px, 95vw);
   height: 100vh;
   background: var(--surface);
   display: flex;
@@ -3321,15 +3321,17 @@ body.ms-preview-open .modal-backdrop {
   position: relative;
   flex: 0 0 auto;
   width: 100%;
-  height: 56vh;
+  height: 60vh;
   background: #0b1220;
   overflow: hidden;
 }
 .room-preview-img {
   position: absolute;
   inset: 0;
-  background-size: cover;
+  background-size: contain;           /* show whole image, no crop */
+  background-repeat: no-repeat;
   background-position: center;
+  background-color: #0b1220;          /* letterbox padding */
   opacity: 0;
   transition: opacity .6s ease;
 }
@@ -3856,3 +3858,51 @@ body.ms-preview-open .modal-backdrop {
   color: oklch(0.35 0.2 25);
   border-color: oklch(0.7 0.18 25);
 }
+
+/* Attendee picker in BookingWizard */
+.attendee-dropdown {
+  position: absolute; left: 0; right: 0; top: 100%;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 5;
+}
+.attendee-option {
+  display: flex; flex-direction: column;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  background: transparent;
+  border: 0; border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  font: inherit;
+}
+.attendee-option:last-child { border-bottom: 0; }
+.attendee-option:hover { background: var(--bg-2); }
+.attendee-option-name { font-size: 13.5px; font-weight: 500; color: var(--fg); }
+.attendee-option-sub  { font-size: 11.5px; color: var(--fg-3); margin-top: 2px; }
+.attendee-chips {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 10px;
+}
+.attendee-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 11px;
+  background: oklch(0.94 0.05 240);
+  border: 1px solid oklch(0.82 0.1 240);
+  color: oklch(0.32 0.16 240);
+  border-radius: 999px;
+  font-size: 12.5px; font-weight: 500;
+}
+.attendee-chip button {
+  background: transparent; border: 0;
+  color: oklch(0.5 0.18 240);
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  cursor: pointer; font-size: 11px;
+}
+.attendee-chip button:hover { background: oklch(0.88 0.12 240); color: white; }

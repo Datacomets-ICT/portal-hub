@@ -7,6 +7,102 @@ import {
   fmtDateLong,
 } from './components.jsx';
 import { fetchBookingsByDateRange, insertBooking } from './api/bookings';
+import { supabase } from './lib/supabase.js';
+
+// Searchable employee picker — typing filters via list_employees_public RPC,
+// pick from dropdown to add as invitee. Used inside BookingWizard.
+function AttendeePicker({ picked, onChange, currentUser }) {
+  const [employees, setEmployees] = useState([]);
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.rpc('list_employees_public');
+      if (alive) setEmployees(data || []);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return employees
+      .filter((e) => {
+        if (e.employee_id === currentUser?.code) return false;
+        if (picked.some((p) => p.code === e.employee_id)) return false;
+        const hay = `${e.employee_id} ${e.first_name || ''} ${e.last_name || ''} ${e.nickname || ''} ${e.department || ''}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 8);
+  }, [employees, query, picked, currentUser?.code]);
+
+  const add = (e) => {
+    onChange([...picked, {
+      code: e.employee_id,
+      name: [e.first_name, e.last_name].filter(Boolean).join(' '),
+      nickname: e.nickname || '',
+      dept: e.department || '',
+    }]);
+    setQuery('');
+    setOpen(false);
+  };
+
+  const remove = (code) => {
+    onChange(picked.filter((p) => p.code !== code));
+  };
+
+  return (
+    <div className="attendee-picker" style={{ marginTop: 14 }}>
+      <div className="field-label" style={{ marginBottom: 6 }}>
+        ผู้เข้าร่วม (พิมพ์เพื่อค้น · เลือกจาก dropdown)
+      </div>
+      <div style={{ position: 'relative' }}>
+        <input
+          type="text"
+          className="field-input"
+          placeholder="พิมพ์ชื่อ / ชื่อเล่น / รหัส / แผนก"
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+        />
+        {open && matches.length > 0 && (
+          <div className="attendee-dropdown">
+            {matches.map((e) => (
+              <button
+                key={e.employee_id}
+                type="button"
+                className="attendee-option"
+                onMouseDown={(ev) => { ev.preventDefault(); add(e); }}
+              >
+                <div className="attendee-option-name">
+                  {[e.first_name, e.last_name].filter(Boolean).join(' ')}
+                  {e.nickname && <span style={{ color: 'var(--fg-3)' }}> ({e.nickname})</span>}
+                </div>
+                <div className="attendee-option-sub">
+                  {e.employee_id} {e.department && <>· {e.department}</>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {picked.length > 0 && (
+        <div className="attendee-chips">
+          {picked.map((p) => (
+            <span key={p.code} className="attendee-chip">
+              {p.name || p.code}
+              {p.nickname && <span style={{ opacity: 0.7 }}> ({p.nickname})</span>}
+              <button type="button" onClick={() => remove(p.code)} aria-label="ลบ">✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PURPOSES = [
   'ประชุมภายใน',
@@ -15,8 +111,8 @@ const PURPOSES = [
   'Workshop',
   'อัดคลิป',
   'อบรม',
+  'อื่นๆ',
 ];
-const EQUIPMENT_OPTIONS = ['Projector', 'TV/จอ', 'Video Conf', 'Whiteboard', 'Mic', 'ปลั๊กไฟ'];
 const REFRESHMENT_OPTIONS = ['อาหารว่าง', 'เครื่องดื่ม', 'ขนม', 'ผลไม้', 'อาหารกลางวัน', 'ของที่ระลึก'];
 
 function ymd(d) {
@@ -40,12 +136,15 @@ export default function BookingWizard({
 }) {
   // Criteria
   const [purpose, setPurpose] = useState('ประชุมภายใน');
+  const [purposeOther, setPurposeOther] = useState(''); // free-text when purpose==='อื่นๆ'
   const [bookingDate, setBookingDate] = useState(() => ymd(new Date()));
   const [start, setStart] = useState(9 * 60);
   const [end, setEnd] = useState(10 * 60);
   const [attendees, setAttendees] = useState(4);
   const [customerCount, setCustomerCount] = useState(0);
-  const [locationFilter, setLocationFilter] = useState('all');
+  const [locationFilter, setLocationFilter] = useState('Comets HQ');
+  // Picked invitees by employee_id
+  const [pickedAttendees, setPickedAttendees] = useState([]); // [{ code, name, nickname, dept }]
 
   // Selection + final details
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -54,7 +153,6 @@ export default function BookingWizard({
   const [previewRoom, setPreviewRoom] = useState(null);
   const [title, setTitle] = useState('');
   const [company, setCompany] = useState('');
-  const [equipment, setEquipment] = useState([]);
   const [refreshments, setRefreshments] = useState([]);
 
   const [bookingsOnDate, setBookingsOnDate] = useState([]);
@@ -64,12 +162,14 @@ export default function BookingWizard({
   useEffect(() => {
     if (open) {
       setPurpose('ประชุมภายใน');
+      setPurposeOther('');
       setBookingDate(ymd(new Date()));
       setStart(9 * 60);
       setEnd(10 * 60);
       setAttendees(4);
       setCustomerCount(0);
-      setLocationFilter('all');
+      setLocationFilter('Comets HQ');
+      setPickedAttendees([]);
       setSelectedRoom(null);
       setTitle('');
       setCompany('');
@@ -141,10 +241,12 @@ export default function BookingWizard({
   const criteriaOk = end > start && totalPeople > 0 && !!bookingDate;
   const canConfirm = criteriaOk && !!selectedRoom && !selectedRoom._conflict && !!title.trim();
 
-  const toggleEquip = (k) =>
-    setEquipment((e) => (e.includes(k) ? e.filter((x) => x !== k) : [...e, k]));
   const toggleRefresh = (k) =>
     setRefreshments((r) => (r.includes(k) ? r.filter((x) => x !== k) : [...r, k]));
+
+  const effectivePurpose = purpose === 'อื่นๆ' && purposeOther.trim()
+    ? purposeOther.trim()
+    : purpose;
 
   const handleConfirm = async () => {
     if (!canConfirm) return;
@@ -159,11 +261,22 @@ export default function BookingWizard({
         booker: currentUser?.name || '',
         attendees,
         customerCount,
-        purpose,
+        purpose: effectivePurpose,
         company,
-        equipment,
+        equipment: [],
         refreshments,
       });
+      // Auto-invite picked attendees as 'invited' so they show up in the
+      // meeting window with RSVP.
+      if (pickedAttendees.length > 0 && currentUser?.code) {
+        try {
+          await supabase.rpc('mtg_invite_attendees', {
+            p_booking_id: inserted.id,
+            p_inviter_id: currentUser.code,
+            p_invitee_ids: pickedAttendees.map((p) => p.code),
+          });
+        } catch (err) { console.warn('attendee invite failed:', err.message); }
+      }
       onSaved?.(inserted, selectedRoom);
       toast?.(`จอง "${title.trim()}" ในห้อง ${selectedRoom.name} แล้ว`);
       onClose();
@@ -209,19 +322,23 @@ export default function BookingWizard({
                 </button>
               ))}
             </div>
+            {purpose === 'อื่นๆ' && (
+              <input
+                type="text"
+                className="field-input"
+                style={{ marginTop: 10 }}
+                placeholder="ระบุวัตถุประสงค์อื่นๆ เช่น 'ระดมความคิด', 'รีวิวงาน', ฯลฯ"
+                value={purposeOther}
+                onChange={(e) => setPurposeOther(e.target.value)}
+                maxLength={120}
+              />
+            )}
           </div>
 
-          {/* Location filter — picked first so the When / Rooms sections scope to it */}
+          {/* Location filter — only Comets HQ + ICT (no "ทั้งหมด") */}
           <div className="wizard-section">
             <div className="wizard-section-h">สถานที่</div>
             <div className="purpose-grid">
-              <button
-                type="button"
-                className={`purpose-tile ${locationFilter === 'all' ? 'on' : ''}`}
-                onClick={() => setLocationFilter('all')}
-              >
-                ทั้งหมด
-              </button>
               {availableLocations.map((loc) => (
                 <button
                   key={loc}
@@ -260,9 +377,18 @@ export default function BookingWizard({
                   value={start}
                   onChange={(e) => setStart(+e.target.value)}
                 >
-                  {timeOptions.filter((t) => t < DAY_END).map((t) => (
-                    <option key={t} value={t}>{fmtTimeColon(t)}</option>
-                  ))}
+                  {timeOptions
+                    .filter((t) => t < DAY_END)
+                    // If date is today, hide past times (so user can't book "9:00"
+                    // when the clock is 16:00).
+                    .filter((t) => {
+                      if (bookingDate !== ymd(new Date())) return true;
+                      const minNow = new Date().getHours() * 60 + new Date().getMinutes();
+                      return t >= minNow;
+                    })
+                    .map((t) => (
+                      <option key={t} value={t}>{fmtTimeColon(t)}</option>
+                    ))}
                 </select>
               </label>
               <label className="field">
@@ -272,6 +398,8 @@ export default function BookingWizard({
                   value={end}
                   onChange={(e) => setEnd(+e.target.value)}
                 >
+                  {/* end > start by at least 1 slot (15 min) — already supports
+                      15-min meetings since the granularity is 15 across the row. */}
                   {timeOptions.filter((t) => t > start).map((t) => (
                     <option key={t} value={t}>{fmtTimeColon(t)}</option>
                   ))}
@@ -304,6 +432,15 @@ export default function BookingWizard({
               รวม {totalPeople} คน · {fmtTimeColon(start)}–{fmtTimeColon(end)} ·{' '}
               {((end - start) / 60).toFixed(1)} ชั่วโมง
             </div>
+
+            {/* Attendee picker — type to search, pick to add to invitee list.
+                The picks are stored as employee_id refs and inserted into
+                mtg_attendees as 'invited' after the booking is created. */}
+            <AttendeePicker
+              picked={pickedAttendees}
+              onChange={setPickedAttendees}
+              currentUser={currentUser}
+            />
           </div>
 
           {/* Suggested rooms */}
@@ -440,22 +577,8 @@ export default function BookingWizard({
                 </>
               )}
 
-              <div className="field field-full">
-                <span className="field-label">อุปกรณ์เสริม</span>
-                <div className="chip-row">
-                  {EQUIPMENT_OPTIONS.map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      className={`chip ${equipment.includes(k) ? 'chip-on' : ''}`}
-                      onClick={() => toggleEquip(k)}
-                    >
-                      {equipment.includes(k) && <span className="chip-check">✓</span>}
-                      {k}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {/* "อุปกรณ์เสริม" removed — each room already advertises its
+                  built-in equipment (see room detail card). */}
             </div>
           )}
         </div>
