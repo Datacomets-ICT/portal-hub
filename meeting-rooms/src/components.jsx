@@ -461,7 +461,7 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
 // Own-booking only: shows the attendee list + attached files inside the
 // booking modal so the owner can review them without opening the popout
 // meeting window. Pulls fresh from the same RPCs the popout uses.
-function BookingAttendeesAndFiles({ bookingId }) {
+function BookingAttendeesAndFiles({ bookingId, isPast = false }) {
   const [attendees, setAttendees] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -507,10 +507,16 @@ function BookingAttendeesAndFiles({ bookingId }) {
               const sub = [a.position, a.department].filter(Boolean).join(' · ');
               const initial = ([a.nickname, a.first_name, a.employee_id, '?']
                 .map((s) => (s || '').trim()).find(Boolean) || '?').charAt(0).toUpperCase();
-              const statusLabel = a.status === 'joined' ? 'เข้าร่วม'
-                : a.status === 'declined' ? 'ปฏิเสธ' : 'รอตอบ';
+              // Once the meeting is past, an unanswered invite is treated
+              // as "didn't attend" (instead of the inviting "รอตอบ") so the
+              // booker sees the real attendance outcome.
+              const effectiveStatus = isPast && a.status === 'invited' ? 'noshow' : a.status;
+              const statusLabel = effectiveStatus === 'joined'   ? 'เข้าร่วม'
+                : effectiveStatus === 'declined' ? 'ปฏิเสธ'
+                : effectiveStatus === 'noshow'   ? 'ไม่เข้าร่วมประชุม'
+                : 'รอตอบ';
               return (
-                <li key={a.employee_id} className={`bm-attendee bm-attendee-${a.status}`}>
+                <li key={a.employee_id} className={`bm-attendee bm-attendee-${effectiveStatus}`}>
                   <div className="bm-attendee-avatar">{initial}</div>
                   <div className="bm-attendee-info">
                     <div className="bm-attendee-name">
@@ -519,7 +525,7 @@ function BookingAttendeesAndFiles({ bookingId }) {
                     </div>
                     {sub && <div className="bm-attendee-sub">{sub}</div>}
                   </div>
-                  <span className={`bm-attendee-status bm-status-${a.status}`}>{statusLabel}</span>
+                  <span className={`bm-attendee-status bm-status-${effectiveStatus}`}>{statusLabel}</span>
                 </li>
               );
             })}
@@ -819,16 +825,9 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
             </div>
           )}
 
-          <div className="field field-full">
-            <span className="field-label">อุปกรณ์เสริม</span>
-            <div className="chip-row">
-              {['Projector', 'TV/จอ', 'Video Conf', 'Whiteboard', 'Mic', 'ปลั๊กไฟ'].map((k) => (
-                <button key={k} type="button" className={`chip ${equipment.includes(k) ? 'chip-on' : ''}`} onClick={() => toggleEquip(k)}>
-                  {equipment.includes(k) && <span className="chip-check">✓</span>}{k}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* "อุปกรณ์เสริม" section removed — each room advertises its
+              built-in equipment list on the room card; per-booking
+              selection was redundant. */}
 
           {hasConflict && (
             <div className="conflict-warn">
@@ -846,7 +845,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
           {initial?.id
             && currentUser?.name
             && normName(initial.booker || booker) === normName(currentUser.name)
-            && <BookingAttendeesAndFiles bookingId={initial.id} />}
+            && <BookingAttendeesAndFiles bookingId={initial.id} isPast={isPast} />}
         </div>
 
         <div className="modal-foot">
