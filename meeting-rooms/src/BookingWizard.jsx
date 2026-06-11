@@ -389,6 +389,36 @@ export default function BookingWizard({
                 maxLength={120}
               />
             )}
+
+            {purpose === 'รับรองลูกค้า' && (
+              <div className="wizard-customer-extra">
+                <label className="field field-full">
+                  <span className="field-label">ชื่อบริษัท</span>
+                  <input
+                    className="field-input"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="บริษัทผู้มาเยี่ยม"
+                  />
+                </label>
+                <div className="field field-full">
+                  <span className="field-label">เตรียมของรับรอง</span>
+                  <div className="chip-row">
+                    {REFRESHMENT_OPTIONS.map((k) => (
+                      <button
+                        key={k}
+                        type="button"
+                        className={`chip ${refreshments.includes(k) ? 'chip-on' : ''}`}
+                        onClick={() => toggleRefresh(k)}
+                      >
+                        {refreshments.includes(k) && <span className="chip-check">✓</span>}
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Location filter — only Comets HQ + ICT (no "ทั้งหมด") */}
@@ -610,38 +640,10 @@ export default function BookingWizard({
                 </div>
               )}
 
-              {purpose === 'รับรองลูกค้า' && (
-                <>
-                  <label className="field field-full">
-                    <span className="field-label">ชื่อบริษัท</span>
-                    <input
-                      className="field-input"
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                      placeholder="บริษัทผู้มาเยี่ยม"
-                    />
-                  </label>
-                  <div className="field field-full">
-                    <span className="field-label">เตรียมของรับรอง</span>
-                    <div className="chip-row">
-                      {REFRESHMENT_OPTIONS.map((k) => (
-                        <button
-                          key={k}
-                          type="button"
-                          className={`chip ${refreshments.includes(k) ? 'chip-on' : ''}`}
-                          onClick={() => toggleRefresh(k)}
-                        >
-                          {refreshments.includes(k) && <span className="chip-check">✓</span>}
-                          {k}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-
               {/* "อุปกรณ์เสริม" removed — each room already advertises its
-                  built-in equipment (see room detail card). */}
+                  built-in equipment (see room detail card).
+                  Company name + refreshments moved up to the purpose
+                  section so they appear right after picking "รับรองลูกค้า". */}
             </div>
           )}
         </div>

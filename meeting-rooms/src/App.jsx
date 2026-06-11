@@ -203,7 +203,6 @@ function AppInner() {
     })();
   }, [currentUser, weekOffset]);
 
-  const [query, setQuery] = useState('');
   const [locationFilter, setLocationFilter] = useState('all');
   const [floorFilter, setFloorFilter] = useState('all');
   const [minSeats, setMinSeats] = useState(0);
@@ -308,11 +307,9 @@ function AppInner() {
   };
 
   const filteredRooms = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return rooms.filter((r) => {
       // Only show rooms that are currently open for booking
       if (r.status !== 'available') return false;
-      if (q && !(r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q))) return false;
       if (locationFilter !== 'all' && r.location !== locationFilter) return false;
       if (floorFilter !== 'all' && r.floor !== floorFilter) return false;
       if (minSeats && (r.seats || 0) < minSeats) return false;
@@ -325,7 +322,7 @@ function AppInner() {
       }
       return true;
     });
-  }, [rooms, query, locationFilter, floorFilter, minSeats, showOnly, bookings, currentDateStr, isToday, currentMin]);
+  }, [rooms, locationFilter, floorFilter, minSeats, showOnly, bookings, currentDateStr, isToday, currentMin]);
 
   const grouped = useMemo(() => {
     const groups = {};
@@ -495,15 +492,6 @@ function AppInner() {
         </div>
 
         <div className="subbar-grow" />
-
-        <div className="search">
-          <span>🔍</span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="ค้นหาห้อง เช่น JUPITER, C003"
-          />
-        </div>
 
         <div className="density-toggle">
           {['compact', 'cozy', 'comfort'].map((d) => (

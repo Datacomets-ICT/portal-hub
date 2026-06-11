@@ -45,6 +45,51 @@ export default function RoomBookingsDrawer({
           <button className="cal-drawer-close" onClick={onClose} aria-label="ปิด">✕</button>
         </header>
 
+        <section className="room-detail-panel">
+          {room.picture && (
+            <div
+              className="room-detail-photo"
+              style={{ backgroundImage: `url(${room.picture})` }}
+            />
+          )}
+          <div className="room-detail-meta">
+            <span className="room-detail-meta-item">👥 {room.seats || 0} ที่นั่ง</span>
+            {room.floor && <span className="room-detail-meta-item">🏢 {room.floor}</span>}
+            <span className="room-detail-meta-item">📍 {room.location}</span>
+          </div>
+          {room.description && (
+            <p className="room-detail-desc">{room.description}</p>
+          )}
+          <div className="room-detail-block">
+            <div className="room-detail-block-h">🛠 อุปกรณ์ในห้อง</div>
+            {Array.isArray(room.equipment) && room.equipment.length > 0 ? (
+              <div className="room-detail-chips">
+                {room.equipment.map((e) => (
+                  <span key={e} className="room-detail-chip">{e}</span>
+                ))}
+              </div>
+            ) : (
+              <div className="room-detail-empty">ยังไม่ได้ระบุอุปกรณ์</div>
+            )}
+          </div>
+          <div className="room-detail-block">
+            <div className="room-detail-block-h">🎯 เหมาะสำหรับ</div>
+            {Array.isArray(room.purposes) && room.purposes.length > 0 ? (
+              <div className="room-detail-chips">
+                {room.purposes.map((p) => (
+                  <span key={p} className="room-detail-chip accent">{p}</span>
+                ))}
+              </div>
+            ) : (
+              <div className="room-detail-empty">รับทุกวัตถุประสงค์</div>
+            )}
+          </div>
+        </section>
+
+        <div className="room-detail-divider">
+          <span>📅 การจองวันนี้</span>
+        </div>
+
         {rows.length === 0 ? (
           <div className="view-empty" style={{ margin: 16 }}>ไม่มีการจองในห้องนี้</div>
         ) : (
