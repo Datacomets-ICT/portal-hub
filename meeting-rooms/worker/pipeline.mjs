@@ -111,50 +111,41 @@ export function capFileText(text) {
 // 3. Prompt building — single source of truth for what the model sees.
 // ---------------------------------------------------------------------------
 const SUMMARY_SCHEMA = `{
-  "tldr": "สรุปย่อ 2-3 ประโยค ครอบคลุม หัวข้อหลัก ผลลัพธ์ที่ได้ และขั้นถัดไป",
-  "context": "ภูมิหลัง 1-2 ประโยค ว่าทำไมการประชุมนี้สำคัญ / มีที่มาอย่างไร",
-  "discussion_summary": "เรียบเรียงเป็นย่อหน้า 200-400 คำ ภาษาทางการแบบรายงานสำหรับผู้บริหาร เริ่มจากภาพรวม → รายละเอียดที่หารือ → ข้อสรุปและผลลัพธ์ ต้องอ่านลื่นเป็นย่อหน้าเดียว (ห้ามใช้ bullet)",
-  "key_points": [
-    "ประเด็นสำคัญแต่ละข้อให้เป็นประโยคเต็ม 1-2 ประโยค มีบริบทพอเข้าใจ ไม่ใช่แค่หัวข้อสั้น ๆ"
-  ],
-  "stakeholders": [
-    {"name": "ชื่อผู้พูด/ผู้รับผิดชอบ", "role": "บทบาทในประชุมหรือในองค์กร", "contribution": "ประเด็นที่ผู้นี้เสนอ/แสดงความเห็น/ตัดสินใจ"}
+  "tldr": "สรุปย่อ 2-3 ประโยค ครอบคลุมหัวข้อหลัก ผลลัพธ์ และขั้นถัดไป",
+  "topics_discussed": [
+    "หัวข้อหลักที่หารือ — เขียนเป็นประโยคเต็ม 1-2 ประโยค มีบริบท ห้ามเป็นแค่หัวข้อสั้น (สูงสุด 5 ข้อ)"
   ],
   "decisions": [
-    "ข้อตัดสินใจที่ทำในการประชุม อธิบายเหตุผลและผลที่คาดว่าจะตามมาด้วย"
+    "มติ / ข้อตัดสินใจ — เฉพาะที่ที่ประชุมสรุปจริง (ไม่ใช่แค่หยิบยกขึ้นมา) พร้อมเหตุผล"
   ],
   "action_items": [
-    {"task": "งานที่ต้องทำ พร้อมขอบเขตที่ชัดเจน", "owner": "ชื่อผู้รับผิดชอบ", "due": "กำหนดเสร็จ ถ้ามี", "priority": "สูง | กลาง | ต่ำ"}
+    {"task": "งานที่ต้องทำ พร้อมขอบเขตที่ชัดเจน", "owner": "ชื่อผู้รับผิดชอบ", "due": "กำหนดเสร็จ ถ้ามี"}
   ],
-  "risks_concerns": [
-    "ความเสี่ยง / ข้อกังวล / อุปสรรคที่ถูกหยิบยกในประชุม พร้อมคำอธิบายว่ามีผลอย่างไร"
-  ],
-  "metrics_mentioned": [
-    "ตัวเลข / KPI / เป้าหมาย / กำหนดเวลา ที่กล่าวถึงในประชุม"
-  ],
-  "next_steps": [
-    "ขั้นถัดไปที่ทีมต้องดำเนินการ พร้อมรายละเอียดว่าใครทำอะไรเมื่อไหร่"
+  "pending_items": [
+    "ประเด็นค้างคา / ต้องตัดสินใจต่อ — เรื่องที่ยังไม่ได้ข้อสรุป รอตัดสินใจครั้งหน้า"
   ]
 }`;
 
-const SYSTEM_PROMPT = `คุณคือ Senior Business Analyst ที่เขียน executive briefing ให้ผู้บริหารระดับสูง
+const SYSTEM_PROMPT = `คุณคือ Senior Business Analyst เขียน executive briefing ให้ผู้บริหารระดับสูง
+
+โครงสร้างผลลัพธ์ (บังคับ 4 หัวข้อ):
+1. topics_discussed   — หัวข้อหลักที่หารือ (สูงสุด 5 ข้อ ประโยคเต็ม)
+2. decisions          — มติ / ข้อตัดสินใจ (เฉพาะที่สรุปจริง)
+3. action_items       — สิ่งที่ต้องทำต่อ ในรูปแบบตาราง: งาน / ผู้รับผิดชอบ / กำหนดเสร็จ
+4. pending_items      — ประเด็นค้างคา / ต้องตัดสินใจต่อ (ถ้ามี)
 
 หลักการเขียน:
-1. ภาษาทางการ กระชับ ตรงประเด็น ไม่ใช้คำพูดในแชท
-2. แต่ละ field ต้องมีเนื้อหาเพียงพอสำหรับผู้บริหารตัดสินใจได้
-   - tldr: 2-3 ประโยค
-   - discussion_summary: 200-400 คำ เป็นย่อหน้าเรียบเรียง ไม่ใช่ bullet
-   - key_points: 5-8 ข้อ แต่ละข้อเป็น 1-2 ประโยคเต็ม มีบริบทพอเข้าใจ
-3. วิเคราะห์ไม่ใช่ถอดคำพูด — มองหาประเด็นที่ซ่อนอยู่ (ความเสี่ยง · ผู้รับผิดชอบ · ตัวเลข · timeline)
-4. แยกแยะ "พูดถึง" กับ "ตัดสินใจ" ให้ชัด — ตัดสินใจคือมีข้อสรุปร่วมกัน ไม่ใช่แค่หยิบยกขึ้นมา
-5. action_items ต้องมี owner ชัด ถ้าไม่มีในต้นฉบับให้ใส่ "ยังไม่กำหนด" (ห้ามเดา)
+• ภาษาทางการ กระชับ ตรงประเด็น เหมือนเขียนรายงานให้ผู้บริหาร
+• topics_discussed สูงสุด 5 ข้อเท่านั้น เลือกที่สำคัญที่สุด
+• decisions ต้องเป็นมติร่วม ไม่ใช่แค่หยิบยกหรือเสนอ
+• action_items ต้องมี owner ชัดเจน — ถ้าไม่ระบุในต้นฉบับใส่ "ยังไม่กำหนด" (ห้ามเดา)
+• pending_items คือเรื่องที่หยิบขึ้นมาแต่ยังไม่สรุป รอครั้งหน้า
+• ถ้าฟิลด์ไหนไม่มีข้อมูลจริง ใส่ array ว่าง [] — ห้ามแต่งเพื่อให้ครบ
 
 หลักการตอบ:
 - ตอบเป็น JSON ตาม schema ที่กำหนดเท่านั้น
 - ห้ามมีคำเกริ่นนำ ห้ามใช้ markdown ห้ามใช้ภาษาอังกฤษนอกจากชื่อเฉพาะ
-- ใช้ข้อมูลจากต้นฉบับเท่านั้น ห้ามแต่งเพิ่ม
-- ถ้าไม่มีข้อมูลในฟิลด์ใด ให้ส่ง array ว่าง [] (อย่าใส่ข้อความว่า "ไม่มีข้อมูล" ใน array)
-- ทุก array field ที่มีข้อมูล ต้องมีอย่างน้อย 1 รายการที่เขียนเต็มประโยค`;
+- ใช้ข้อมูลจากต้นฉบับเท่านั้น ห้ามแต่งเพิ่ม`;
 
 function fmtMin(m) {
   if (m == null) return '';
@@ -237,20 +228,20 @@ export function buildPrompt(inputs, fileTexts = []) {
 
   lines.push('');
   lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  lines.push('คำสั่ง: เขียน executive briefing เป็น JSON ตาม schema ด้านล่าง');
+  lines.push('คำสั่ง: เขียน executive briefing เป็น JSON 4 หัวข้อต่อไปนี้');
   lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
   lines.push('แนวทางคุณภาพ:');
-  lines.push('• discussion_summary คือหัวใจ — 200-400 คำ เรียบเรียงเป็นย่อหน้าเดียว ไม่ใช่ bullet');
-  lines.push('  เริ่มจาก "การประชุมครั้งนี้..." ตามด้วยภาพรวม → รายละเอียด → ผลลัพธ์');
-  lines.push('• key_points ต้องเขียนเต็มประโยค ไม่ใช่หัวข้อสั้น');
+  lines.push('• topics_discussed สูงสุด 5 ข้อเท่านั้น — เลือกที่สำคัญที่สุด');
+  lines.push('  เขียนเต็มประโยคมีบริบท ไม่ใช่หัวข้อสั้น:');
   lines.push('  ❌ "ปรับปรุงโค้ด"');
-  lines.push('  ✅ "ทีมเสนอให้ปรับปรุงโค้ดดึงข้อมูลจาก FDA เพื่อให้รองรับ schema ใหม่ของกรม คาดว่าจะเสร็จภายในสัปดาห์หน้า"');
-  lines.push('• แยก "พูดถึง" กับ "ตัดสินใจ" — เฉพาะที่มีข้อสรุปร่วมกัน ใส่ใน decisions');
-  lines.push('• action_items ต้องมี owner — ถ้าไม่ได้ระบุในต้นฉบับ ใส่ "ยังไม่กำหนด"');
-  lines.push('• risks_concerns / metrics_mentioned ถ้าไม่มีจริง ๆ ใส่ array ว่าง [] ห้ามแต่ง');
+  lines.push('  ✅ "ทีมเสนอให้ปรับปรุงโค้ดดึงข้อมูลจาก FDA เพื่อรองรับ schema ใหม่ของกรม คาดว่าเสร็จภายในสัปดาห์หน้า"');
+  lines.push('• decisions เฉพาะมติร่วมที่สรุปจริง — ไม่ใช่แค่หยิบยก/เสนอ');
+  lines.push('• action_items: ทุกแถวต้องมี owner — ถ้าต้นฉบับไม่ระบุ ใส่ "ยังไม่กำหนด"');
+  lines.push('• pending_items คือเรื่องที่ค้างไว้ ยังไม่ตัดสินใจ ต้องคุยครั้งหน้า');
+  lines.push('• ถ้าหัวข้อใดไม่มีข้อมูลจริง — ใส่ array ว่าง [] ห้ามแต่งให้ครบ');
   lines.push('');
-  lines.push('Schema:');
+  lines.push('Schema (ตอบเป็น JSON ตรงตามนี้):');
   lines.push(SUMMARY_SCHEMA);
   return lines.join('\n');
 }
@@ -376,26 +367,17 @@ function dedupedConcat(arrays) {
 export function mergeSummaries(parts) {
   const merged = {
     tldr: '',
-    context: '',
-    discussion_summary: '',
-    key_points:        dedupedConcat(parts.map((p) => p.key_points)),
-    stakeholders:      dedupedConcat(parts.map((p) => p.stakeholders)),
-    decisions:         dedupedConcat(parts.map((p) => p.decisions)),
-    action_items:      dedupedConcat(parts.map((p) => p.action_items)),
-    risks_concerns:    dedupedConcat(parts.map((p) => p.risks_concerns)),
-    metrics_mentioned: dedupedConcat(parts.map((p) => p.metrics_mentioned)),
-    next_steps:        dedupedConcat(parts.map((p) => p.next_steps)),
+    // Cap topics at 5 even after merging chunks — schema says max 5.
+    topics_discussed: dedupedConcat(parts.map((p) => p.topics_discussed)).slice(0, 5),
+    decisions:        dedupedConcat(parts.map((p) => p.decisions)),
+    action_items:     dedupedConcat(parts.map((p) => p.action_items)),
+    pending_items:    dedupedConcat(parts.map((p) => p.pending_items)),
   };
-  // For scalar fields, prefer the first non-empty value across chunks.
-  // Chunks overlap by ~10% so the first chunk usually has the strongest
-  // intro / context. discussion_summary stays the first chunk's narrative
-  // — a smarter merge would re-prompt the LLM to write a unified
-  // narrative, but for now first-chunk + dedup'd bullets is acceptable.
+  // First non-empty TL;DR wins (chunks overlap; the first chunk usually
+  // has the strongest opening). Could re-prompt for a unified TL;DR if
+  // quality demands, but first-chunk is fine.
   for (const p of parts) {
-    if (!merged.tldr && p.tldr?.trim())                            merged.tldr = p.tldr.trim();
-    if (!merged.context && p.context?.trim())                      merged.context = p.context.trim();
-    if (!merged.discussion_summary && p.discussion_summary?.trim()) merged.discussion_summary = p.discussion_summary.trim();
-    if (merged.tldr && merged.context && merged.discussion_summary) break;
+    if (p.tldr?.trim()) { merged.tldr = p.tldr.trim(); break; }
   }
   return merged;
 }

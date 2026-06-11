@@ -486,6 +486,10 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
   const showResult = !!summary && (status === 'done' || !status);
 
   if (showResult) {
+    // Backward-compat: older summaries (before the 4-section schema) used
+    // key_points / next_steps. Fall back to those so old data still renders.
+    const topics  = summary.topics_discussed?.length ? summary.topics_discussed : (summary.key_points || []);
+    const pending = summary.pending_items?.length    ? summary.pending_items    : (summary.next_steps || []);
     return (
       <div className="bm-summary-card">
         {summary.tldr && (
@@ -494,77 +498,49 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
             <span>{summary.tldr}</span>
           </div>
         )}
-        {summary.context && (
+
+        {topics.length > 0 && (
           <div className="mtg-summary-block">
-            <div className="mtg-summary-label">บริบท</div>
-            <p className="mtg-summary-narrative">{summary.context}</p>
+            <div className="mtg-summary-label">หัวข้อหลักที่หารือ</div>
+            <ul>{topics.slice(0, 5).map((p, i) => <li key={i}>{p}</li>)}</ul>
           </div>
         )}
-        {summary.discussion_summary && (
-          <div className="mtg-summary-block mtg-summary-narrative-block">
-            <div className="mtg-summary-label">เนื้อหาการประชุม</div>
-            <p className="mtg-summary-narrative">{summary.discussion_summary}</p>
-          </div>
-        )}
-        {summary.key_points?.length > 0 && (
-          <div className="mtg-summary-block">
-            <div className="mtg-summary-label">ประเด็นสำคัญ</div>
-            <ul>{summary.key_points.map((p, i) => <li key={i}>{p}</li>)}</ul>
-          </div>
-        )}
-        {summary.stakeholders?.length > 0 && (
-          <div className="mtg-summary-block">
-            <div className="mtg-summary-label">ผู้เกี่ยวข้อง</div>
-            <ul className="mtg-stakeholder-list">
-              {summary.stakeholders.map((s, i) => (
-                <li key={i}>
-                  <b>{s.name}</b>
-                  {s.role && <span className="mtg-owner"> · {s.role}</span>}
-                  {s.contribution && <div className="mtg-stakeholder-contrib">{s.contribution}</div>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+
         {summary.decisions?.length > 0 && (
           <div className="mtg-summary-block">
-            <div className="mtg-summary-label">ข้อตัดสินใจ</div>
+            <div className="mtg-summary-label">มติที่ประชุม / ข้อตัดสินใจ</div>
             <ul>{summary.decisions.map((p, i) => <li key={i}>{p}</li>)}</ul>
           </div>
         )}
+
         {summary.action_items?.length > 0 && (
           <div className="mtg-summary-block">
-            <div className="mtg-summary-label">Action Items</div>
-            <ul className="mtg-action-list">
-              {summary.action_items.map((a, i) => (
-                <li key={i} className={`mtg-action-item mtg-priority-${(a.priority || '').toLowerCase()}`}>
-                  <div className="mtg-action-task">{a.task}</div>
-                  <div className="mtg-action-meta">
-                    {a.owner && <span className="mtg-owner">👤 {a.owner}</span>}
-                    {a.due && <span className="mtg-due">📅 {a.due}</span>}
-                    {a.priority && <span className="mtg-prio">🎯 {a.priority}</span>}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="mtg-summary-label">สิ่งที่ต้องทำต่อ (Action Items)</div>
+            <table className="mtg-action-table">
+              <thead>
+                <tr>
+                  <th>งาน</th>
+                  <th>ผู้รับผิดชอบ</th>
+                  <th>กำหนดเสร็จ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.action_items.map((a, i) => (
+                  <tr key={i}>
+                    <td>{a.task}</td>
+                    <td>{a.owner || 'ยังไม่กำหนด'}</td>
+                    <td>{a.due || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-        {summary.risks_concerns?.length > 0 && (
-          <div className="mtg-summary-block mtg-summary-risks">
-            <div className="mtg-summary-label">ความเสี่ยง / ข้อกังวล</div>
-            <ul>{summary.risks_concerns.map((p, i) => <li key={i}>{p}</li>)}</ul>
-          </div>
-        )}
-        {summary.metrics_mentioned?.length > 0 && (
+
+        {pending.length > 0 && (
           <div className="mtg-summary-block">
-            <div className="mtg-summary-label">ตัวเลข / KPI ที่กล่าวถึง</div>
-            <ul>{summary.metrics_mentioned.map((p, i) => <li key={i}>{p}</li>)}</ul>
-          </div>
-        )}
-        {summary.next_steps?.length > 0 && (
-          <div className="mtg-summary-block">
-            <div className="mtg-summary-label">ขั้นถัดไป</div>
-            <ul>{summary.next_steps.map((p, i) => <li key={i}>{p}</li>)}</ul>
+            <div className="mtg-summary-label">ประเด็นค้างคา / ต้องตัดสินใจต่อ</div>
+            <ul>{pending.map((p, i) => <li key={i}>{p}</li>)}</ul>
           </div>
         )}
         <div className="mtg-summary-files-used">
@@ -617,6 +593,7 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
             attendees:    booking.attendees,
             purpose:      booking.purpose,
           } : null}
+          currentUser={currentUser}
           defaultTo={currentUser?.email || ''}
           defaultSubject={booking?.title ? `[สรุปการประชุม] ${booking.title}` : ''}
         />

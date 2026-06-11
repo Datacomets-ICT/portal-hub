@@ -61,6 +61,18 @@ async function getRoom(roomId) {
   return rows[0] || null;
 }
 
+// Fetch the sender's profile so we can append a signature block to the email.
+// Pulls from the `employees` table (which has nickname / position / phone /
+// email / company). Read-only — no risk of leaking anything the recipient
+// shouldn't see, since they get the sender's own contact info.
+async function getEmployeeProfile(empId) {
+  if (!empId) return null;
+  const r = await sb(`/rest/v1/employees?employee_id=eq.${encodeURIComponent(empId)}&select=first_name,last_name,nickname,position,department,company,phone,email`);
+  if (!r.ok) return null;
+  const rows = await r.json();
+  return rows[0] || null;
+}
+
 const THAI_DAYS = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 function fmtDate(d) {
@@ -100,7 +112,36 @@ function summaryToList(summary) {
 // Built with table-based layout + inline styles so it renders the
 // same in Gmail / Outlook / Apple Mail / mobile clients. No external
 // stylesheets, no <link>, no flexbox/grid.
-function buildEmailHtml({ booking, room, note, message }) {
+// Builds the per-sender signature block appended at the foot of the email.
+// All optional — if a field is missing it's just left out so we never
+// render "Mobile: undefined". Falls back to the org-wide "Comets Intertrade
+// Co., Ltd." when the employee's company column is blank, since the user
+// asked specifically for that line in every signature.
+function buildSignatureHtml(sender) {
+  if (!sender) return '';
+  const fullName = [sender.first_name, sender.last_name].filter(Boolean).join(' ').trim();
+  const nick = (sender.nickname || '').trim();
+  const nameLine = fullName
+    ? (nick ? `${esc(fullName)} (${esc(nick)})` : esc(fullName))
+    : (nick ? esc(nick) : '');
+  const position = (sender.position || '').trim();
+  const company = (sender.company || '').trim() || 'Comets Intertrade Co., Ltd.';
+  const phone = (sender.phone || '').trim();
+  const email = (sender.email || '').trim();
+  if (!nameLine && !position && !phone && !email) return '';
+  return `
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:24px;border-top:1px solid #E5E7EB;padding-top:18px;">
+      <tr><td style="font-size:13px;line-height:1.65;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Sarabun',sans-serif;">
+        ${nameLine ? `<div style="font-weight:700;color:#0F172A;">${nameLine}</div>` : ''}
+        ${position ? `<div style="color:#6B7280;">${esc(position)}</div>` : ''}
+        <div style="color:#6B7280;">${esc(company)}</div>
+        ${phone ? `<div style="color:#1F2937;margin-top:4px;">Mobile&nbsp;: ${esc(phone)}</div>` : ''}
+        ${email ? `<div style="color:#1F2937;">email&nbsp;&nbsp;&nbsp;: <a href="mailto:${esc(email)}" style="color:#1E40AF;text-decoration:none;">${esc(email)}</a></div>` : ''}
+      </td></tr>
+    </table>`;
+}
+
+function buildEmailHtml({ booking, room, note, message, signature }) {
   const dateStr = booking?.booking_date ? fmtDate(booking.booking_date) : '';
   const timeStr = booking?.start_min != null && booking?.end_min != null
     ? `${fmtTime(booking.start_min)}–${fmtTime(booking.end_min)}` : '';
@@ -234,6 +275,8 @@ function buildEmailHtml({ booking, room, note, message }) {
 
         </table>
 
+        ${signature || ''}
+
       </td></tr>
 
       <!-- Footer -->
@@ -301,7 +344,7 @@ export default async function handler(req, res) {
   try { body = req.body; if (typeof body === 'string') body = JSON.parse(body); }
   catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
 
-  const { note_id, booking_id, subject: customSubject, message } = body || {};
+  const { note_id, booking_id, sender_emp_id, subject: customSubject, message } = body || {};
   const to = normaliseEmails(body?.to);
   const cc = normaliseEmails(body?.cc);
 
@@ -329,32 +372,36 @@ export default async function handler(req, res) {
       if (!auto) {
         return res.status(400).json({ error: 'ยังไม่มีสรุป AI สำหรับการประชุมนี้ — สั่งสรุปก่อน' });
       }
-      // Shape the auto_summary into the same fields buildEmailHtml expects.
-      // The Ollama pipeline emits a richer schema (context, discussion_summary,
-      // stakeholders, risks_concerns, metrics_mentioned) — fold those into the
-      // existing fields so the email template still works without changes.
-      const actionItems = Array.isArray(auto.action_items) ? auto.action_items : [];
-      const introBits = [auto.context, auto.discussion_summary].filter(Boolean).join('\n\n');
-      const summaryText = [auto.tldr, introBits].filter(Boolean).join('\n\n');
-      const decisionBits = (auto.decisions || []).slice();
-      if (auto.risks_concerns?.length) {
-        decisionBits.push(`⚠ ความเสี่ยง: ${auto.risks_concerns.join(' · ')}`);
-      }
-      if (auto.metrics_mentioned?.length) {
-        decisionBits.push(`📊 ตัวเลข/KPI: ${auto.metrics_mentioned.join(' · ')}`);
-      }
+      // Shape the auto_summary into the fields the email template expects.
+      // The 4-section pipeline emits topics_discussed / decisions /
+      // action_items / pending_items. Older summaries used key_points /
+      // next_steps — accept either via short-circuit fallback.
+      const topics  = (auto.topics_discussed?.length ? auto.topics_discussed : (auto.key_points || []));
+      const pending = (auto.pending_items?.length    ? auto.pending_items    : (auto.next_steps || []));
       note = {
-        summary:           summaryText,
-        discussion_topics: (auto.key_points || []).map((p) => ({ topic: p, points: [] })),
-        decisions:         decisionBits,
-        action_items:      actionItems,
-        next_meeting:      Array.isArray(auto.next_steps) ? auto.next_steps.join(' · ') : '',
+        summary:           auto.tldr || '',
+        discussion_topics: topics.map((p) => ({ topic: p, points: [] })),
+        decisions:         auto.decisions || [],
+        action_items:      Array.isArray(auto.action_items) ? auto.action_items : [],
+        next_meeting:      pending.length ? pending.join(' · ') : '',
       };
     }
 
     const room = booking ? await getRoom(booking.room_id) : null;
 
-    const html = buildEmailHtml({ booking, room, note, message });
+    // Sender profile drives the signature block. Falls back gracefully if
+    // no sender_emp_id was supplied OR if the lookup fails.
+    let signature = '';
+    if (sender_emp_id) {
+      try {
+        const sender = await getEmployeeProfile(sender_emp_id);
+        signature = buildSignatureHtml(sender);
+      } catch (e) {
+        console.warn('[meeting-email] sender lookup failed:', e.message);
+      }
+    }
+
+    const html = buildEmailHtml({ booking, room, note, message, signature });
 
     // Subject: [สรุปการประชุม] {หัวข้อ} - {วันที่}
     const dateStr = booking?.booking_date ? fmtDate(booking.booking_date) : '';

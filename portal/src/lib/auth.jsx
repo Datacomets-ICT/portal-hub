@@ -37,6 +37,11 @@ function toMeetingUser(itUser) {
     nickname: itUser.nickname || '',
     dept: itUser.department || '',
     position: itUser.position || '',
+    company: itUser.company || '',
+    // Propagated so the meeting-email modal can prefill "ถึง" / build a
+    // sender signature without re-querying.
+    email: itUser.email || '',
+    phone: itUser.phone || '',
     // Propagate the Workspace-chosen avatar so meeting-rooms shows the
     // same pill as Workspace + Driver instead of falling back to a flat letter.
     avatarUrl: itUser.avatarUrl || '',

@@ -13,7 +13,7 @@ function splitEmails(s) {
   return String(s).split(/[,;\n]+/).map(e => e.trim()).filter(Boolean);
 }
 
-export default function MeetingEmailModal({ open, onClose, note, booking, defaultTo = '', defaultSubject = '' }) {
+export default function MeetingEmailModal({ open, onClose, note, booking, currentUser = null, defaultTo = '', defaultSubject = '' }) {
   const [to, setTo]           = useState(defaultTo);
   const [cc, setCc]           = useState('');
   const [subject, setSubject] = useState(defaultSubject);
@@ -57,6 +57,10 @@ export default function MeetingEmailModal({ open, onClose, note, booking, defaul
         cc: ccList,
         subject: subject?.trim() || undefined,
         message: message?.trim() || undefined,
+        // Drives the signature block at the bottom of the email — the
+        // API pulls the full profile (name, position, company, phone,
+        // email) from `employees` by employee_id.
+        sender_emp_id: currentUser?.code || currentUser?.employeeId || undefined,
       };
       if (note?.id)         payload.note_id    = note.id;
       else if (booking?.id) payload.booking_id = booking.id;
