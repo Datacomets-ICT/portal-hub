@@ -669,7 +669,7 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
         <div className="se-edit-pane">
           {/* TL;DR */}
           <div className="se-block">
-            <div className="se-label">TL;DR</div>
+            <div className="se-label">สรุปย่อ</div>
             <textarea
               className="se-input"
               rows={3}
@@ -775,7 +775,7 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
           <div className="se-preview-body">
             {tldr.trim() && (
               <div className="se-preview-tldr">
-                <span className="se-preview-tag">TL;DR</span>
+                <span className="se-preview-tag">สรุปย่อ</span>
                 <span>{tldr}</span>
               </div>
             )}
@@ -886,7 +886,7 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
       <div className="bm-summary-card">
         {summary.tldr && (
           <div className="mtg-summary-tldr">
-            <span className="mtg-summary-label">TL;DR</span>
+            <span className="mtg-summary-label">สรุปย่อ</span>
             <span>{summary.tldr}</span>
           </div>
         )}
@@ -981,9 +981,9 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
             type="button"
             className="btn-ghost"
             onClick={() => setEmailOpen(true)}
-            title="ส่งสรุปนี้ทางอีเมลในรูปแบบใบรายงาน"
+            title="ร่างอีเมลพร้อมเนื้อหาเต็ม — ไปกดส่งใน Gmail / Outlook เอง"
           >
-            📧 ส่งอีเมล
+            📝 ร่างเมล
           </button>
           <button
             type="button"
@@ -1009,6 +1009,7 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
             attendees:    booking.attendees,
             purpose:      booking.purpose,
           } : null}
+          summary={summary}
           currentUser={currentUser}
           defaultTo={currentUser?.email || ''}
           defaultSubject={booking?.title ? `[สรุปการประชุม] ${booking.title}` : ''}
