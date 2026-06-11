@@ -4541,3 +4541,94 @@ body.ms-preview-open .modal-backdrop {
 .mtg-action-table tbody tr:hover {
   background: var(--surface-1);
 }
+
+/* Summary edit modal — let the user tweak AI output before sending */
+.se-block {
+  margin-bottom: 16px;
+}
+.se-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--fg-2);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.se-hint {
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+.se-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin-bottom: 6px;
+}
+.se-input {
+  flex: 1;
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-1);
+  border-radius: 6px;
+  background: var(--surface-0, #fff);
+  color: var(--fg-1);
+  resize: vertical;
+}
+.se-input:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb, 14 165 233), 0.12);
+}
+.se-x {
+  flex-shrink: 0;
+  width: 28px; height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--fg-3);
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.se-x:hover {
+  background: oklch(0.95 0.05 25);
+  color: oklch(0.45 0.20 25);
+}
+.se-add {
+  margin-top: 4px;
+  background: transparent;
+  border: 1px dashed var(--border-1);
+  color: var(--fg-2);
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.se-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface-1);
+}
+.se-action-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.se-action-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--fg-3);
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border-1);
+}
+.se-action-table td {
+  padding: 4px;
+  vertical-align: top;
+}
+.se-action-table input.se-input {
+  padding: 5px 8px;
+  font-size: 12.5px;
+}

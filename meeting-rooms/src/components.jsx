@@ -479,8 +479,283 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
 // queued / processing  → spinner + status hint, no button
 // done                 → full structured summary
 // error                → red banner + retry button
-function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking, currentUser }) {
+// Renders the formatted email body in an iframe so the user can sanity-check
+// the layout before committing to "Send". Calls /api/meeting-email with
+// preview:true, which returns { ok, html, subject } without sending.
+function EmailPreviewModal({ open, onClose, bookingId, senderEmpId }) {
+  const [html, setHtml] = useState('');
+  const [subject, setSubject] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!open || !bookingId) return;
+    let alive = true;
+    setBusy(true);
+    setErr('');
+    setHtml('');
+    setSubject('');
+    fetch('/api/meeting-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        booking_id:    bookingId,
+        sender_emp_id: senderEmpId,
+        preview:       true,
+      }),
+    })
+      .then(async (r) => {
+        const data = await r.json();
+        if (!alive) return;
+        if (!data.ok) throw new Error(data.error || 'preview ล้มเหลว');
+        setHtml(data.html || '');
+        setSubject(data.subject || '');
+      })
+      .catch((e) => { if (alive) setErr(e.message || String(e)); })
+      .finally(() => { if (alive) setBusy(false); });
+    return () => { alive = false; };
+  }, [open, bookingId, senderEmpId]);
+
+  if (!open) return null;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: '760px', maxWidth: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <header className="modal-head" style={{ borderBottom: '1px solid var(--border-1)', padding: '14px 18px' }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 2 }}>👁 ตัวอย่างอีเมลที่จะส่ง</div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{subject || '...'}</div>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+        </header>
+        <div style={{ flex: 1, overflow: 'hidden', background: '#F1F5F9', padding: 12 }}>
+          {busy && <div style={{ padding: 40, textAlign: 'center' }}>กำลังโหลด...</div>}
+          {err && <div className="view-error" style={{ margin: 12 }}>{err}</div>}
+          {!busy && !err && html && (
+            <iframe
+              title="email preview"
+              srcDoc={html}
+              sandbox=""
+              style={{ width: '100%', height: '100%', border: 0, borderRadius: 6, background: '#fff' }}
+            />
+          )}
+        </div>
+        <footer style={{ padding: '12px 18px', borderTop: '1px solid var(--border-1)', display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn-primary" onClick={onClose}>ปิด</button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// Lets the user tweak the AI's output before sending — fix wording, drop a
+// hallucinated bullet, add an action item, etc. Writes back via the existing
+// mtg_save_auto_summary RPC and pushes the new value up so the parent
+// SummarySection re-renders with the edits.
+function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
+  // Local working copy — only commit on "บันทึก"
+  const [tldr, setTldr] = useState('');
+  const [topics, setTopics] = useState([]);
+  const [decisions, setDecisions] = useState([]);
+  const [actions, setActions] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setTldr(summary?.tldr || '');
+    setTopics(Array.isArray(summary?.topics_discussed) ? summary.topics_discussed : (summary?.key_points || []));
+    setDecisions(Array.isArray(summary?.decisions) ? summary.decisions : []);
+    setActions(Array.isArray(summary?.action_items) ? summary.action_items.map((a) => ({
+      task:  a.task  || '',
+      owner: a.owner || '',
+      due:   a.due   || '',
+    })) : []);
+    setPending(Array.isArray(summary?.pending_items) ? summary.pending_items : (summary?.next_steps || []));
+    setErr('');
+  }, [open, summary]);
+
+  if (!open) return null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setErr('');
+    try {
+      const next = {
+        ...summary,                                  // keep source-usage tags (_files, _used_audio, _model)
+        tldr:             tldr.trim(),
+        topics_discussed: topics.map((t) => t.trim()).filter(Boolean),
+        decisions:        decisions.map((d) => d.trim()).filter(Boolean),
+        action_items:     actions.filter((a) => a.task.trim()).map((a) => ({
+          task:  a.task.trim(),
+          owner: a.owner.trim() || 'ยังไม่กำหนด',
+          due:   a.due.trim(),
+        })),
+        pending_items:    pending.map((p) => p.trim()).filter(Boolean),
+        // Mark as user-edited so a future regenerate doesn't silently overwrite.
+        _edited_at: new Date().toISOString(),
+      };
+      // Strip the legacy field names so the saved object matches the new schema cleanly.
+      delete next.key_points;
+      delete next.next_steps;
+
+      const { error } = await supabase.rpc('mtg_save_auto_summary', {
+        p_booking_id: bookingId,
+        p_summary:    next,
+      });
+      if (error) throw error;
+      onSaved?.(next);
+    } catch (e) {
+      setErr(e.message || 'บันทึกไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateList = (setter, list, i, value) => {
+    const next = list.slice(); next[i] = value; setter(next);
+  };
+  const removeFromList = (setter, list, i) => {
+    const next = list.slice(); next.splice(i, 1); setter(next);
+  };
+  const addToList = (setter, list, value = '') => setter([...list, value]);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: '720px', maxWidth: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+      >
+        <header className="modal-head" style={{ borderBottom: '1px solid var(--border-1)', padding: '14px 18px' }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginBottom: 2 }}>✏️ แก้ไขสรุปการประชุม</div>
+            <div style={{ fontSize: 13, color: 'var(--fg-2)' }}>การแก้จะ override สรุปของ AI — กด "สร้างใหม่" ภายหลังจะเขียนทับการแก้ของคุณ</div>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="ปิด">✕</button>
+        </header>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
+          {/* TL;DR */}
+          <div className="se-block">
+            <div className="se-label">TL;DR</div>
+            <textarea
+              className="se-input"
+              rows={3}
+              value={tldr}
+              onChange={(e) => setTldr(e.target.value)}
+            />
+          </div>
+
+          {/* Topics */}
+          <div className="se-block">
+            <div className="se-label">หัวข้อหลักที่หารือ <span className="se-hint">(สูงสุด 5)</span></div>
+            {topics.map((t, i) => (
+              <div key={i} className="se-row">
+                <textarea
+                  className="se-input"
+                  rows={2}
+                  value={t}
+                  onChange={(e) => updateList(setTopics, topics, i, e.target.value)}
+                />
+                <button type="button" className="se-x" onClick={() => removeFromList(setTopics, topics, i)} title="ลบ">×</button>
+              </div>
+            ))}
+            {topics.length < 5 && (
+              <button type="button" className="se-add" onClick={() => addToList(setTopics, topics)}>+ เพิ่มหัวข้อ</button>
+            )}
+          </div>
+
+          {/* Decisions */}
+          <div className="se-block">
+            <div className="se-label">มติที่ประชุม / ข้อตัดสินใจ</div>
+            {decisions.map((d, i) => (
+              <div key={i} className="se-row">
+                <textarea
+                  className="se-input"
+                  rows={2}
+                  value={d}
+                  onChange={(e) => updateList(setDecisions, decisions, i, e.target.value)}
+                />
+                <button type="button" className="se-x" onClick={() => removeFromList(setDecisions, decisions, i)} title="ลบ">×</button>
+              </div>
+            ))}
+            <button type="button" className="se-add" onClick={() => addToList(setDecisions, decisions)}>+ เพิ่มข้อตัดสินใจ</button>
+          </div>
+
+          {/* Action Items */}
+          <div className="se-block">
+            <div className="se-label">สิ่งที่ต้องทำต่อ (Action Items)</div>
+            <table className="se-action-table">
+              <thead>
+                <tr>
+                  <th>งาน</th>
+                  <th style={{ width: 160 }}>ผู้รับผิดชอบ</th>
+                  <th style={{ width: 130 }}>กำหนดเสร็จ</th>
+                  <th style={{ width: 32 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {actions.map((a, i) => (
+                  <tr key={i}>
+                    <td><input className="se-input" value={a.task}
+                      onChange={(e) => { const next = actions.slice(); next[i] = { ...next[i], task: e.target.value }; setActions(next); }} /></td>
+                    <td><input className="se-input" value={a.owner}
+                      onChange={(e) => { const next = actions.slice(); next[i] = { ...next[i], owner: e.target.value }; setActions(next); }}
+                      placeholder="ยังไม่กำหนด" /></td>
+                    <td><input className="se-input" value={a.due}
+                      onChange={(e) => { const next = actions.slice(); next[i] = { ...next[i], due: e.target.value }; setActions(next); }}
+                      placeholder="—" /></td>
+                    <td><button type="button" className="se-x" onClick={() => removeFromList(setActions, actions, i)} title="ลบ">×</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button type="button" className="se-add" onClick={() => addToList(setActions, actions, { task: '', owner: '', due: '' })}>
+              + เพิ่ม action item
+            </button>
+          </div>
+
+          {/* Pending */}
+          <div className="se-block">
+            <div className="se-label">ประเด็นค้างคา / ต้องตัดสินใจต่อ</div>
+            {pending.map((p, i) => (
+              <div key={i} className="se-row">
+                <textarea
+                  className="se-input"
+                  rows={2}
+                  value={p}
+                  onChange={(e) => updateList(setPending, pending, i, e.target.value)}
+                />
+                <button type="button" className="se-x" onClick={() => removeFromList(setPending, pending, i)} title="ลบ">×</button>
+              </div>
+            ))}
+            <button type="button" className="se-add" onClick={() => addToList(setPending, pending)}>+ เพิ่มประเด็นค้าง</button>
+          </div>
+
+          {err && <div className="view-error" style={{ marginTop: 12 }}>{err}</div>}
+        </div>
+
+        <footer style={{ padding: '12px 18px', borderTop: '1px solid var(--border-1)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button className="btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
+          <button className="btn-primary" onClick={handleSave} disabled={saving}>
+            {saving ? '⏳ กำลังบันทึก...' : '💾 บันทึกการแก้ไข'}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking, currentUser, onSummaryUpdate }) {
   const [emailOpen, setEmailOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const status = job?.status;
   const isRunning = status === 'queued' || status === 'processing';
   const showResult = !!summary && (status === 'done' || !status);
@@ -564,6 +839,22 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
           <button
             type="button"
             className="btn-ghost"
+            onClick={() => setEditOpen(true)}
+            title="แก้ไขเนื้อหาสรุปก่อนส่ง / ก่อนบันทึก"
+          >
+            ✏️ แก้ไข
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setPreviewOpen(true)}
+            title="ดูเลย์เอาท์อีเมลตามที่จะส่งจริง"
+          >
+            👁 ดูตัวอย่าง
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
             onClick={() => setEmailOpen(true)}
             title="ส่งสรุปนี้ทางอีเมลในรูปแบบใบรายงาน"
           >
@@ -596,6 +887,19 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
           currentUser={currentUser}
           defaultTo={currentUser?.email || ''}
           defaultSubject={booking?.title ? `[สรุปการประชุม] ${booking.title}` : ''}
+        />
+        <EmailPreviewModal
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          bookingId={booking?.id}
+          senderEmpId={currentUser?.code}
+        />
+        <SummaryEditModal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          bookingId={booking?.id}
+          summary={summary}
+          onSaved={(next) => { onSummaryUpdate?.(next); setEditOpen(false); }}
         />
       </div>
     );
@@ -864,6 +1168,7 @@ function BookingAttendeesAndFiles({ booking, isPast = false, currentUser = null 
             fileCount={files.length}
             booking={booking}
             currentUser={currentUser}
+            onSummaryUpdate={setSummary}
           />
         </section>
       )}

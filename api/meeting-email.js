@@ -344,14 +344,18 @@ export default async function handler(req, res) {
   try { body = req.body; if (typeof body === 'string') body = JSON.parse(body); }
   catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
 
-  const { note_id, booking_id, sender_emp_id, subject: customSubject, message } = body || {};
+  const { note_id, booking_id, sender_emp_id, subject: customSubject, message, preview } = body || {};
   const to = normaliseEmails(body?.to);
   const cc = normaliseEmails(body?.cc);
 
   if (!note_id && !booking_id) {
     return res.status(400).json({ error: 'note_id หรือ booking_id อย่างน้อยอย่างใดอย่างหนึ่ง' });
   }
-  if (to.length === 0) return res.status(400).json({ error: 'อย่างน้อยต้องมี email "ถึง" 1 อัน' });
+  // In preview mode we render the email and return the HTML without
+  // sending — so we don't need any "to" recipients. Skip the check.
+  if (!preview && to.length === 0) {
+    return res.status(400).json({ error: 'อย่างน้อยต้องมี email "ถึง" 1 อัน' });
+  }
 
   try {
     let note;
@@ -407,6 +411,13 @@ export default async function handler(req, res) {
     const dateStr = booking?.booking_date ? fmtDate(booking.booking_date) : '';
     const subject = customSubject
       || `[สรุปการประชุม] ${booking?.title || 'ประชุม'}${dateStr ? ' - ' + dateStr : ''}`;
+
+    // Preview mode: return rendered HTML without sending. The client
+    // shows this inside an iframe so the user can sanity-check the
+    // layout before committing to "Send".
+    if (preview) {
+      return res.status(200).json({ ok: true, preview: true, html, subject });
+    }
 
     const gmailUser = process.env.GMAIL_USER || '';
     const from = process.env.EMAIL_FROM
