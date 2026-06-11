@@ -330,11 +330,23 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'ยังไม่มีสรุป AI สำหรับการประชุมนี้ — สั่งสรุปก่อน' });
       }
       // Shape the auto_summary into the same fields buildEmailHtml expects.
+      // The Ollama pipeline emits a richer schema (context, discussion_summary,
+      // stakeholders, risks_concerns, metrics_mentioned) — fold those into the
+      // existing fields so the email template still works without changes.
       const actionItems = Array.isArray(auto.action_items) ? auto.action_items : [];
+      const introBits = [auto.context, auto.discussion_summary].filter(Boolean).join('\n\n');
+      const summaryText = [auto.tldr, introBits].filter(Boolean).join('\n\n');
+      const decisionBits = (auto.decisions || []).slice();
+      if (auto.risks_concerns?.length) {
+        decisionBits.push(`⚠ ความเสี่ยง: ${auto.risks_concerns.join(' · ')}`);
+      }
+      if (auto.metrics_mentioned?.length) {
+        decisionBits.push(`📊 ตัวเลข/KPI: ${auto.metrics_mentioned.join(' · ')}`);
+      }
       note = {
-        summary:           auto.tldr || '',
+        summary:           summaryText,
         discussion_topics: (auto.key_points || []).map((p) => ({ topic: p, points: [] })),
-        decisions:         auto.decisions || [],
+        decisions:         decisionBits,
         action_items:      actionItems,
         next_meeting:      Array.isArray(auto.next_steps) ? auto.next_steps.join(' · ') : '',
       };

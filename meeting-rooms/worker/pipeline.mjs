@@ -111,16 +111,50 @@ export function capFileText(text) {
 // 3. Prompt building — single source of truth for what the model sees.
 // ---------------------------------------------------------------------------
 const SUMMARY_SCHEMA = `{
-  "tldr": "สรุปย่อ 1-2 ประโยค",
-  "key_points": ["ประเด็นสำคัญ 1", "ประเด็นสำคัญ 2"],
-  "decisions": ["ข้อตัดสินใจ 1"],
-  "action_items": [{"task": "...", "owner": "ชื่อ", "due": "วันที่ถ้ามี"}],
-  "next_steps": ["ขั้นถัดไป 1"]
+  "tldr": "สรุปย่อ 2-3 ประโยค ครอบคลุม หัวข้อหลัก ผลลัพธ์ที่ได้ และขั้นถัดไป",
+  "context": "ภูมิหลัง 1-2 ประโยค ว่าทำไมการประชุมนี้สำคัญ / มีที่มาอย่างไร",
+  "discussion_summary": "เรียบเรียงเป็นย่อหน้า 200-400 คำ ภาษาทางการแบบรายงานสำหรับผู้บริหาร เริ่มจากภาพรวม → รายละเอียดที่หารือ → ข้อสรุปและผลลัพธ์ ต้องอ่านลื่นเป็นย่อหน้าเดียว (ห้ามใช้ bullet)",
+  "key_points": [
+    "ประเด็นสำคัญแต่ละข้อให้เป็นประโยคเต็ม 1-2 ประโยค มีบริบทพอเข้าใจ ไม่ใช่แค่หัวข้อสั้น ๆ"
+  ],
+  "stakeholders": [
+    {"name": "ชื่อผู้พูด/ผู้รับผิดชอบ", "role": "บทบาทในประชุมหรือในองค์กร", "contribution": "ประเด็นที่ผู้นี้เสนอ/แสดงความเห็น/ตัดสินใจ"}
+  ],
+  "decisions": [
+    "ข้อตัดสินใจที่ทำในการประชุม อธิบายเหตุผลและผลที่คาดว่าจะตามมาด้วย"
+  ],
+  "action_items": [
+    {"task": "งานที่ต้องทำ พร้อมขอบเขตที่ชัดเจน", "owner": "ชื่อผู้รับผิดชอบ", "due": "กำหนดเสร็จ ถ้ามี", "priority": "สูง | กลาง | ต่ำ"}
+  ],
+  "risks_concerns": [
+    "ความเสี่ยง / ข้อกังวล / อุปสรรคที่ถูกหยิบยกในประชุม พร้อมคำอธิบายว่ามีผลอย่างไร"
+  ],
+  "metrics_mentioned": [
+    "ตัวเลข / KPI / เป้าหมาย / กำหนดเวลา ที่กล่าวถึงในประชุม"
+  ],
+  "next_steps": [
+    "ขั้นถัดไปที่ทีมต้องดำเนินการ พร้อมรายละเอียดว่าใครทำอะไรเมื่อไหร่"
+  ]
 }`;
 
-const SYSTEM_PROMPT = `คุณคือผู้ช่วยสรุปการประชุมขององค์กรไทย ใช้ภาษากระชับ ตรงประเด็น เหมาะกับผู้บริหาร
-ตอบเป็น JSON ตาม schema ที่ผู้ใช้กำหนดเท่านั้น ห้ามมีคำเกริ่นนำใด ๆ ห้ามตอบเป็น markdown ห้ามตอบเป็นภาษาอังกฤษ
-ใช้ข้อมูลที่ผู้ใช้ให้มาเท่านั้น ห้ามแต่งเพิ่ม ถ้าข้อมูลไม่พอให้ส่งฟิลด์เป็น array ว่าง`;
+const SYSTEM_PROMPT = `คุณคือ Senior Business Analyst ที่เขียน executive briefing ให้ผู้บริหารระดับสูง
+
+หลักการเขียน:
+1. ภาษาทางการ กระชับ ตรงประเด็น ไม่ใช้คำพูดในแชท
+2. แต่ละ field ต้องมีเนื้อหาเพียงพอสำหรับผู้บริหารตัดสินใจได้
+   - tldr: 2-3 ประโยค
+   - discussion_summary: 200-400 คำ เป็นย่อหน้าเรียบเรียง ไม่ใช่ bullet
+   - key_points: 5-8 ข้อ แต่ละข้อเป็น 1-2 ประโยคเต็ม มีบริบทพอเข้าใจ
+3. วิเคราะห์ไม่ใช่ถอดคำพูด — มองหาประเด็นที่ซ่อนอยู่ (ความเสี่ยง · ผู้รับผิดชอบ · ตัวเลข · timeline)
+4. แยกแยะ "พูดถึง" กับ "ตัดสินใจ" ให้ชัด — ตัดสินใจคือมีข้อสรุปร่วมกัน ไม่ใช่แค่หยิบยกขึ้นมา
+5. action_items ต้องมี owner ชัด ถ้าไม่มีในต้นฉบับให้ใส่ "ยังไม่กำหนด" (ห้ามเดา)
+
+หลักการตอบ:
+- ตอบเป็น JSON ตาม schema ที่กำหนดเท่านั้น
+- ห้ามมีคำเกริ่นนำ ห้ามใช้ markdown ห้ามใช้ภาษาอังกฤษนอกจากชื่อเฉพาะ
+- ใช้ข้อมูลจากต้นฉบับเท่านั้น ห้ามแต่งเพิ่ม
+- ถ้าไม่มีข้อมูลในฟิลด์ใด ให้ส่ง array ว่าง [] (อย่าใส่ข้อความว่า "ไม่มีข้อมูล" ใน array)
+- ทุก array field ที่มีข้อมูล ต้องมีอย่างน้อย 1 รายการที่เขียนเต็มประโยค`;
 
 function fmtMin(m) {
   if (m == null) return '';
@@ -202,7 +236,21 @@ export function buildPrompt(inputs, fileTexts = []) {
   }
 
   lines.push('');
-  lines.push(`ตอบเป็น JSON ตาม schema นี้เท่านั้น:`);
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  lines.push('คำสั่ง: เขียน executive briefing เป็น JSON ตาม schema ด้านล่าง');
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  lines.push('');
+  lines.push('แนวทางคุณภาพ:');
+  lines.push('• discussion_summary คือหัวใจ — 200-400 คำ เรียบเรียงเป็นย่อหน้าเดียว ไม่ใช่ bullet');
+  lines.push('  เริ่มจาก "การประชุมครั้งนี้..." ตามด้วยภาพรวม → รายละเอียด → ผลลัพธ์');
+  lines.push('• key_points ต้องเขียนเต็มประโยค ไม่ใช่หัวข้อสั้น');
+  lines.push('  ❌ "ปรับปรุงโค้ด"');
+  lines.push('  ✅ "ทีมเสนอให้ปรับปรุงโค้ดดึงข้อมูลจาก FDA เพื่อให้รองรับ schema ใหม่ของกรม คาดว่าจะเสร็จภายในสัปดาห์หน้า"');
+  lines.push('• แยก "พูดถึง" กับ "ตัดสินใจ" — เฉพาะที่มีข้อสรุปร่วมกัน ใส่ใน decisions');
+  lines.push('• action_items ต้องมี owner — ถ้าไม่ได้ระบุในต้นฉบับ ใส่ "ยังไม่กำหนด"');
+  lines.push('• risks_concerns / metrics_mentioned ถ้าไม่มีจริง ๆ ใส่ array ว่าง [] ห้ามแต่ง');
+  lines.push('');
+  lines.push('Schema:');
   lines.push(SUMMARY_SCHEMA);
   return lines.join('\n');
 }
@@ -269,7 +317,13 @@ export async function callOllama({ baseUrl, model, system, user, timeoutMs }) {
         model,
         stream: false,
         format: 'json',
-        options: { temperature: 0.3 },
+        // num_predict: cap output ~3000 tokens — enough for a rich
+        //   summary (discussion_summary alone can be 600-800 tokens).
+        // num_ctx: bump context window so the full input + a long
+        //   reply both fit (default 2048 is tiny).
+        // temperature: 0.4 nudges narrative quality without straying
+        //   from facts (0.3 was too terse).
+        options: { temperature: 0.4, num_predict: 3000, num_ctx: 8192 },
         messages: [
           { role: 'system', content: system || SYSTEM_PROMPT },
           { role: 'user', content: user },
@@ -322,16 +376,26 @@ function dedupedConcat(arrays) {
 export function mergeSummaries(parts) {
   const merged = {
     tldr: '',
-    key_points:   dedupedConcat(parts.map((p) => p.key_points)),
-    decisions:    dedupedConcat(parts.map((p) => p.decisions)),
-    action_items: dedupedConcat(parts.map((p) => p.action_items)),
-    next_steps:   dedupedConcat(parts.map((p) => p.next_steps)),
+    context: '',
+    discussion_summary: '',
+    key_points:        dedupedConcat(parts.map((p) => p.key_points)),
+    stakeholders:      dedupedConcat(parts.map((p) => p.stakeholders)),
+    decisions:         dedupedConcat(parts.map((p) => p.decisions)),
+    action_items:      dedupedConcat(parts.map((p) => p.action_items)),
+    risks_concerns:    dedupedConcat(parts.map((p) => p.risks_concerns)),
+    metrics_mentioned: dedupedConcat(parts.map((p) => p.metrics_mentioned)),
+    next_steps:        dedupedConcat(parts.map((p) => p.next_steps)),
   };
-  // For TL;DR, pick the first non-empty — they're all summaries of
-  // overlapping content, so picking one is fine. Could be replaced
-  // with a final "merge" LLM call later if quality requires it.
+  // For scalar fields, prefer the first non-empty value across chunks.
+  // Chunks overlap by ~10% so the first chunk usually has the strongest
+  // intro / context. discussion_summary stays the first chunk's narrative
+  // — a smarter merge would re-prompt the LLM to write a unified
+  // narrative, but for now first-chunk + dedup'd bullets is acceptable.
   for (const p of parts) {
-    if (p.tldr && p.tldr.trim()) { merged.tldr = p.tldr.trim(); break; }
+    if (!merged.tldr && p.tldr?.trim())                            merged.tldr = p.tldr.trim();
+    if (!merged.context && p.context?.trim())                      merged.context = p.context.trim();
+    if (!merged.discussion_summary && p.discussion_summary?.trim()) merged.discussion_summary = p.discussion_summary.trim();
+    if (merged.tldr && merged.context && merged.discussion_summary) break;
   }
   return merged;
 }

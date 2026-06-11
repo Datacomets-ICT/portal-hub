@@ -4433,3 +4433,70 @@ body.ms-preview-open .modal-backdrop {
   font-size: 12.5px;
   color: var(--fg-2);
 }
+
+/* Rich-summary fields — narrative paragraph, stakeholder cards, action
+   item priority tags, risks block. */
+.mtg-summary-narrative {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--fg-1);
+  margin: 0;
+  text-indent: 1.5em;          /* lets the paragraph read like a report */
+}
+.mtg-summary-narrative-block {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-left: 3px solid oklch(0.55 0.18 230);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.mtg-stakeholder-list li {
+  margin-bottom: 8px;
+  line-height: 1.55;
+}
+.mtg-stakeholder-contrib {
+  font-size: 13px;
+  color: var(--fg-2);
+  margin-top: 2px;
+}
+.mtg-action-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.mtg-action-item {
+  padding: 8px 10px;
+  border-left: 3px solid var(--border-1);
+  border-radius: 4px;
+  background: var(--surface-1);
+  margin-bottom: 8px;
+}
+.mtg-action-item.mtg-priority-สูง   { border-left-color: oklch(0.55 0.20 25); }
+.mtg-action-item.mtg-priority-กลาง { border-left-color: oklch(0.65 0.18 80); }
+.mtg-action-item.mtg-priority-ต่ำ   { border-left-color: oklch(0.65 0.15 150); }
+.mtg-action-task {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--fg-1);
+  margin-bottom: 4px;
+}
+.mtg-action-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.mtg-action-meta .mtg-prio {
+  font-weight: 600;
+  color: oklch(0.45 0.18 230);
+}
+.mtg-summary-risks {
+  background: oklch(0.98 0.04 25);
+  border: 1px solid oklch(0.85 0.10 25);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.mtg-summary-risks .mtg-summary-label {
+  color: oklch(0.45 0.20 25);
+}
