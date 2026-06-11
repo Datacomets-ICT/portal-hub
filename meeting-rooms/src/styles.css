@@ -4804,3 +4804,73 @@ body.ms-preview-open .modal-backdrop {
     grid-template-rows: 1fr 1fr;
   }
 }
+
+/* ── Edit modal: section cards (no more "โล้น" flat layout) ───────── */
+.se-edit-pane .se-block {
+  background: var(--surface-0, #fff);
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.se-edit-pane .se-label {
+  background: linear-gradient(90deg, oklch(0.96 0.02 250), oklch(0.94 0.03 250));
+  margin: -14px -16px 12px;
+  padding: 9px 14px;
+  border-radius: 10px 10px 0 0;
+  border-bottom: 1px solid var(--border-1);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: oklch(0.35 0.16 230);
+  letter-spacing: 0.2px;
+  text-transform: none;
+}
+.se-edit-pane .se-hint {
+  background: white;
+  color: var(--fg-3);
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 11px;
+  margin-left: auto;
+}
+.se-edit-pane .se-input {
+  background: oklch(0.99 0.005 250);
+}
+.se-edit-pane .se-input:focus {
+  background: white;
+}
+.se-edit-pane .se-row {
+  align-items: stretch;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed oklch(0.92 0.01 250);
+}
+.se-edit-pane .se-row:last-of-type {
+  border-bottom: 0;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+}
+.se-edit-pane .se-add {
+  margin-top: 4px;
+  width: 100%;
+  text-align: center;
+  font-weight: 600;
+  padding: 8px 12px;
+  background: oklch(0.96 0.04 220);
+  border: 1px dashed oklch(0.75 0.12 220);
+  color: oklch(0.40 0.18 230);
+}
+.se-edit-pane .se-add:hover {
+  background: oklch(0.93 0.08 220);
+}
+/* Action items table inside a card */
+.se-edit-pane .se-action-table {
+  margin-top: 2px;
+}
+.se-edit-pane .se-action-table thead th {
+  background: oklch(0.97 0.02 250);
+  border-radius: 4px 4px 0 0;
+  padding: 8px 10px;
+}

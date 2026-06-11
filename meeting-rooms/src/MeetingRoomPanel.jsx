@@ -198,8 +198,8 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
   const onFilePick = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser?.code) return;
-    if (file.size > 200 * 1024 * 1024) {
-      showToast('ไฟล์ใหญ่เกิน 200 MB', 'err');
+    if (file.size > 500 * 1024 * 1024) {
+      showToast('ไฟล์ใหญ่เกิน 500 MB — ลองตัดไฟล์เป็นช่วงสั้นกว่านี้', 'err');
       e.target.value = '';
       return;
     }
@@ -689,7 +689,7 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
               <span className="mtg-chat-count">{attachments.length}</span>
             </div>
             {attachments.length === 0 ? (
-              <div className="mtg-room-empty">ยังไม่มีไฟล์ — อัปโหลดได้ด้านล่าง (สูงสุด 200 MB)</div>
+              <div className="mtg-room-empty">ยังไม่มีไฟล์ — อัปโหลดได้ด้านล่าง (สูงสุด 500 MB · ประมาณเสียง 8 ชม.)</div>
             ) : (
               <ul className="mtg-files-list">
                 {attachments.map((a) => (

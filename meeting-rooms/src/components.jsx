@@ -573,14 +573,24 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
     const toStr = (v) => {
       if (typeof v === 'string') return v;
       if (v == null) return '';
+      if (Array.isArray(v)) {
+        // Nested array — flatten by joining clean entries
+        const inner = v.map(toStr).filter((s) => s.trim());
+        return inner.join(' · ');
+      }
       if (typeof v === 'object') {
         if (v.task) return [v.task, v.owner, v.due].filter(Boolean).join(' · ');
         if (v.name) return [v.name, v.role, v.contribution].filter(Boolean).join(' · ');
+        const keys = Object.keys(v);
+        if (keys.length === 0) return '';                  // skip {}
         try { return JSON.stringify(v); } catch { return ''; }
       }
       return String(v);
     };
-    const toStrArr = (arr) => (Array.isArray(arr) ? arr : []).map(toStr).filter((s) => s.trim() || s === '');
+    // Drop empty strings AND skip [{}] / [[]] noise from legacy summaries.
+    const toStrArr = (arr) => (Array.isArray(arr) ? arr : [])
+      .map(toStr)
+      .filter((s) => typeof s === 'string' && s.trim());
 
     setTldr(toStr(summary?.tldr));
     setTopics(toStrArr(summary?.topics_discussed?.length ? summary.topics_discussed : (summary?.key_points || [])));
@@ -844,16 +854,22 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
     const asString = (v) => {
       if (typeof v === 'string') return v;
       if (v == null) return '';
+      if (Array.isArray(v)) {
+        const inner = v.map(asString).filter((s) => s.trim());
+        return inner.join(' · ');
+      }
       if (typeof v === 'object') {
-        // Handle a stakeholder-shaped object so we don't lose the data outright
         if (v.task) return [v.task, v.owner, v.due].filter(Boolean).join(' · ');
         if (v.name) return [v.name, v.role, v.contribution].filter(Boolean).join(' · ');
+        const keys = Object.keys(v);
+        if (keys.length === 0) return '';
         try { return JSON.stringify(v); } catch { return ''; }
       }
       return String(v);
     };
     const cleanStrings = (arr) => (Array.isArray(arr) ? arr : [])
-      .map(asString).filter((s) => s.trim());
+      .map(asString)
+      .filter((s) => typeof s === 'string' && s.trim());
 
     const rawTopics   = Array.isArray(summary.topics_discussed) && summary.topics_discussed.length
                           ? summary.topics_discussed
