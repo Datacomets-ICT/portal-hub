@@ -1392,7 +1392,16 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
   // panel stays interactive. Compare the booking's end time (date + end_min)
   // to "now". For new bookings (no initial.id) this is always false.
   const isPast = (() => {
-    if (!initial?.id || !date) return false;
+    if (!initial?.id) return false;
+    // Manual end takes precedence — once the booker pressed "🛑 จบประชุม"
+    // (which writes ended_at), the meeting is past even if its scheduled
+    // end_min hasn't arrived yet. Without this, ending early didn't unlock
+    // the AI-summary section.
+    if (initial?.endedAt) {
+      const ended = new Date(initial.endedAt);
+      if (!Number.isNaN(ended.getTime()) && ended.getTime() <= Date.now()) return true;
+    }
+    if (!date) return false;
     try {
       const baseDate = new Date(date);
       const initialEnd = initial.end ?? end;

@@ -25,6 +25,7 @@ import {
   deleteBooking,
 } from './api/bookings';
 import { RecordingProvider, RecordingIndicator, useRecording } from './RecordingContext.jsx';
+import { supabase } from './lib/supabase.js';
 
 // Per-app role (v43): admin determined by meeting_role from Workspace
 // auth (toMeetingUser already sets role='admin' for elevated users).
@@ -311,10 +312,49 @@ function AppInner() {
   // clicked → we open the booking it's recording, switching date / tab
   // if needed so the modal can mount.
   useEffect(() => {
-    const onJump = (ev) => {
+    const onJump = async (ev) => {
       const id = ev?.detail?.bookingId;
       if (!id) return;
-      const b = bookings.find((x) => x.id === id);
+
+      // Jumps usually arrive from the popout right after "🛑 จบประชุม", so
+      // the cached `bookings` row probably still has endedAt=null. Refetch
+      // the row directly so the modal sees the fresh ended_at / auto_summary
+      // and isPast can flip to true (which unlocks the AI summary section).
+      let fresh = null;
+      try {
+        const { data } = await supabase
+          .from('mtg_bookings')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (data) {
+          fresh = {
+            id:            data.id,
+            roomId:        data.room_id,
+            bookingDate:   data.booking_date,
+            start:         data.start_min,
+            end:           data.end_min,
+            title:         data.title,
+            booker:        data.booker,
+            attendees:     data.attendees,
+            purpose:       data.purpose,
+            company:       data.company,
+            customerCount: data.customer_count,
+            equipment:     data.equipment || [],
+            refreshments:  data.refreshments || [],
+            agenda:        data.agenda || [],
+            autoSummary:   data.auto_summary || null,
+            autoSummaryAt: data.auto_summary_at || null,
+            endedAt:       data.ended_at || null,
+          };
+          // Also patch the cached list so timeline / drawer pick up the change.
+          setBookings((bs) => bs.map((x) => (x.id === id ? fresh : x)));
+        }
+      } catch (err) {
+        console.warn('jump-to-booking refetch failed:', err.message);
+      }
+
+      const b = fresh || bookings.find((x) => x.id === id);
       if (!b) return;
       const room = rooms.find((r) => r.id === b.roomId);
       if (!room) return;
