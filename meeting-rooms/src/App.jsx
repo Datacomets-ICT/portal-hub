@@ -775,7 +775,11 @@ function AppInner() {
         onClose={closeModal}
         onSave={saveBooking}
         room={modal?.room}
-        date={currentDate}
+        date={
+          modal?.initial?.bookingDate
+            ? new Date(modal.initial.bookingDate + 'T00:00:00')
+            : currentDate
+        }
         initial={modal?.initial}
         employees={employees}
         currentUser={currentUser}
@@ -785,7 +789,7 @@ function AppInner() {
             ? bookings.filter(
                 (b) =>
                   b.roomId === modal.room.id &&
-                  b.bookingDate === currentDateStr &&
+                  b.bookingDate === (modal.initial?.bookingDate || currentDateStr) &&
                   b.id !== modal.initial?.id
               )
             : []

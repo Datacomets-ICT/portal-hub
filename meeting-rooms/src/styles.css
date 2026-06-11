@@ -4273,25 +4273,38 @@ body.ms-preview-open .modal-backdrop {
 .topbar-user-wrap {
   position: relative;
 }
+/* Keep the pill chrome from .topbar-user (border + radius + padding) and
+   just upgrade it to a button — don't strip the border to transparent
+   or the user can't see where the click target ends. */
 .topbar-user-btn {
-  border: 0;
   cursor: pointer;
   text-align: left;
   font: inherit;
   color: inherit;
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
+  background: var(--surface);
+  transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 .topbar-user-btn:hover {
   background: var(--surface-2);
-  border-radius: 12px;
+  border-color: var(--accent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+.topbar-user-btn[aria-expanded="true"] {
+  background: var(--surface-2);
+  border-color: var(--accent);
 }
 .topbar-user-caret {
-  margin-left: 6px;
+  margin-left: 4px;
+  margin-right: 6px;
   color: var(--fg-3);
   font-size: 11px;
+}
+/* Slightly larger avatar inside the topbar pill so the photo reads
+   clearly at a glance instead of looking like a tiny dot. */
+.topbar-user-btn .topbar-user-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
 }
 .topbar-user-menu {
   position: absolute;
