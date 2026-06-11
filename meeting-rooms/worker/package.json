@@ -1,0 +1,22 @@
+{
+  "name": "ollama-summary-worker",
+  "version": "1.0.0",
+  "description": "Background worker that polls Supabase for queued meeting-summary jobs and runs them through a local Ollama model (qwen2.5:14b by default). Lives next to an Ollama server on the office machine; calls localhost:11434 directly so no tunnel / public exposure is needed.",
+  "type": "module",
+  "private": true,
+  "main": "ollama-worker.mjs",
+  "scripts": {
+    "start": "node ollama-worker.mjs",
+    "once": "node ollama-worker.mjs --once"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

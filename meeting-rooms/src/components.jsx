@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
 import { supabase } from './lib/supabase.js';
 
@@ -473,6 +473,154 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
   );
 }
 
+// Renders the AI-summary block based on the current job state.
+// Idle (no job yet)    → "✨ สร้างสรุป AI" button
+// queued / processing  → spinner + status hint, no button
+// done                 → full structured summary
+// error                → red banner + retry button
+function SummarySection({ summary, job, onEnqueue, busy, err, fileCount }) {
+  const status = job?.status;
+  const isRunning = status === 'queued' || status === 'processing';
+  const showResult = !!summary && (status === 'done' || !status);
+
+  if (showResult) {
+    return (
+      <div className="bm-summary-card">
+        {summary.tldr && (
+          <div className="mtg-summary-tldr">
+            <span className="mtg-summary-label">TL;DR</span>
+            <span>{summary.tldr}</span>
+          </div>
+        )}
+        {summary.key_points?.length > 0 && (
+          <div className="mtg-summary-block">
+            <div className="mtg-summary-label">ประเด็นสำคัญ</div>
+            <ul>{summary.key_points.map((p, i) => <li key={i}>{p}</li>)}</ul>
+          </div>
+        )}
+        {summary.decisions?.length > 0 && (
+          <div className="mtg-summary-block">
+            <div className="mtg-summary-label">ข้อตัดสินใจ</div>
+            <ul>{summary.decisions.map((p, i) => <li key={i}>{p}</li>)}</ul>
+          </div>
+        )}
+        {summary.action_items?.length > 0 && (
+          <div className="mtg-summary-block">
+            <div className="mtg-summary-label">Action Items</div>
+            <ul>
+              {summary.action_items.map((a, i) => (
+                <li key={i}>
+                  {a.task}
+                  {a.owner && <span className="mtg-owner"> · {a.owner}</span>}
+                  {a.due && <span className="mtg-due"> · กำหนด {a.due}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {summary.next_steps?.length > 0 && (
+          <div className="mtg-summary-block">
+            <div className="mtg-summary-label">ขั้นถัดไป</div>
+            <ul>{summary.next_steps.map((p, i) => <li key={i}>{p}</li>)}</ul>
+          </div>
+        )}
+        <div className="mtg-summary-files-used">
+          <span style={{ marginRight: 6 }}>📥 แหล่งข้อมูลที่ใช้:</span>
+          <span className="mtg-file-used mtg-file-ok">agenda + chat + meta</span>
+          {summary._used_audio && <span className="mtg-file-used mtg-file-ok">🎙️ transcript เสียง</span>}
+          {(summary._files || []).map((f, i) => (
+            <span key={i} className={`mtg-file-used mtg-file-${f.status === 'ok' || f.status === 'truncated' ? 'ok' : 'skip'}`}>
+              {f.file_name}
+              {f.status === 'truncated' && ' (ตัดท้าย)'}
+              {f.status === 'no-text' && ' (อ่านไม่ได้)'}
+            </span>
+          ))}
+          {summary._model && (
+            <span className="mtg-file-used" style={{ background: 'var(--surface-2)', color: 'var(--fg-3)' }}>
+              {summary._model}
+            </span>
+          )}
+        </div>
+        <div className="bm-summary-actions">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={onEnqueue}
+            disabled={busy || isRunning}
+            title="สั่งให้ AI สรุปใหม่อีกครั้ง"
+          >
+            {busy ? '⏳ กำลังส่ง...' : '🔄 สร้างใหม่'}
+          </button>
+        </div>
+        {err && <div className="view-error" style={{ marginTop: 10 }}>{err}</div>}
+      </div>
+    );
+  }
+
+  if (isRunning) {
+    return (
+      <div className="bm-summary-running">
+        <div className="bm-summary-running-spinner" />
+        <div>
+          <div className="bm-summary-running-title">
+            🤖 กำลังสรุป...
+          </div>
+          <div className="bm-summary-running-desc">
+            AI กำลังประมวลผลที่เครื่อง office (qwen2.5:14b) — ใช้เวลา 30 วินาที ถึง 3 นาที
+            <br />
+            หน้านี้จะอัปเดตเองเมื่อเสร็จ ไม่ต้อง refresh
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="bm-summary-error">
+        <div style={{ marginBottom: 8 }}>
+          ❌ <b>สรุปไม่สำเร็จ</b>
+          {job?.error && (
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 4 }}>
+              {job.error}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={onEnqueue}
+          disabled={busy}
+        >
+          {busy ? '⏳ กำลังส่ง...' : '🔄 ลองอีกครั้ง'}
+        </button>
+      </div>
+    );
+  }
+
+  // Idle — no job yet, no summary yet.
+  return (
+    <div className="bm-summary-empty">
+      <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--fg-2)' }}>
+        ยังไม่มีสรุปสำหรับการประชุมนี้ — กดเพื่อให้ AI สรุปจาก meta · agenda · แชท
+        {fileCount > 0 ? ` · ไฟล์แนบ ${fileCount} ไฟล์` : ''} · transcript เสียง (ถ้ามี)
+      </p>
+      <button
+        type="button"
+        className="btn-primary bm-summary-open"
+        onClick={onEnqueue}
+        disabled={busy}
+      >
+        {busy ? '⏳ กำลังเริ่ม...' : '✨ สร้างสรุป AI'}
+      </button>
+      <div className="mtg-summary-quota" style={{ marginTop: 8, fontSize: 12, color: 'var(--fg-3)' }}>
+        ℹ️ ใช้ Ollama (qwen2.5:14b) รันที่เครื่อง office · ไม่มีค่าใช้จ่าย · ข้อมูลไม่ออกนอกองค์กร
+      </div>
+      {err && <div className="view-error" style={{ marginTop: 10 }}>{err}</div>}
+    </div>
+  );
+}
+
 // Own-booking only: shows the attendee list + attached files inside the
 // booking modal so the owner can review them without opening the popout
 // meeting window. Pulls fresh from the same RPCs the popout uses.
@@ -481,6 +629,92 @@ function BookingAttendeesAndFiles({ booking, isPast = false }) {
   const [attendees, setAttendees] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Auto-summary state. Lives here (not in BookingModal) so the summary
+  // section can subscribe to Realtime updates without re-mounting the
+  // entire modal when status changes.
+  const [summary, setSummary] = useState(booking?.autoSummary || null);
+  const [job, setJob] = useState(null);                  // { status, error }
+  const [enqueueBusy, setEnqueueBusy] = useState(false);
+  const [enqueueErr, setEnqueueErr] = useState(null);
+
+  // Refetch the booking row's auto_summary when the job flips to 'done'
+  // — the worker writes the JSON directly into mtg_bookings.auto_summary.
+  const refreshSummaryFromBooking = useCallback(async () => {
+    if (!bookingId) return;
+    const { data } = await supabase
+      .from('mtg_bookings')
+      .select('auto_summary')
+      .eq('id', bookingId)
+      .single();
+    if (data?.auto_summary) setSummary(data.auto_summary);
+  }, [bookingId]);
+
+  useEffect(() => {
+    setSummary(booking?.autoSummary || null);
+    setEnqueueErr(null);
+  }, [booking?.id, booking?.autoSummary]);
+
+  // Seed the job pill on open, then subscribe to row updates.
+  useEffect(() => {
+    if (!bookingId || !isPast) return;
+    let alive = true;
+
+    supabase.rpc('mtg_latest_summary_job', { p_booking_id: bookingId })
+      .then(({ data }) => {
+        if (!alive || !data || !data.length) return;
+        setJob(data[0]);
+      });
+
+    // Realtime: listen for INSERT + UPDATE on mtg_summary_jobs filtered
+    // to this booking. When status flips to 'done', refetch the summary
+    // from mtg_bookings so the UI flips from "กำลังสรุป..." → result.
+    const channel = supabase
+      .channel(`summary-job-${bookingId}`)
+      .on(
+        'postgres_changes',
+        {
+          event:  '*',
+          schema: 'public',
+          table:  'mtg_summary_jobs',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        async (payload) => {
+          const row = payload.new || payload.old;
+          if (!row || !alive) return;
+          setJob(row);
+          if (row.status === 'done') {
+            await refreshSummaryFromBooking();
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      alive = false;
+      supabase.removeChannel(channel);
+    };
+  }, [bookingId, isPast, refreshSummaryFromBooking]);
+
+  const enqueueSummary = useCallback(async () => {
+    if (!bookingId) return;
+    setEnqueueBusy(true);
+    setEnqueueErr(null);
+    try {
+      const r = await fetch('/api/meeting-auto-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId }),
+      });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error || 'enqueue ไม่สำเร็จ');
+      setJob({ status: 'queued', job_id: data.job_id });
+    } catch (e) {
+      setEnqueueErr(e.message || 'เริ่มงานไม่สำเร็จ');
+    } finally {
+      setEnqueueBusy(false);
+    }
+  }, [bookingId]);
 
   useEffect(() => {
     if (!bookingId) return;
@@ -577,15 +811,14 @@ function BookingAttendeesAndFiles({ booking, isPast = false }) {
       {isPast && (
         <section className="bm-extra-section">
           <div className="bm-extra-head">🤖 สรุปการประชุม (AI)</div>
-          <div className="bm-summary-wip">
-            <div className="bm-summary-wip-icon">🚧</div>
-            <div>
-              <div className="bm-summary-wip-title">ระบบกำลังพัฒนา</div>
-              <div className="bm-summary-wip-desc">
-                การสรุปประชุมอัตโนมัติยังอยู่ระหว่างการพัฒนา — เร็ว ๆ นี้
-              </div>
-            </div>
-          </div>
+          <SummarySection
+            summary={summary}
+            job={job}
+            onEnqueue={enqueueSummary}
+            busy={enqueueBusy}
+            err={enqueueErr}
+            fileCount={files.length}
+          />
         </section>
       )}
     </div>

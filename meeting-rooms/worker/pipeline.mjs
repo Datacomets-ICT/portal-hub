@@ -1,0 +1,378 @@
+// Pipeline for the Ollama summary worker.
+//
+// Flow:
+//   1. stripFiller         — regex-only, removes "เอ่อ อืม ครับๆ" noise
+//   2. extractAttachmentText — pull text out of pdf / xlsx / docx / txt
+//   3. buildPrompt         — combine meta + agenda + chat + files + audio
+//                            transcript into a single prompt with the
+//                            JSON schema the model should produce
+//   4. chunkIfNeeded       — only kicks in if the prompt is genuinely too
+//                            big for the model's context (qwen2.5 has
+//                            128k tokens — most meetings fit in one shot)
+//   5. callOllama          — POST to /api/chat with JSON format hint
+//   6. mergeSummaries      — only used in the chunked path; combines mini
+//                            summaries into the final structured object
+//
+// Designed to be pure-ish so the worker daemon can unit-test stages
+// independently if needed.
+
+import { Buffer } from 'node:buffer';
+
+// ---------------------------------------------------------------------------
+// 1. Filler stripping — Thai + a few English. Run with /gi.
+// ---------------------------------------------------------------------------
+// Source: common spoken-Thai disfluencies. Kept conservative — we want to
+// reduce noise, not erase actual speech. Whole-word match only.
+const FILLER_PATTERNS = [
+  /\b(เอ่อ|อืม|อ่า|เอ้อ|เออ|อ่ะ|อะ|อ่ะนะ|นะคะ|นะครับ|ครับๆ+|ค่ะๆ+)\b/gi,
+  /\b(um+|uh+|err+|hmm+|like|you know|i mean)\b/gi,
+];
+
+export function stripFiller(text) {
+  if (!text || typeof text !== 'string') return '';
+  let out = text;
+  for (const re of FILLER_PATTERNS) out = out.replace(re, '');
+  // Collapse the gaps the regex leaves behind: multiple spaces, blank
+  // commas (", ,"), repeated punctuation, leading/trailing space on
+  // each line.
+  out = out
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*,\s*,\s*/g, ', ')
+    .replace(/([.!?])\1{2,}/g, '$1')
+    .replace(/^\s+|\s+$/gm, '');
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 2. Attachment text extraction — lazy imports so a broken parser kills
+//    only its own file, not the whole run.
+// ---------------------------------------------------------------------------
+const PER_FILE_CHAR_CAP = 50_000;
+
+function detectKind(fileName = '', mime = '') {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  const m = (mime || '').toLowerCase();
+  if (ext === 'pdf' || m.includes('pdf')) return 'pdf';
+  if (['xlsx', 'xls', 'csv'].includes(ext) || m.includes('spreadsheet') || m.includes('excel') || m === 'text/csv') return 'sheet';
+  if (['docx', 'doc'].includes(ext) || m.includes('wordprocessingml')) return 'docx';
+  if (['txt', 'md', 'log'].includes(ext) || m.startsWith('text/')) return 'text';
+  return 'unknown';
+}
+
+export async function extractAttachmentText(file, buf) {
+  const kind = detectKind(file.file_name, file.mime_type);
+  try {
+    if (kind === 'pdf') {
+      const mod = await import('pdf-parse');
+      const pdfParse = mod.default || mod;
+      const result = await pdfParse(buf);
+      return (result.text || '').trim();
+    }
+    if (kind === 'sheet') {
+      const XLSX = await import('xlsx');
+      const wb = XLSX.read(buf, { type: 'buffer' });
+      const parts = [];
+      for (const name of wb.SheetNames.slice(0, 5)) {
+        const ws = wb.Sheets[name];
+        const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false });
+        if (csv.trim()) parts.push(`# ${name}\n${csv}`);
+      }
+      return parts.join('\n\n').trim();
+    }
+    if (kind === 'docx') {
+      const mod = await import('mammoth');
+      const mammoth = mod.default || mod;
+      const { value } = await mammoth.extractRawText({ buffer: buf });
+      return (value || '').trim();
+    }
+    if (kind === 'text') {
+      return buf.toString('utf8').trim();
+    }
+  } catch (err) {
+    console.error(`extract failed for ${file.file_name}:`, err.message);
+    return '';
+  }
+  return '';
+}
+
+export function capFileText(text) {
+  if (!text) return { text: '', status: 'no-text' };
+  if (text.length < 30) return { text: '', status: 'no-text' };
+  if (text.length > PER_FILE_CHAR_CAP) {
+    return {
+      text: text.slice(0, PER_FILE_CHAR_CAP) + '\n... [ตัดท้ายเพราะไฟล์ยาว]',
+      status: 'truncated',
+    };
+  }
+  return { text, status: 'ok' };
+}
+
+// ---------------------------------------------------------------------------
+// 3. Prompt building — single source of truth for what the model sees.
+// ---------------------------------------------------------------------------
+const SUMMARY_SCHEMA = `{
+  "tldr": "สรุปย่อ 1-2 ประโยค",
+  "key_points": ["ประเด็นสำคัญ 1", "ประเด็นสำคัญ 2"],
+  "decisions": ["ข้อตัดสินใจ 1"],
+  "action_items": [{"task": "...", "owner": "ชื่อ", "due": "วันที่ถ้ามี"}],
+  "next_steps": ["ขั้นถัดไป 1"]
+}`;
+
+const SYSTEM_PROMPT = `คุณคือผู้ช่วยสรุปการประชุมขององค์กรไทย ใช้ภาษากระชับ ตรงประเด็น เหมาะกับผู้บริหาร
+ตอบเป็น JSON ตาม schema ที่ผู้ใช้กำหนดเท่านั้น ห้ามมีคำเกริ่นนำใด ๆ ห้ามตอบเป็น markdown ห้ามตอบเป็นภาษาอังกฤษ
+ใช้ข้อมูลที่ผู้ใช้ให้มาเท่านั้น ห้ามแต่งเพิ่ม ถ้าข้อมูลไม่พอให้ส่งฟิลด์เป็น array ว่าง`;
+
+function fmtMin(m) {
+  if (m == null) return '';
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+export function buildPrompt(inputs, fileTexts = []) {
+  const b = inputs.booking || {};
+  const messages = inputs.messages || [];
+  const attendees = inputs.attendees || [];
+  const audio = inputs.audio_note || null;
+  const agenda = Array.isArray(b.agenda) ? b.agenda : [];
+
+  const lines = [];
+  lines.push('สรุปการประชุมจากข้อมูลด้านล่าง รวมทุกแหล่งที่มี (meta + agenda + ผู้เข้าร่วม + แชท + เนื้อหาไฟล์แนบ + บันทึกเสียง) เป็นภาษาไทย');
+  lines.push('');
+  lines.push(`หัวข้อ: ${b.title || '-'}`);
+  lines.push(`ผู้จัด: ${b.booker || '-'}`);
+  lines.push(`วัตถุประสงค์: ${b.purpose || '-'}`);
+  if (b.company) lines.push(`บริษัท/ลูกค้า: ${b.company}`);
+  if (b.attendees) lines.push(`จำนวนผู้เข้าร่วมที่จองไว้: ${b.attendees} คน`);
+  if (b.booking_date) lines.push(`วันที่: ${b.booking_date}`);
+  if (b.start_min != null && b.end_min != null) {
+    lines.push(`เวลา: ${fmtMin(b.start_min)}–${fmtMin(b.end_min)}`);
+  }
+  lines.push('');
+
+  if (agenda.length) {
+    lines.push('วาระการประชุม:');
+    for (const a of agenda) lines.push(`  - ${a.text || ''}${a.done ? ' [✓ done]' : ''}`);
+    lines.push('');
+  }
+
+  if (attendees.length) {
+    lines.push('ผู้เข้าร่วม:');
+    for (const a of attendees) lines.push(`  - ${a.name || a.employee_id} (${a.status})`);
+    lines.push('');
+  }
+
+  if (messages.length) {
+    lines.push('บทสนทนา (แชท):');
+    for (const m of messages) {
+      const body = stripFiller(m.body || '');
+      if (body) lines.push(`  ${m.name || m.employee_id}: ${body}`);
+    }
+    lines.push('');
+  } else {
+    lines.push('(ไม่มีบทสนทนาในแชท ใช้ข้อมูลจากวาระ + meta สรุปแทน)');
+  }
+
+  const usable = fileTexts.filter((f) => f.text);
+  if (usable.length) {
+    lines.push('เนื้อหาไฟล์แนบ:');
+    for (const f of usable) {
+      lines.push(`--- ${f.file_name} ---`);
+      lines.push(f.text);
+      lines.push('');
+    }
+  }
+
+  if (audio) {
+    if (audio.duration_sec) {
+      lines.push(`บันทึกเสียงประชุม (~${Math.round(audio.duration_sec / 60)} นาที):`);
+    } else {
+      lines.push('บันทึกเสียงประชุม:');
+    }
+    if (audio.transcript) {
+      const cleaned = stripFiller(audio.transcript);
+      const t = cleaned.length > 80_000 ? cleaned.slice(0, 80_000) + '\n... [ตัดท้าย]' : cleaned;
+      lines.push('Transcript:');
+      lines.push(t);
+      lines.push('');
+    }
+    if (audio.summary) {
+      lines.push('Summary จากตัวอัดเสียง (ใช้เป็น hint):');
+      lines.push(typeof audio.summary === 'string' ? audio.summary : JSON.stringify(audio.summary));
+      lines.push('');
+    }
+  }
+
+  lines.push('');
+  lines.push(`ตอบเป็น JSON ตาม schema นี้เท่านั้น:`);
+  lines.push(SUMMARY_SCHEMA);
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// 4. Chunking — for transcripts that exceed the model's effective context.
+//
+// qwen2.5:14b advertises 128k tokens but quality degrades well before
+// that. Trigger chunking when transcript char-length > 60k. We chunk
+// only the transcript and keep meta/chat/files in every chunk so each
+// mini-summary stays grounded.
+// ---------------------------------------------------------------------------
+const CHUNK_MAX_CHARS = 28_000;   // ~7k tokens per chunk, plenty of headroom
+const CHUNK_OVERLAP   = 2_800;    // ~10%
+
+export function chunkTranscript(transcript) {
+  const t = stripFiller(transcript || '');
+  if (t.length <= CHUNK_MAX_CHARS) return [t];
+
+  const chunks = [];
+  let i = 0;
+  while (i < t.length) {
+    let end = Math.min(i + CHUNK_MAX_CHARS, t.length);
+
+    // Prefer to cut at a paragraph or sentence boundary near `end` so we
+    // don't slice mid-word. Look back up to 600 chars for one of these
+    // markers; if none, just cut at `end`.
+    if (end < t.length) {
+      const window = t.slice(Math.max(i, end - 600), end);
+      const breakIdx = Math.max(
+        window.lastIndexOf('\n\n'),
+        window.lastIndexOf('. '),
+        window.lastIndexOf('? '),
+        window.lastIndexOf('! '),
+      );
+      if (breakIdx > 100) {
+        end = Math.max(i, end - 600) + breakIdx + 1;
+      }
+    }
+
+    chunks.push(t.slice(i, end).trim());
+    if (end >= t.length) break;
+    i = Math.max(0, end - CHUNK_OVERLAP);
+  }
+  return chunks;
+}
+
+// ---------------------------------------------------------------------------
+// 5. Ollama call. Uses /api/chat with `format: 'json'` so qwen returns
+//    parseable JSON without us having to strip code fences.
+// ---------------------------------------------------------------------------
+export async function callOllama({ baseUrl, model, system, user, timeoutMs }) {
+  const url = `${baseUrl.replace(/\/$/, '')}/api/chat`;
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), timeoutMs || 240_000);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        model,
+        stream: false,
+        format: 'json',
+        options: { temperature: 0.3 },
+        messages: [
+          { role: 'system', content: system || SYSTEM_PROMPT },
+          { role: 'user', content: user },
+        ],
+      }),
+    });
+  } finally {
+    clearTimeout(tid);
+  }
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`ollama ${res.status}: ${t.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const content = data?.message?.content || '';
+  try {
+    return JSON.parse(content);
+  } catch {
+    // Fallback: model may have wrapped the JSON in stray text.
+    const m = content.match(/\{[\s\S]*\}/);
+    if (m) {
+      try { return JSON.parse(m[0]); } catch {}
+    }
+    return { tldr: content.slice(0, 280), key_points: [], decisions: [], action_items: [], next_steps: [] };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 6. Merge — combines several mini-summary objects into one. Plain JS,
+//    no LLM, no token cost. Dedupes by trimmed text.
+// ---------------------------------------------------------------------------
+function dedupedConcat(arrays) {
+  const seen = new Set();
+  const out = [];
+  for (const arr of arrays) {
+    if (!Array.isArray(arr)) continue;
+    for (const item of arr) {
+      const key = typeof item === 'string'
+        ? item.trim().toLowerCase()
+        : JSON.stringify(item);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+export function mergeSummaries(parts) {
+  const merged = {
+    tldr: '',
+    key_points:   dedupedConcat(parts.map((p) => p.key_points)),
+    decisions:    dedupedConcat(parts.map((p) => p.decisions)),
+    action_items: dedupedConcat(parts.map((p) => p.action_items)),
+    next_steps:   dedupedConcat(parts.map((p) => p.next_steps)),
+  };
+  // For TL;DR, pick the first non-empty — they're all summaries of
+  // overlapping content, so picking one is fine. Could be replaced
+  // with a final "merge" LLM call later if quality requires it.
+  for (const p of parts) {
+    if (p.tldr && p.tldr.trim()) { merged.tldr = p.tldr.trim(); break; }
+  }
+  return merged;
+}
+
+// ---------------------------------------------------------------------------
+// 7. Top-level summarize — orchestrates the above.
+// ---------------------------------------------------------------------------
+export async function summarize({ inputs, fileTexts, ollama, log }) {
+  const transcript = inputs.audio_note?.transcript || '';
+  const longTranscript = transcript.length > CHUNK_MAX_CHARS * 1.5;
+
+  // Common path — small enough to send in one shot.
+  if (!longTranscript) {
+    const prompt = buildPrompt(inputs, fileTexts);
+    log?.(`single-call · prompt ${prompt.length} chars`);
+    return await callOllama({
+      baseUrl:   ollama.baseUrl,
+      model:     ollama.model,
+      user:      prompt,
+      timeoutMs: ollama.timeoutMs,
+    });
+  }
+
+  // Long-transcript path: map over chunks, then merge.
+  const chunks = chunkTranscript(transcript);
+  log?.(`chunked · ${chunks.length} chunks of ~${CHUNK_MAX_CHARS} chars`);
+  const partials = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const slicedInputs = {
+      ...inputs,
+      audio_note: { ...(inputs.audio_note || {}), transcript: chunks[i] },
+    };
+    const prompt = buildPrompt(slicedInputs, fileTexts);
+    log?.(`  chunk ${i + 1}/${chunks.length} · prompt ${prompt.length} chars`);
+    const result = await callOllama({
+      baseUrl:   ollama.baseUrl,
+      model:     ollama.model,
+      user:      prompt,
+      timeoutMs: ollama.timeoutMs,
+    });
+    partials.push(result);
+  }
+  return mergeSummaries(partials);
+}
