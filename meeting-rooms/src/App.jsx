@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import LoginScreen from './LoginScreen.jsx';
 import BookingsHistoryView from './BookingsHistoryView.jsx';
 import BookingWizard from './BookingWizard.jsx';
@@ -42,11 +42,63 @@ function ymd(d) {
 // survives all the SPA tab switches inside AppInner.
 export default function App() {
   return (
-    <RecordingProvider>
-      <AppInner />
-      <RecordingIndicatorWithJump />
-    </RecordingProvider>
+    <RootErrorBoundary>
+      <RecordingProvider>
+        <AppInner />
+        <RecordingIndicatorWithJump />
+      </RecordingProvider>
+    </RootErrorBoundary>
   );
+}
+
+// Catches any uncaught render error so a single bad component doesn't
+// produce a fully blank screen with no clue what went wrong. Renders a
+// minimal panel with the message + a "reload" button.
+class RootErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { err: null };
+  }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) { console.error('[meeting-rooms] crash:', err, info); }
+  render() {
+    if (!this.state.err) return this.props.children;
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', padding: 32, fontFamily: 'inherit',
+        background: 'oklch(0.98 0.02 60)',
+      }}>
+        <div style={{
+          maxWidth: 600, padding: '24px 28px', borderRadius: 12,
+          background: 'white', border: '1px solid oklch(0.85 0.10 30)',
+          boxShadow: '0 4px 18px rgba(0,0,0,0.08)',
+        }}>
+          <div style={{ fontSize: 22, marginBottom: 6 }}>⚠ มีบางอย่างผิดพลาด</div>
+          <div style={{ fontSize: 13, color: '#475569', marginBottom: 14 }}>
+            หน้านี้ครัชชั่วคราว — ลองรีเฟรชหน้าเว็บ ถ้ายังเป็นแจ้งทีมไอที
+          </div>
+          <pre style={{
+            background: '#F8FAFC', padding: 12, borderRadius: 6,
+            fontSize: 11.5, color: '#1F2937', overflow: 'auto', maxHeight: 200,
+            whiteSpace: 'pre-wrap',
+          }}>
+            {String(this.state.err?.stack || this.state.err)}
+          </pre>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 14, padding: '8px 16px', borderRadius: 6,
+              border: 0, background: '#0F172A', color: 'white',
+              fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            🔄 รีเฟรช
+          </button>
+        </div>
+      </div>
+    );
+  }
 }
 
 // Pulls the bookingId from context so the user can click the floating
