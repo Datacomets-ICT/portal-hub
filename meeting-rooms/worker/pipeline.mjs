@@ -308,13 +308,12 @@ export async function callOllama({ baseUrl, model, system, user, timeoutMs }) {
         model,
         stream: false,
         format: 'json',
-        // num_predict: cap output ~3000 tokens — enough for a rich
-        //   summary (discussion_summary alone can be 600-800 tokens).
-        // num_ctx: bump context window so the full input + a long
-        //   reply both fit (default 2048 is tiny).
-        // temperature: 0.4 nudges narrative quality without straying
-        //   from facts (0.3 was too terse).
-        options: { temperature: 0.4, num_predict: 3000, num_ctx: 8192 },
+        // num_ctx: large prompts (long transcript + attachment text) can hit
+        //   ~5-8k tokens. Set 16k so input + output comfortably fit without
+        //   bloating KV cache (each 4k of context ≈ +0.5-1 GB RAM on 7b).
+        // num_predict: cap output ~2500 tokens — enough for 4-section JSON.
+        // temperature: 0.4 reads naturally; 0.3 was too terse.
+        options: { temperature: 0.4, num_predict: 2500, num_ctx: 16384 },
         messages: [
           { role: 'system', content: system || SYSTEM_PROMPT },
           { role: 'user', content: user },
@@ -339,7 +338,21 @@ export async function callOllama({ baseUrl, model, system, user, timeoutMs }) {
     if (m) {
       try { return JSON.parse(m[0]); } catch {}
     }
-    return { tldr: content.slice(0, 280), key_points: [], decisions: [], action_items: [], next_steps: [] };
+    // Pure failure — log enough of the raw content to debug, and return
+    // a stub that matches the NEW 4-section schema so the UI doesn't
+    // render orphan fields. done_reason and length usually expose
+    // truncation issues (context overflow, hit num_predict).
+    console.error('[ollama] JSON parse failed. Length:', content.length,
+                  'preview:', content.slice(0, 300).replace(/\s+/g, ' '),
+                  'done_reason:', data?.done_reason,
+                  'eval_count:', data?.eval_count);
+    return {
+      tldr: `(สรุปไม่สำเร็จ — model output ไม่ใช่ JSON ที่ถูกต้อง · ${content.length} chars)`,
+      topics_discussed: [],
+      decisions: [],
+      action_items: [],
+      pending_items: [],
+    };
   }
 }
 
