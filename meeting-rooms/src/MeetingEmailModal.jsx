@@ -189,19 +189,19 @@ export default function MeetingEmailModal({
 
   const finalSubject = (subject?.trim() || defaultSubject || 'สรุปการประชุม').trim();
 
-  const openInGmail = () => {
+  const openInOutlook = () => {
     const body = buildPayload();
+    // Outlook web deeplink — works for both Office 365 (corporate) and
+    // Outlook.com (personal). Microsoft's official compose URL format.
     const params = new URLSearchParams({
-      view: 'cm',
-      fs:   '1',
-      to:   toList.join(','),
-      su:   finalSubject,
+      to:      toList.join(','),
+      subject: finalSubject,
       body,
     });
     if (ccList.length) params.set('cc', ccList.join(','));
-    const url = `https://mail.google.com/mail/?${params.toString()}`;
+    const url = `https://outlook.office.com/mail/deeplink/compose?${params.toString()}`;
     window.open(url, '_blank', 'noopener,noreferrer');
-    setOkMsg('📧 เปิด Gmail แล้ว — กลับไปกด "ส่ง" ใน Gmail');
+    setOkMsg('📧 เปิด Outlook แล้ว — กลับไปกด "Send" ใน Outlook');
   };
 
   const openInMailto = () => {
@@ -343,11 +343,11 @@ export default function MeetingEmailModal({
 
             <div className="email-draft-howto">
               <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6, color: 'var(--fg-2)' }}>
-                วิธีร่างเมล — เลือก 1 จาก 3 (แนะนำ "เปิดใน Gmail")
+                วิธีร่างเมล — เลือก 1 จาก 3 (แนะนำ "เปิดใน Outlook")
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.65 }}>
-                <li><b>📧 เปิดใน Gmail</b> — ใช้ Gmail web เปิดร่างพร้อมเนื้อหาให้</li>
-                <li><b>💻 เปิดในโปรแกรมเมล</b> — เปิด Outlook / Mac Mail (ติดตั้งในเครื่อง)</li>
+                <li><b>📧 เปิดใน Outlook</b> — Outlook web เปิดร่างพร้อมเนื้อหา (รองรับ Office 365 + Outlook.com)</li>
+                <li><b>💻 เปิดในโปรแกรมเมล</b> — เปิด Outlook desktop / Mac Mail (ถ้าตั้งเป็น default)</li>
                 <li><b>📋 คัดลอก HTML</b> — copy เนื้อหารูปแบบเต็ม → paste ในกล่องเขียนเมลที่ไหนก็ได้</li>
               </ul>
             </div>
@@ -390,8 +390,8 @@ export default function MeetingEmailModal({
           <button className="btn-ghost" onClick={openInMailto} disabled={!recipientsOk || !draftDataReady || busy} title="เปิด Outlook / Apple Mail">
             💻 โปรแกรมเมล
           </button>
-          <button className="btn-primary" onClick={openInGmail} disabled={!recipientsOk || !draftDataReady || busy} title="เปิด Gmail บน web (แนะนำ)">
-            📧 เปิดใน Gmail
+          <button className="btn-primary" onClick={openInOutlook} disabled={!recipientsOk || !draftDataReady || busy} title="เปิด Outlook web (แนะนำ — รองรับ Office 365 และ Outlook.com)">
+            📧 เปิดใน Outlook
           </button>
           {/* SMTP path kept as fallback — hidden by default since it requires
               app password setup. Uncomment to expose to users:
