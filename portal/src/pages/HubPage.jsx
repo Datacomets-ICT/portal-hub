@@ -107,6 +107,24 @@ export default function HubPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileTab, setProfileTab] = useState('info');
+
+  // Sub-apps (meeting-rooms, etc.) deep-link the profile via ?profile=info
+  // when the user picks an item from their dropdown there. Honor it on mount,
+  // then strip the param so a manual reload doesn't reopen the modal.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('profile');
+    if (!tab) return;
+    const allowed = ['info', 'avatar', 'password', 'theme', 'notify'];
+    if (allowed.includes(tab)) {
+      setProfileTab(tab);
+      setProfileOpen(true);
+    }
+    params.delete('profile');
+    const qs = params.toString();
+    const newUrl = window.location.pathname + (qs ? `?${qs}` : '') + window.location.hash;
+    window.history.replaceState({}, '', newUrl);
+  }, []);
   const menuRef = useRef(null);
   const { toast, show: showToast } = useToast();
 

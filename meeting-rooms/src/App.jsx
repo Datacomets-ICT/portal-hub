@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import LoginScreen from './LoginScreen.jsx';
 import BookingsHistoryView from './BookingsHistoryView.jsx';
 import BookingWizard from './BookingWizard.jsx';
@@ -230,6 +230,20 @@ function AppInner() {
     window.open(url, name, 'width=760,height=920,resizable=yes,scrollbars=yes');
   }, []);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  // Close user dropdown on outside-click
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onClick = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', onClick);
+    return () => window.removeEventListener('mousedown', onClick);
+  }, [userMenuOpen]);
   const openCreate = (room, start, end) =>
     setModal({ room, initial: { start, end, booker: currentUser?.name || '' } });
   const openEdit = (b, room) => {
@@ -439,26 +453,71 @@ function AppInner() {
           const display = currentUser.nickname || currentUser.name || currentUser.code || '?';
           const initial = String(display).charAt(0).toUpperCase();
           const empId = currentUser.code || '';
+          const goPortal = (path) => { window.location.href = path; };
+          const onLogout = () => {
+            try {
+              sessionStorage.removeItem('ticketUser');
+              sessionStorage.removeItem('ticketPwd');
+              localStorage.removeItem('mr_user');
+            } catch {}
+            window.location.href = '/login';
+          };
           return (
-            <div className="topbar-user">
-              <div className="topbar-user-avatar">
-                {currentUser.avatarUrl
-                  ? <img src={currentUser.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                  : initial}
-              </div>
-              <div className="topbar-user-text">
-                <div className="topbar-user-name">
-                  {display}
-                  {empId && <span className="topbar-user-nick"> · {empId}</span>}
+            <div className="topbar-user-wrap" ref={userMenuRef}>
+              <button
+                type="button"
+                className="topbar-user topbar-user-btn"
+                onClick={() => setUserMenuOpen((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+              >
+                <div className="topbar-user-avatar">
+                  {currentUser.avatarUrl
+                    ? <img src={currentUser.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    : initial}
                 </div>
-                <div className="topbar-user-meta">
-                  <span className={`role-badge ${isAdmin ? 'admin' : ''}`}>
-                    {isAdmin ? 'Admin' : 'User'}
-                  </span>
-                  {currentUser.dept && <> · {currentUser.dept}</>}
-                  {currentUser.position && <> · {currentUser.position}</>}
+                <div className="topbar-user-text">
+                  <div className="topbar-user-name">
+                    {display}
+                    {empId && <span className="topbar-user-nick"> · {empId}</span>}
+                  </div>
+                  <div className="topbar-user-meta">
+                    <span className={`role-badge ${isAdmin ? 'admin' : ''}`}>
+                      {isAdmin ? 'Admin' : 'User'}
+                    </span>
+                    {currentUser.dept && <> · {currentUser.dept}</>}
+                    {currentUser.position && <> · {currentUser.position}</>}
+                  </div>
                 </div>
-              </div>
+                <span className="topbar-user-caret">▾</span>
+              </button>
+              {userMenuOpen && (
+                <div className="topbar-user-menu" role="menu">
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=info')}>
+                    <span className="tu-ic">👤</span> ข้อมูลส่วนตัว
+                  </button>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=avatar')}>
+                    <span className="tu-ic">📷</span> เปลี่ยนรูปโปรไฟล์
+                  </button>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=password')}>
+                    <span className="tu-ic">🔑</span> เปลี่ยนรหัสผ่าน
+                  </button>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=theme')}>
+                    <span className="tu-ic">🎨</span> ธีมและสี
+                  </button>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=notify')}>
+                    <span className="tu-ic">🔔</span> การแจ้งเตือน
+                  </button>
+                  <div className="tu-menu-divider" />
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/people')}>
+                    <span className="tu-ic">👥</span> เพื่อนร่วมงาน
+                  </button>
+                  <div className="tu-menu-divider" />
+                  <button type="button" className="tu-menu-item tu-menu-danger" onClick={onLogout}>
+                    <span className="tu-ic">🚪</span> ออกจากระบบ
+                  </button>
+                </div>
+              )}
             </div>
           );
         })()}

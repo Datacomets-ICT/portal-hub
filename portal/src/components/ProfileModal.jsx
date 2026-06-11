@@ -216,7 +216,7 @@ function InfoSection({ user, busy, setBusy, updateUser, getPassword, toast, onDo
           disabled={busy}
         />
       </div>
-      <p className="note">รหัสพนักงาน ชื่อ-นามสกุล และแผนก แก้ไขไม่ได้ ติดต่อ IT หากต้องการแก้</p>
+      <p className="note">รหัสพนักงาน ชื่อ-นามสกุล และแผนก แก้ไขไม่ได้ ติดต่อ system หากต้องการแก้</p>
       <div className="profile-actions">
         <button type="button" className="btn btn-outline" onClick={onDone} disabled={busy}>
           ปิด

@@ -4265,3 +4265,77 @@ body.ms-preview-open .modal-backdrop {
   flex-direction: column;
   gap: 10px;
 }
+
+/* User profile dropdown — top-right pill becomes a clickable button
+   that opens a menu with profile / coworkers / logout actions.
+   The visual treatment of .topbar-user stays the same so the pill
+   matches Workspace & Driver. */
+.topbar-user-wrap {
+  position: relative;
+}
+.topbar-user-btn {
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.topbar-user-btn:hover {
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+.topbar-user-caret {
+  margin-left: 6px;
+  color: var(--fg-3);
+  font-size: 11px;
+}
+.topbar-user-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 230px;
+  background: var(--surface-0, #fff);
+  border: 1px solid var(--border-1);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  z-index: 1000;
+}
+.tu-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--fg-1);
+  cursor: pointer;
+  text-align: left;
+}
+.tu-menu-item:hover {
+  background: var(--surface-2);
+}
+.tu-ic {
+  width: 20px;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1;
+}
+.tu-menu-divider {
+  height: 1px;
+  background: var(--border-1);
+  margin: 4px 6px;
+}
+.tu-menu-danger {
+  color: oklch(0.55 0.20 25);
+}
+.tu-menu-danger:hover {
+  background: oklch(0.96 0.05 25);
+}
