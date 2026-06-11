@@ -62,6 +62,7 @@ export function CardTimeline({ room, bookings, onSlotClick, onEventClick, curren
   const handleLeave = () => setHoverX(null);
 
   const handleClick = (e) => {
+    e.stopPropagation();
     if (hoverX == null) return;
     const start = hoverX;
     const end = Math.min(DAY_END, start + 60);
@@ -149,8 +150,22 @@ export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin
   const occupiedNow =
     isToday && bookings.some((b) => currentMin >= b.start && currentMin < b.end);
 
+  const cardClickable = !!onShowRoomBookings;
+  const openRoom = (e) => {
+    if (!cardClickable) return;
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    onShowRoomBookings(room);
+  };
+
   return (
-    <article className="room-card">
+    <article
+      className={`room-card${cardClickable ? ' room-card-clickable' : ''}`}
+      onClick={cardClickable ? openRoom : undefined}
+      role={cardClickable ? 'button' : undefined}
+      tabIndex={cardClickable ? 0 : undefined}
+      onKeyDown={cardClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openRoom(e); } } : undefined}
+      title={cardClickable ? 'ดูตารางของห้องนี้' : undefined}
+    >
       <header className="rc-head">
         <div className="rc-loc">{room.location}</div>
         <div className="rc-id-name">
@@ -177,7 +192,7 @@ export function RoomCard({ room, bookings, onSlotClick, onEventClick, currentMin
         <button
           type="button"
           className="rc-title rc-title-btn"
-          onClick={() => onShowRoomBookings && onShowRoomBookings(room)}
+          onClick={(e) => { e.stopPropagation(); onShowRoomBookings && onShowRoomBookings(room); }}
           title="ดูตารางของห้องนี้"
         >
           {room.name}

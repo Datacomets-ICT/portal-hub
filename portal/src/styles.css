@@ -3460,3 +3460,41 @@ a { color: var(--accent); text-decoration: none; }
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* Emoji picker button + grid inside StatusPopover */
+.status-pop-emoji-btn {
+  cursor: pointer;
+}
+.status-pop-emoji-btn:hover {
+  background: var(--surface-hover, #f3f4f6);
+  border-color: var(--accent);
+}
+.status-pop-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  margin: 8px 0 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.status-pop-emoji-cell {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 0;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.status-pop-emoji-cell:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+}
+.status-pop-emoji-cell-clear {
+  font-size: 14px;
+  color: var(--ink-2, #6b7280);
+}

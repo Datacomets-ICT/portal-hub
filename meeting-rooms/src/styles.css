@@ -4161,3 +4161,19 @@ body.ms-preview-open .modal-backdrop {
   color: var(--fg-2);
   line-height: 1.5;
 }
+
+/* Clickable room card — subtle hover feedback so users know the whole
+   card opens the room history. Timeline interactions inside the card
+   stop propagation, so this only fires on the header/photo/body. */
+.room-card-clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.room-card-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.08);
+}
+.room-card-clickable:focus-visible {
+  outline: 2px solid oklch(0.65 0.18 230);
+  outline-offset: 2px;
+}

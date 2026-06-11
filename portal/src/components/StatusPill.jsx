@@ -31,6 +31,17 @@ const DURATIONS = [
   { v: 0,    l: 'ไม่หมดอายุ' },
 ];
 
+// Curated emoji grid for the picker — kept small and work-relevant so
+// the popover stays compact. Users can still type / paste any other
+// emoji in the input directly.
+const EMOJI_GRID = [
+  '😀','😊','😂','😎','🤩','😴','🤒','🤔',
+  '👍','👌','🙏','👏','💪','🤝','🫡','👀',
+  '💻','📞','📧','📅','💡','🧠','📊','📋',
+  '🍱','🍵','☕','🍻','🏠','✈️','🚗','🚶',
+  '✅','❌','⏰','🎯','🔥','🚀','❤️','🎉',
+];
+
 export default function StatusPill() {
   const { user, updateUser, getPassword } = useAuth();
   const [open, setOpen] = useState(false);
@@ -126,6 +137,7 @@ function StatusPopover({ current, expiresIn, onSave, onClear, onClose }) {
   const [emoji, setEmoji] = useState(current.emoji || '');
   const [text, setText] = useState(current.text || '');
   const [minutes, setMinutes] = useState(240);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const pickPreset = (p) => {
     setEmoji(p.emoji);
@@ -150,13 +162,14 @@ function StatusPopover({ current, expiresIn, onSave, onClear, onClose }) {
       )}
 
       <div className="status-pop-input-row">
-        <input
-          className="status-pop-emoji"
-          value={emoji}
-          onChange={(e) => setEmoji(e.target.value.slice(0, 4))}
-          placeholder="🙂"
-          maxLength={4}
-        />
+        <button
+          type="button"
+          className="status-pop-emoji status-pop-emoji-btn"
+          onClick={() => setPickerOpen((v) => !v)}
+          title="เลือกอิโมจิ"
+        >
+          {emoji || '🙂'}
+        </button>
         <input
           className="status-pop-text"
           value={text}
@@ -165,6 +178,31 @@ function StatusPopover({ current, expiresIn, onSave, onClear, onClose }) {
           maxLength={60}
         />
       </div>
+
+      {pickerOpen && (
+        <div className="status-pop-emoji-grid">
+          {EMOJI_GRID.map((em) => (
+            <button
+              key={em}
+              type="button"
+              className="status-pop-emoji-cell"
+              onClick={() => { setEmoji(em); setPickerOpen(false); }}
+            >
+              {em}
+            </button>
+          ))}
+          {emoji && (
+            <button
+              type="button"
+              className="status-pop-emoji-cell status-pop-emoji-cell-clear"
+              onClick={() => { setEmoji(''); setPickerOpen(false); }}
+              title="ล้างอิโมจิ"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="status-pop-presets">
         {PRESETS.map((p) => (
