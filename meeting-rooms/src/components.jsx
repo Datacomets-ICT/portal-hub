@@ -567,15 +567,32 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
 
   useEffect(() => {
     if (!open) return;
-    setTldr(summary?.tldr || '');
-    setTopics(Array.isArray(summary?.topics_discussed) ? summary.topics_discussed : (summary?.key_points || []));
-    setDecisions(Array.isArray(summary?.decisions) ? summary.decisions : []);
-    setActions(Array.isArray(summary?.action_items) ? summary.action_items.map((a) => ({
-      task:  a.task  || '',
-      owner: a.owner || '',
-      due:   a.due   || '',
-    })) : []);
-    setPending(Array.isArray(summary?.pending_items) ? summary.pending_items : (summary?.next_steps || []));
+    // Coerce every value to a plain string so the textareas never receive
+    // an object (which would crash on .trim() / .map() later). Older
+    // summaries from earlier schema iterations may have objects mixed in.
+    const toStr = (v) => {
+      if (typeof v === 'string') return v;
+      if (v == null) return '';
+      if (typeof v === 'object') {
+        if (v.task) return [v.task, v.owner, v.due].filter(Boolean).join(' · ');
+        if (v.name) return [v.name, v.role, v.contribution].filter(Boolean).join(' · ');
+        try { return JSON.stringify(v); } catch { return ''; }
+      }
+      return String(v);
+    };
+    const toStrArr = (arr) => (Array.isArray(arr) ? arr : []).map(toStr).filter((s) => s.trim() || s === '');
+
+    setTldr(toStr(summary?.tldr));
+    setTopics(toStrArr(summary?.topics_discussed?.length ? summary.topics_discussed : (summary?.key_points || [])));
+    setDecisions(toStrArr(summary?.decisions));
+    setActions((Array.isArray(summary?.action_items) ? summary.action_items : [])
+      .filter((a) => a && typeof a === 'object')
+      .map((a) => ({
+        task:  toStr(a.task),
+        owner: toStr(a.owner),
+        due:   toStr(a.due),
+      })));
+    setPending(toStrArr(summary?.pending_items?.length ? summary.pending_items : (summary?.next_steps || [])));
     setErr('');
   }, [open, summary]);
 
@@ -772,11 +789,11 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
                     <tr><th>งาน</th><th>ผู้รับผิดชอบ</th><th>กำหนดเสร็จ</th></tr>
                   </thead>
                   <tbody>
-                    {actions.filter((a) => a.task?.trim()).map((a, i) => (
+                    {actions.filter((a) => (a?.task || '').toString().trim()).map((a, i) => (
                       <tr key={i}>
                         <td>{a.task}</td>
-                        <td>{a.owner.trim() || 'ยังไม่กำหนด'}</td>
-                        <td>{a.due.trim() || '—'}</td>
+                        <td>{(a.owner || '').toString().trim() || 'ยังไม่กำหนด'}</td>
+                        <td>{(a.due || '').toString().trim() || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -821,16 +838,34 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
   const showResult = !!summary && (status === 'done' || !status);
 
   if (showResult) {
-    // Backward-compat: older summaries (before the 4-section schema) used
-    // key_points / next_steps. Fall back to those so old data still renders.
-    // Always strip empty strings — the model sometimes emits ['', ''] when
-    // it has nothing to say, which would otherwise render as orphan bullets.
-    const rawTopics    = summary.topics_discussed?.length ? summary.topics_discussed : (summary.key_points || []);
-    const rawPending   = summary.pending_items?.length    ? summary.pending_items    : (summary.next_steps || []);
-    const topics       = rawTopics.filter((t) => (t || '').trim());
-    const decisions    = (summary.decisions || []).filter((d) => (d || '').trim());
-    const actionItems  = (summary.action_items || []).filter((a) => (a?.task || '').trim());
-    const pending      = rawPending.filter((p) => (p || '').trim());
+    // Backward-compat: older summaries used key_points / next_steps and may
+    // even have OBJECTS in places we now expect strings (e.g. stakeholders
+    // were objects in the rich schema). Coerce defensively before .trim().
+    const asString = (v) => {
+      if (typeof v === 'string') return v;
+      if (v == null) return '';
+      if (typeof v === 'object') {
+        // Handle a stakeholder-shaped object so we don't lose the data outright
+        if (v.task) return [v.task, v.owner, v.due].filter(Boolean).join(' · ');
+        if (v.name) return [v.name, v.role, v.contribution].filter(Boolean).join(' · ');
+        try { return JSON.stringify(v); } catch { return ''; }
+      }
+      return String(v);
+    };
+    const cleanStrings = (arr) => (Array.isArray(arr) ? arr : [])
+      .map(asString).filter((s) => s.trim());
+
+    const rawTopics   = Array.isArray(summary.topics_discussed) && summary.topics_discussed.length
+                          ? summary.topics_discussed
+                          : (summary.key_points || []);
+    const rawPending  = Array.isArray(summary.pending_items) && summary.pending_items.length
+                          ? summary.pending_items
+                          : (summary.next_steps || []);
+    const topics      = cleanStrings(rawTopics);
+    const decisions   = cleanStrings(summary.decisions);
+    const pending     = cleanStrings(rawPending);
+    const actionItems = (Array.isArray(summary.action_items) ? summary.action_items : [])
+      .filter((a) => a && typeof a === 'object' && (a.task || '').toString().trim());
     return (
       <div className="bm-summary-card">
         {summary.tldr && (
