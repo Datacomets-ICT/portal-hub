@@ -4339,3 +4339,17 @@ body.ms-preview-open .modal-backdrop {
 .tu-menu-danger:hover {
   background: oklch(0.96 0.05 25);
 }
+
+/* Booker card lifted into the BookingWizard header — sits between the
+   title block and the close button. Keep it compact so the header
+   doesn't grow taller. */
+.wizard-head-booker {
+  margin-left: auto;
+  margin-right: 12px;
+  flex-shrink: 0;
+  max-width: 360px;
+}
+.wizard-head-booker .booker-card {
+  margin-top: 0;
+  padding: 8px 12px;
+}

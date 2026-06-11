@@ -357,6 +357,29 @@ export default function BookingWizard({
             <div className="wizard-kicker">จองห้องประชุม</div>
             <h2 className="wizard-title">เลือกวัตถุประสงค์ · เวลา · ห้อง</h2>
           </div>
+          {currentUser && (
+            <div className="wizard-head-booker">
+              <div className="booker-card">
+                <div className="booker-avatar">
+                  {currentUser.avatarUrl
+                    ? <img src={currentUser.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    : (currentUser.nickname || currentUser.name || '?')[0]}
+                </div>
+                <div className="booker-info">
+                  <div className="booker-name">
+                    {currentUser.name}
+                    {currentUser.nickname && (
+                      <span className="booker-nick"> ({currentUser.nickname})</span>
+                    )}
+                  </div>
+                  <div className="booker-meta">
+                    ผู้จอง · รหัส {currentUser.code}
+                    {currentUser.dept && <> · {currentUser.dept}</>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <button className="wizard-close" onClick={onClose} aria-label="ปิด">
             ✕
           </button>
@@ -617,35 +640,9 @@ export default function BookingWizard({
 
           {/* Final details — shows after room selected. Title field moved
               up to the time/count section per user request. */}
-          {selectedRoom && !selectedRoom._conflict && (
-            <div className="wizard-section wizard-section-details">
-              <div className="wizard-section-h">รายละเอียดการประชุม</div>
-              {currentUser && (
-                <div className="booker-card" style={{ marginTop: 4 }}>
-                  <div className="booker-avatar">
-                    {(currentUser.nickname || currentUser.name || '?')[0]}
-                  </div>
-                  <div className="booker-info">
-                    <div className="booker-name">
-                      {currentUser.name}
-                      {currentUser.nickname && (
-                        <span className="booker-nick"> ({currentUser.nickname})</span>
-                      )}
-                    </div>
-                    <div className="booker-meta">
-                      ผู้จอง · รหัส {currentUser.code}
-                      {currentUser.dept && <> · {currentUser.dept}</>}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* "อุปกรณ์เสริม" removed — each room already advertises its
-                  built-in equipment (see room detail card).
-                  Company name + refreshments moved up to the purpose
-                  section so they appear right after picking "รับรองลูกค้า". */}
-            </div>
-          )}
+          {/* Booker card moved to the wizard header so it shows up immediately.
+              Company + refreshments moved to the purpose section above.
+              "อุปกรณ์เสริม" removed — each room advertises its own equipment. */}
         </div>
 
         <div className="wizard-foot">
