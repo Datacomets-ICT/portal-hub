@@ -198,8 +198,8 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
   const onFilePick = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !currentUser?.code) return;
-    if (file.size > 25 * 1024 * 1024) {
-      showToast('ไฟล์ใหญ่เกิน 25 MB', 'err');
+    if (file.size > 200 * 1024 * 1024) {
+      showToast('ไฟล์ใหญ่เกิน 200 MB', 'err');
       e.target.value = '';
       return;
     }
@@ -294,7 +294,9 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
   const myRow = attendees.find((a) => a.employee_id === currentUser?.code);
   const isBooker = currentUser?.name && normName(booking?.booker) === normName(currentUser.name);
   const isJoined = myRow?.status === 'joined' || isBooker;
-  const canInvite = isJoined; // booker or any joined attendee can invite more
+  // Only invite while the meeting is live. Once it's past (auto-end or
+   // manual "จบประชุม"), the booker should go to the summary view instead.
+  const canInvite = isJoined && !isPast;
 
   const joinedCount   = attendees.filter((a) => a.status === 'joined').length + (isBooker && !attendees.some((a) => a.employee_id === currentUser?.code) ? 1 : 0);
   const invitedCount  = attendees.filter((a) => a.status === 'invited').length;
@@ -418,11 +420,45 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
         </header>
 
         {isPast && (
-          <div className="mtg-past-banner">
-            ⏱ <b>ประชุมจบแล้ว</b>
-            {endedAt && <span> · ปิดเอง {endedAt.getHours().toString().padStart(2, '0')}:{endedAt.getMinutes().toString().padStart(2, '0')}</span>}
-             — ข้อมูลจะเก็บไว้ <b>2 อาทิตย์</b>
-          </div>
+          <>
+            <div className="mtg-past-banner">
+              ⏱ <b>ประชุมจบแล้ว</b>
+              {endedAt && <span> · ปิดเอง {endedAt.getHours().toString().padStart(2, '0')}:{endedAt.getMinutes().toString().padStart(2, '0')}</span>}
+               — ข้อมูลจะเก็บไว้ <b>2 อาทิตย์</b>
+            </div>
+            <div className="mtg-past-cta">
+              <button
+                className="btn-primary mtg-summary-go"
+                onClick={() => {
+                  // Jump back to the main app's booking modal so the user
+                  // can see / generate the AI summary. The popout was opened
+                  // via window.open from App.jsx, so window.opener is the
+                  // main window; dispatch the same custom event used by the
+                  // recording-indicator pill.
+                  try {
+                    const opener = window.opener;
+                    if (opener && !opener.closed) {
+                      opener.dispatchEvent(new CustomEvent('mtg:jump-to-booking', {
+                        detail: { bookingId: booking.id },
+                      }));
+                      opener.focus?.();
+                      window.close();
+                      return;
+                    }
+                  } catch {
+                    /* fall through to in-tab navigation */
+                  }
+                  // No opener (user reopened the URL directly) → go to history view.
+                  window.location.href = '/meeting/?view=history';
+                }}
+              >
+                🤖 ไปหน้าสรุป AI
+              </button>
+              <span className="mtg-past-cta-hint">
+                สั่งสรุปอัตโนมัติได้ในหน้าประวัติการจอง
+              </span>
+            </div>
+          </>
         )}
 
         {isBooker && !isPast && (
@@ -653,7 +689,7 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
               <span className="mtg-chat-count">{attachments.length}</span>
             </div>
             {attachments.length === 0 ? (
-              <div className="mtg-room-empty">ยังไม่มีไฟล์ — อัปโหลดได้ด้านล่าง (สูงสุด 25 MB)</div>
+              <div className="mtg-room-empty">ยังไม่มีไฟล์ — อัปโหลดได้ด้านล่าง (สูงสุด 200 MB)</div>
             ) : (
               <ul className="mtg-files-list">
                 {attachments.map((a) => (

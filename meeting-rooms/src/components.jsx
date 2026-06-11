@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
+import MeetingEmailModal from './MeetingEmailModal.jsx';
 import { supabase } from './lib/supabase.js';
 
 export const DAY_START = 8 * 60 + 30;   // 08:30
@@ -478,7 +479,8 @@ function BookingDetailsCard({ booking, employee, onClose, currentUser, room }) {
 // queued / processing  → spinner + status hint, no button
 // done                 → full structured summary
 // error                → red banner + retry button
-function SummarySection({ summary, job, onEnqueue, busy, err, fileCount }) {
+function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking, currentUser }) {
+  const [emailOpen, setEmailOpen] = useState(false);
   const status = job?.status;
   const isRunning = status === 'queued' || status === 'processing';
   const showResult = !!summary && (status === 'done' || !status);
@@ -545,6 +547,14 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount }) {
           <button
             type="button"
             className="btn-ghost"
+            onClick={() => setEmailOpen(true)}
+            title="ส่งสรุปนี้ทางอีเมลในรูปแบบใบรายงาน"
+          >
+            📧 ส่งอีเมล
+          </button>
+          <button
+            type="button"
+            className="btn-ghost"
             onClick={onEnqueue}
             disabled={busy || isRunning}
             title="สั่งให้ AI สรุปใหม่อีกครั้ง"
@@ -553,6 +563,22 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount }) {
           </button>
         </div>
         {err && <div className="view-error" style={{ marginTop: 10 }}>{err}</div>}
+        <MeetingEmailModal
+          open={emailOpen}
+          onClose={() => setEmailOpen(false)}
+          booking={booking ? {
+            id:           booking.id,
+            title:        booking.title,
+            booking_date: booking.bookingDate,
+            start_min:    booking.start,
+            end_min:      booking.end,
+            booker:       booking.booker,
+            attendees:    booking.attendees,
+            purpose:      booking.purpose,
+          } : null}
+          defaultTo={currentUser?.email || ''}
+          defaultSubject={booking?.title ? `[สรุปการประชุม] ${booking.title}` : ''}
+        />
       </div>
     );
   }
@@ -624,7 +650,7 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount }) {
 // Own-booking only: shows the attendee list + attached files inside the
 // booking modal so the owner can review them without opening the popout
 // meeting window. Pulls fresh from the same RPCs the popout uses.
-function BookingAttendeesAndFiles({ booking, isPast = false }) {
+function BookingAttendeesAndFiles({ booking, isPast = false, currentUser = null }) {
   const bookingId = booking?.id;
   const [attendees, setAttendees] = useState([]);
   const [files, setFiles] = useState([]);
@@ -818,6 +844,8 @@ function BookingAttendeesAndFiles({ booking, isPast = false }) {
             busy={enqueueBusy}
             err={enqueueErr}
             fileCount={files.length}
+            booking={booking}
+            currentUser={currentUser}
           />
         </section>
       )}
@@ -1136,7 +1164,7 @@ export function BookingModal({ open, onClose, onSave, room, date, initial, emplo
           {initial?.id
             && currentUser?.name
             && normName(initial.booker || booker) === normName(currentUser.name)
-            && <BookingAttendeesAndFiles booking={initial} isPast={isPast} />}
+            && <BookingAttendeesAndFiles booking={initial} isPast={isPast} currentUser={currentUser} />}
         </div>
 
         <div className="modal-foot">

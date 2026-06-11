@@ -89,6 +89,8 @@ button { cursor: pointer; }
   background: var(--accent);
   color: white; display: grid; place-items: center;
   font-weight: 600; font-size: 12px;
+  overflow: hidden;            /* clip the <img> inside to the circle */
+  flex-shrink: 0;              /* don't get squashed by long name text */
 }
 .topbar-btn {
   border: 1px solid var(--line); background: var(--surface);
@@ -4410,4 +4412,24 @@ body.ms-preview-open .modal-backdrop {
 }
 .bm-summary-error b {
   color: oklch(0.45 0.20 25);
+}
+
+/* CTA strip below "ประชุมจบแล้ว" banner in the popout — leads the user
+   to the booking modal where the AI summary lives. */
+.mtg-past-cta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  margin: 0 0 14px;
+  background: oklch(0.97 0.05 230);
+  border: 1px solid oklch(0.80 0.10 230);
+  border-radius: 10px;
+}
+.mtg-summary-go {
+  flex-shrink: 0;
+}
+.mtg-past-cta-hint {
+  font-size: 12.5px;
+  color: var(--fg-2);
 }

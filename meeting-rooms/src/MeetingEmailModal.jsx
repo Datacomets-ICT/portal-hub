@@ -41,7 +41,10 @@ export default function MeetingEmailModal({ open, onClose, note, booking, defaul
   const ccList = splitEmails(cc);
   const toBad = toList.filter(e => !EMAIL_RE.test(e));
   const ccBad = ccList.filter(e => !EMAIL_RE.test(e));
-  const canSend = toList.length > 0 && toBad.length === 0 && ccBad.length === 0 && !sending && !!note?.id;
+  // Either a legacy note_id (audio recording flow) OR a booking_id (new
+  // auto-summary flow) is enough to identify what to send.
+  const hasSource = !!note?.id || !!booking?.id;
+  const canSend = toList.length > 0 && toBad.length === 0 && ccBad.length === 0 && !sending && hasSource;
 
   async function handleSend() {
     if (!canSend) return;
@@ -49,16 +52,19 @@ export default function MeetingEmailModal({ open, onClose, note, booking, defaul
     setOkMsg('');
     setSending(true);
     try {
+      const payload = {
+        to: toList,
+        cc: ccList,
+        subject: subject?.trim() || undefined,
+        message: message?.trim() || undefined,
+      };
+      if (note?.id)         payload.note_id    = note.id;
+      else if (booking?.id) payload.booking_id = booking.id;
+
       const r = await fetch('/api/meeting-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          note_id: note.id,
-          to: toList,
-          cc: ccList,
-          subject: subject?.trim() || undefined,
-          message: message?.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);

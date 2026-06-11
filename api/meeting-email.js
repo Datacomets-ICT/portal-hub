@@ -301,20 +301,45 @@ export default async function handler(req, res) {
   try { body = req.body; if (typeof body === 'string') body = JSON.parse(body); }
   catch { return res.status(400).json({ error: 'Invalid JSON body' }); }
 
-  const { note_id, subject: customSubject, message } = body || {};
+  const { note_id, booking_id, subject: customSubject, message } = body || {};
   const to = normaliseEmails(body?.to);
   const cc = normaliseEmails(body?.cc);
 
-  if (!note_id) return res.status(400).json({ error: 'note_id required' });
+  if (!note_id && !booking_id) {
+    return res.status(400).json({ error: 'note_id หรือ booking_id อย่างน้อยอย่างใดอย่างหนึ่ง' });
+  }
   if (to.length === 0) return res.status(400).json({ error: 'อย่างน้อยต้องมี email "ถึง" 1 อัน' });
 
   try {
-    const note = await getNote(note_id);
-    if (note.status !== 'done') {
-      return res.status(400).json({ error: 'Summary ยังไม่เสร็จ — รอให้ AI สรุปให้เสร็จก่อนส่ง email' });
+    let note;
+    let booking;
+
+    if (note_id) {
+      // Legacy path: audio-recording summary stored in mtg_meeting_notes.
+      note = await getNote(note_id);
+      if (note.status !== 'done') {
+        return res.status(400).json({ error: 'Summary ยังไม่เสร็จ — รอให้ AI สรุปให้เสร็จก่อนส่ง email' });
+      }
+      booking = await getBooking(note.booking_id);
+    } else {
+      // New path: auto_summary on mtg_bookings (Ollama worker output).
+      booking = await getBooking(booking_id);
+      if (!booking) return res.status(404).json({ error: 'ไม่พบการประชุมนี้' });
+      const auto = booking.auto_summary;
+      if (!auto) {
+        return res.status(400).json({ error: 'ยังไม่มีสรุป AI สำหรับการประชุมนี้ — สั่งสรุปก่อน' });
+      }
+      // Shape the auto_summary into the same fields buildEmailHtml expects.
+      const actionItems = Array.isArray(auto.action_items) ? auto.action_items : [];
+      note = {
+        summary:           auto.tldr || '',
+        discussion_topics: (auto.key_points || []).map((p) => ({ topic: p, points: [] })),
+        decisions:         auto.decisions || [],
+        action_items:      actionItems,
+        next_meeting:      Array.isArray(auto.next_steps) ? auto.next_steps.join(' · ') : '',
+      };
     }
 
-    const booking = await getBooking(note.booking_id);
     const room = booking ? await getRoom(booking.room_id) : null;
 
     const html = buildEmailHtml({ booking, room, note, message });
