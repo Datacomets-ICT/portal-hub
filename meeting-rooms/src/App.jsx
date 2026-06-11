@@ -493,19 +493,19 @@ function AppInner() {
               </button>
               {userMenuOpen && (
                 <div className="topbar-user-menu" role="menu">
-                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=info')}>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/hub?profile=info')}>
                     <span className="tu-ic">👤</span> ข้อมูลส่วนตัว
                   </button>
-                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=avatar')}>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/hub?profile=avatar')}>
                     <span className="tu-ic">📷</span> เปลี่ยนรูปโปรไฟล์
                   </button>
-                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=password')}>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/hub?profile=password')}>
                     <span className="tu-ic">🔑</span> เปลี่ยนรหัสผ่าน
                   </button>
-                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=theme')}>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/hub?profile=theme')}>
                     <span className="tu-ic">🎨</span> ธีมและสี
                   </button>
-                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/?profile=notify')}>
+                  <button type="button" className="tu-menu-item" onClick={() => goPortal('/hub?profile=notify')}>
                     <span className="tu-ic">🔔</span> การแจ้งเตือน
                   </button>
                   <div className="tu-menu-divider" />
