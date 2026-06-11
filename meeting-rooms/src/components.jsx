@@ -521,9 +521,8 @@ function EmailPreviewModal({ open, onClose, bookingId, senderEmpId }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal"
+        className="modal email-preview-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '760px', maxWidth: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
       >
         <header className="modal-head" style={{ borderBottom: '1px solid var(--border-1)', padding: '14px 18px' }}>
           <div>
@@ -532,7 +531,7 @@ function EmailPreviewModal({ open, onClose, bookingId, senderEmpId }) {
           </div>
           <button className="modal-close" onClick={onClose} aria-label="ปิด">✕</button>
         </header>
-        <div style={{ flex: 1, overflow: 'hidden', background: '#F1F5F9', padding: 12 }}>
+        <div className="email-preview-body">
           {busy && <div style={{ padding: 40, textAlign: 'center' }}>กำลังโหลด...</div>}
           {err && <div className="view-error" style={{ margin: 12 }}>{err}</div>}
           {!busy && !err && html && (
@@ -628,9 +627,8 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal"
+        className="modal summary-edit-modal"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '720px', maxWidth: '96%', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
       >
         <header className="modal-head" style={{ borderBottom: '1px solid var(--border-1)', padding: '14px 18px' }}>
           <div>
@@ -640,7 +638,8 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
           <button className="modal-close" onClick={onClose} aria-label="ปิด">✕</button>
         </header>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
+        <div className="se-split">
+        <div className="se-edit-pane">
           {/* TL;DR */}
           <div className="se-block">
             <div className="se-label">TL;DR</div>
@@ -741,6 +740,67 @@ function SummaryEditModal({ open, onClose, bookingId, summary, onSaved }) {
           {err && <div className="view-error" style={{ marginTop: 12 }}>{err}</div>}
         </div>
 
+        {/* Live preview pane — renders the same 4-section layout the email
+            uses, so the user can see exactly what their edits produce
+            without leaving the modal. Updates on every keystroke. */}
+        <div className="se-preview-pane">
+          <div className="se-preview-head">👁 ตัวอย่างเนื้อหา</div>
+          <div className="se-preview-body">
+            {tldr.trim() && (
+              <div className="se-preview-tldr">
+                <span className="se-preview-tag">TL;DR</span>
+                <span>{tldr}</span>
+              </div>
+            )}
+            {topics.filter(Boolean).length > 0 && (
+              <div className="se-preview-block">
+                <div className="se-preview-h">หัวข้อหลักที่หารือ</div>
+                <ul>{topics.filter(Boolean).slice(0, 5).map((t, i) => <li key={i}>{t}</li>)}</ul>
+              </div>
+            )}
+            {decisions.filter(Boolean).length > 0 && (
+              <div className="se-preview-block">
+                <div className="se-preview-h">มติที่ประชุม / ข้อตัดสินใจ</div>
+                <ul>{decisions.filter(Boolean).map((d, i) => <li key={i}>{d}</li>)}</ul>
+              </div>
+            )}
+            {actions.filter((a) => a.task?.trim()).length > 0 && (
+              <div className="se-preview-block">
+                <div className="se-preview-h">สิ่งที่ต้องทำต่อ (Action Items)</div>
+                <table className="se-preview-table">
+                  <thead>
+                    <tr><th>งาน</th><th>ผู้รับผิดชอบ</th><th>กำหนดเสร็จ</th></tr>
+                  </thead>
+                  <tbody>
+                    {actions.filter((a) => a.task?.trim()).map((a, i) => (
+                      <tr key={i}>
+                        <td>{a.task}</td>
+                        <td>{a.owner.trim() || 'ยังไม่กำหนด'}</td>
+                        <td>{a.due.trim() || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {pending.filter(Boolean).length > 0 && (
+              <div className="se-preview-block">
+                <div className="se-preview-h">ประเด็นค้างคา / ต้องตัดสินใจต่อ</div>
+                <ul>{pending.filter(Boolean).map((p, i) => <li key={i}>{p}</li>)}</ul>
+              </div>
+            )}
+            {!tldr.trim() && topics.filter(Boolean).length === 0
+              && decisions.filter(Boolean).length === 0
+              && actions.filter((a) => a.task?.trim()).length === 0
+              && pending.filter(Boolean).length === 0 && (
+                <div className="se-preview-empty">
+                  เริ่มแก้ไขด้านซ้าย — ตัวอย่างจะอัปเดตอัตโนมัติ
+                </div>
+              )}
+          </div>
+        </div>
+        </div>
+
         <footer style={{ padding: '12px 18px', borderTop: '1px solid var(--border-1)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button className="btn-ghost" onClick={onClose} disabled={saving}>ยกเลิก</button>
           <button className="btn-primary" onClick={handleSave} disabled={saving}>
@@ -763,8 +823,14 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
   if (showResult) {
     // Backward-compat: older summaries (before the 4-section schema) used
     // key_points / next_steps. Fall back to those so old data still renders.
-    const topics  = summary.topics_discussed?.length ? summary.topics_discussed : (summary.key_points || []);
-    const pending = summary.pending_items?.length    ? summary.pending_items    : (summary.next_steps || []);
+    // Always strip empty strings — the model sometimes emits ['', ''] when
+    // it has nothing to say, which would otherwise render as orphan bullets.
+    const rawTopics    = summary.topics_discussed?.length ? summary.topics_discussed : (summary.key_points || []);
+    const rawPending   = summary.pending_items?.length    ? summary.pending_items    : (summary.next_steps || []);
+    const topics       = rawTopics.filter((t) => (t || '').trim());
+    const decisions    = (summary.decisions || []).filter((d) => (d || '').trim());
+    const actionItems  = (summary.action_items || []).filter((a) => (a?.task || '').trim());
+    const pending      = rawPending.filter((p) => (p || '').trim());
     return (
       <div className="bm-summary-card">
         {summary.tldr && (
@@ -781,14 +847,14 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
           </div>
         )}
 
-        {summary.decisions?.length > 0 && (
+        {decisions.length > 0 && (
           <div className="mtg-summary-block">
             <div className="mtg-summary-label">มติที่ประชุม / ข้อตัดสินใจ</div>
-            <ul>{summary.decisions.map((p, i) => <li key={i}>{p}</li>)}</ul>
+            <ul>{decisions.map((p, i) => <li key={i}>{p}</li>)}</ul>
           </div>
         )}
 
-        {summary.action_items?.length > 0 && (
+        {actionItems.length > 0 && (
           <div className="mtg-summary-block">
             <div className="mtg-summary-label">สิ่งที่ต้องทำต่อ (Action Items)</div>
             <table className="mtg-action-table">
@@ -800,7 +866,7 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
                 </tr>
               </thead>
               <tbody>
-                {summary.action_items.map((a, i) => (
+                {actionItems.map((a, i) => (
                   <tr key={i}>
                     <td>{a.task}</td>
                     <td>{a.owner || 'ยังไม่กำหนด'}</td>
@@ -820,20 +886,28 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
         )}
         <div className="mtg-summary-files-used">
           <span style={{ marginRight: 6 }}>📥 แหล่งข้อมูลที่ใช้:</span>
-          <span className="mtg-file-used mtg-file-ok">agenda + chat + meta</span>
-          {summary._used_audio && <span className="mtg-file-used mtg-file-ok">🎙️ transcript เสียง</span>}
+          <span className="mtg-file-used mtg-file-ok">
+            👥 ผู้เข้าร่วม{booking?.attendees ? ` ${booking.attendees} คน` : ''}
+          </span>
+          <span className="mtg-file-used mtg-file-ok">💬 แชทในห้องประชุม</span>
+          {summary._used_audio && (
+            <span className="mtg-file-used mtg-file-ok">🎙️ ไฟล์เสียง (transcript)</span>
+          )}
           {(summary._files || []).map((f, i) => (
             <span key={i} className={`mtg-file-used mtg-file-${f.status === 'ok' || f.status === 'truncated' ? 'ok' : 'skip'}`}>
-              {f.file_name}
+              📂 {f.file_name}
               {f.status === 'truncated' && ' (ตัดท้าย)'}
               {f.status === 'no-text' && ' (อ่านไม่ได้)'}
             </span>
           ))}
           {summary._model && (
             <span className="mtg-file-used" style={{ background: 'var(--surface-2)', color: 'var(--fg-3)' }}>
-              {summary._model}
+              🤖 {summary._model}
             </span>
           )}
+        </div>
+        <div className="bm-summary-retention">
+          ℹ️ ไฟล์แนบและการสรุปนี้จะอยู่ในระบบ <b>2 อาทิตย์</b> หลังจบการประชุม
         </div>
         <div className="bm-summary-actions">
           <button
@@ -1129,6 +1203,12 @@ function BookingAttendeesAndFiles({ booking, isPast = false, currentUser = null 
             })}
           </ul>
         </section>
+      )}
+
+      {isPast && (
+        <div className="bm-retention-banner">
+          ⏳ ไฟล์แนบและสรุปการประชุมจะถูกเก็บไว้ <b>2 อาทิตย์</b> หลังจบประชุม จากนั้นจะถูกลบอัตโนมัติ
+        </div>
       )}
 
       {files.length > 0 && (
