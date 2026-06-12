@@ -1040,9 +1040,13 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
             🤖 กำลังสรุป...
           </div>
           <div className="bm-summary-running-desc">
-            AI กำลังประมวลผลที่เครื่อง office (qwen2.5:14b) — ใช้เวลา 30 วินาที ถึง 3 นาที
+            AI กำลังประมวลผลที่เครื่อง office
             <br />
-            หน้านี้จะอัปเดตเองเมื่อเสร็จ ไม่ต้อง refresh
+            ถ้ามีไฟล์เสียง ระบบจะถอดเสียงก่อน — <b>ยิ่งไฟล์เสียงใหญ่/ยาว ยิ่งใช้เวลานาน</b> (ราว ๆ 1 นาที ต่อความยาวเสียง 1 นาที)
+            <br />
+            ถ้ามีแต่เอกสาร/ข้อความ จะเสร็จใน ~1–3 นาที
+            <br />
+            หน้านี้จะอัปเดตเองเมื่อเสร็จ ไม่ต้อง refresh — ปิดหน้าต่างไปทำอย่างอื่นได้
           </div>
         </div>
       </div>
@@ -1076,8 +1080,8 @@ function SummarySection({ summary, job, onEnqueue, busy, err, fileCount, booking
   return (
     <div className="bm-summary-empty">
       <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--fg-2)' }}>
-        ยังไม่มีสรุปสำหรับการประชุมนี้ — กดเพื่อให้ AI สรุปจาก meta · agenda · แชท
-        {fileCount > 0 ? ` · ไฟล์แนบ ${fileCount} ไฟล์` : ''} · transcript เสียง (ถ้ามี)
+        ยังไม่มีสรุปสำหรับการประชุมนี้ — กดเพื่อให้ AI สรุปจากไฟล์เอกสาร · ไฟล์เสียง (ระบบถอดเสียงให้) · วาระ · ผู้เข้าร่วม
+        {fileCount > 0 ? ` · มีไฟล์แนบ ${fileCount} ไฟล์` : ''}
       </p>
       <button
         type="button"
