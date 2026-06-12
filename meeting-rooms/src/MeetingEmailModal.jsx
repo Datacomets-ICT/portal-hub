@@ -12,10 +12,11 @@ import { useEffect, useRef, useState } from 'react';
 //   - user can review + edit one more time before hitting Send
 //
 // Three handoff options:
-//   📧 Gmail web   — opens https://mail.google.com/?compose URL
-//   💻 โปรแกรมเมล   — opens mailto: (Outlook desktop / Apple Mail)
-//   📋 คัดลอก HTML — copies the formatted email body to clipboard so the
-//                    user can paste with formatting into any mail client
+//   📧 ร่างใน Outlook (เดสก์ท็อป) — mailto: opens the installed Outlook / default
+//        mail app (editable, sendable) AND copies the formatted HTML to the
+//        clipboard so the user can Ctrl+V the tables/colours over the plain body
+//   🌐 Outlook เว็บ — opens outlook.office.com compose (Office 365 / Outlook.com)
+//   📋 คัดลอก HTML — copies the formatted body to clipboard for any mail client
 //
 // The legacy SMTP "ส่งจากระบบ" path stays as a fallback in case credentials
 // are eventually set up.
@@ -204,16 +205,33 @@ export default function MeetingEmailModal({
     setOkMsg('📧 เปิด Outlook แล้ว — กลับไปกด "Send" ใน Outlook');
   };
 
-  const openInMailto = () => {
-    const body = buildPayload();
+  // Open the locally-installed Outlook (or whatever the OS default mail app is)
+  // via mailto: — this pops an editable, sendable compose window straight on the
+  // desktop. mailto can only carry PLAIN text, so we ALSO copy the fully
+  // formatted HTML to the clipboard; the user hits Ctrl+V in the new draft to
+  // paste the tables/colours over the plain body. One click + one paste.
+  const draftInOutlookDesktop = async () => {
+    let copied = false;
+    if (previewHtml) {
+      try {
+        if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'text/html': new Blob([previewHtml], { type: 'text/html' }) }),
+          ]);
+        } else {
+          await navigator.clipboard.writeText(previewHtml);
+        }
+        copied = true;
+      } catch { /* clipboard blocked — the plain mailto body still carries the summary */ }
+    }
     const params = new URLSearchParams();
     params.set('subject', finalSubject);
-    params.set('body', body);
+    params.set('body', buildPayload());
     if (ccList.length) params.set('cc', ccList.join(','));
-    // mailto: URLs use the standard form with `?` separator
-    const url = `mailto:${toList.join(',')}?${params.toString()}`;
-    window.location.href = url;
-    setOkMsg('💻 เปิดในโปรแกรมเมลแล้ว');
+    window.location.href = `mailto:${toList.join(',')}?${params.toString()}`;
+    setOkMsg(copied
+      ? '📧 เปิด Outlook เดสก์ท็อปแล้ว — เนื้อหาแบบมีรูปแบบ (ตาราง/สี) คัดลอกไว้ให้แล้ว กด Ctrl+V ในอีเมลเพื่อวางทับได้'
+      : '📧 เปิด Outlook เดสก์ท็อปแล้ว');
   };
 
   const copyHtml = async () => {
@@ -343,12 +361,12 @@ export default function MeetingEmailModal({
 
             <div className="email-draft-howto">
               <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6, color: 'var(--fg-2)' }}>
-                วิธีร่างเมล — เลือก 1 จาก 3 (แนะนำ "เปิดใน Outlook")
+                วิธีร่างเมล — แนะนำ "ร่างใน Outlook (เดสก์ท็อป)"
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--fg-3)', lineHeight: 1.65 }}>
-                <li><b>📧 เปิดใน Outlook</b> — Outlook web เปิดร่างพร้อมเนื้อหา (รองรับ Office 365 + Outlook.com)</li>
-                <li><b>💻 เปิดในโปรแกรมเมล</b> — เปิด Outlook desktop / Mac Mail (ถ้าตั้งเป็น default)</li>
-                <li><b>📋 คัดลอก HTML</b> — copy เนื้อหารูปแบบเต็ม → paste ในกล่องเขียนเมลที่ไหนก็ได้</li>
+                <li><b>📧 ร่างใน Outlook (เดสก์ท็อป)</b> — เปิด Outlook ในเครื่องทันที พร้อมผู้รับ/หัวข้อ/เนื้อหา (ข้อความล้วน) และคัดลอกเนื้อหารูปแบบเต็ม (ตาราง/สี) ไว้ให้ — กด <b>Ctrl+V</b> ในอีเมลเพื่อวางแบบสวย</li>
+                <li><b>🌐 Outlook เว็บ</b> — เปิดร่างบน Outlook web (Office 365 / Outlook.com)</li>
+                <li><b>📋 คัดลอก HTML</b> — คัดลอกเนื้อหารูปแบบเต็ม → paste ในกล่องเขียนเมลที่ไหนก็ได้</li>
               </ul>
             </div>
 
@@ -387,11 +405,11 @@ export default function MeetingEmailModal({
           <button className="btn-ghost" onClick={copyHtml} disabled={!previewHtml || busy} title="คัดลอกเนื้อหา HTML ไป paste ในเมลที่ไหนก็ได้">
             📋 คัดลอก HTML
           </button>
-          <button className="btn-ghost" onClick={openInMailto} disabled={!recipientsOk || !draftDataReady || busy} title="เปิด Outlook / Apple Mail">
-            💻 โปรแกรมเมล
+          <button className="btn-ghost" onClick={openInOutlook} disabled={!recipientsOk || !draftDataReady || busy} title="เปิดร่างบน Outlook web (Office 365 / Outlook.com)">
+            🌐 Outlook เว็บ
           </button>
-          <button className="btn-primary" onClick={openInOutlook} disabled={!recipientsOk || !draftDataReady || busy} title="เปิด Outlook web (แนะนำ — รองรับ Office 365 และ Outlook.com)">
-            📧 เปิดใน Outlook
+          <button className="btn-primary" onClick={draftInOutlookDesktop} disabled={!recipientsOk || !draftDataReady || busy} title="เปิด Outlook ที่ติดตั้งในเครื่องทันที พร้อม To/หัวข้อ + คัดลอกเนื้อหารูปแบบเต็มไว้ให้วาง (Ctrl+V)">
+            📧 ร่างใน Outlook (เดสก์ท็อป)
           </button>
           {/* SMTP path kept as fallback — hidden by default since it requires
               app password setup. Uncomment to expose to users:
