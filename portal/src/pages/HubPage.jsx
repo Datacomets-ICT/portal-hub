@@ -182,6 +182,19 @@ export default function HubPage() {
     <div className="shell">
       <header className="shell-nav">
         <div className="brand">
+          {/* โบว์ไว้อาลัย — ร่วมน้อมรำลึก (ลบบล็อกนี้ออกได้เมื่อพ้นช่วงไว้ทุกข์) */}
+          <span
+            title="ร่วมน้อมรำลึก"
+            aria-label="ร่วมน้อมรำลึก"
+            style={{ display: 'inline-flex', alignItems: 'center', marginRight: 9 }}
+          >
+            <svg width="17" height="22" viewBox="0 0 16 20" aria-hidden="true">
+              <path
+                d="M8 1C5.8 1 4 3.2 4 6c0 1.9 0.9 3.6 2.2 4.5L3 18l1.7 0.9 2.6-5.6 0.7 1.5 0.7-1.5 2.6 5.6L13 18l-3.2-7.5C11.1 9.6 12 7.9 12 6c0-2.8-1.8-5-4-5zm0 2.4c1.4 0 2.4 1.4 2.4 3.1S9.4 9.6 8 9.6 5.6 8.2 5.6 6.5 6.6 3.4 8 3.4z"
+                fill="#161616"
+              />
+            </svg>
+          </span>
           <div className="brand-name">Workspace</div>
         </div>
         <div className="spacer" />
