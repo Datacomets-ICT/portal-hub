@@ -84,7 +84,10 @@ export function RecordingProvider({ children }) {
       const mr = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus' : 'audio/webm',
-        audioBitsPerSecond: 24000,
+        // Speech only — 16 kbps opus is plenty for transcription and keeps the
+        // in-memory buffer small on long meetings. (We also re-encode to a
+        // small MP3 on upload, since some browsers ignore this hint.)
+        audioBitsPerSecond: 16000,
       });
       const chunks = [];
       mr.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };

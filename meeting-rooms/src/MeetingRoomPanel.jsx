@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from './lib/supabase.js';
 import { fmtTimeColon } from './components.jsx';
 import { useRecording } from './RecordingContext.jsx';
+import { compressToMp3 } from './audioCompressor.js';
 
 const THAI_MONTHS_LONG = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -262,7 +263,11 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
       ? blob
       : new File([blob], `บันทึกเสียง-${stamp}.webm`, { type: blob.type || 'audio/webm' });
     (async () => {
-      await uploadFile(file);
+      // Re-encode to a small 16 kHz mono MP3 before upload — the raw webm can
+      // be large, and this is also Whisper's ideal input.
+      showToast('🎙️ กำลังบีบอัด & อัปโหลดเสียง...');
+      const small = await compressToMp3(file);
+      await uploadFile(small);
       rec.clearBlob();
       recUploadedRef.current = null;
     })();
@@ -759,12 +764,12 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
                   type="file" id="mtg-file-pick"
                   style={{ display: 'none' }}
                   onChange={onFilePick}
-                  disabled={uploading || isRecording}
+                  disabled={uploading}
                 />
                 <label
                   htmlFor="mtg-file-pick"
                   className={`btn-primary ${uploading ? 'is-busy' : ''}`}
-                  style={{ display: 'inline-block', cursor: isRecording ? 'not-allowed' : 'pointer', opacity: isRecording ? 0.5 : 1, pointerEvents: isRecording ? 'none' : 'auto' }}
+                  style={{ display: 'inline-block', cursor: 'pointer' }}
                 >
                   {uploading ? 'กำลังอัปโหลด...' : '⬆ เลือกไฟล์'}
                 </label>

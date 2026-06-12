@@ -89,23 +89,25 @@ function encodeMp3InWorker(samples, sampleRate, onPartialProgress) {
 // Public entry. Set onProgress to surface 0..100; the value covers
 // the entire compression phase (consumer maps it onto whatever portion
 // of the upload bar makes sense).
-export async function compressIfLarge(file, onProgress) {
-  if (!file || file.size <= COMPRESSION_THRESHOLD_BYTES) return file;
+// Always re-encode to 16 kHz mono MP3 — tiny files, ideal for Whisper.
+// Use this for in-app recordings (browser MediaRecorder often ignores the
+// requested bitrate and produces large blobs). Falls back to the original
+// file on any failure so an upload is never blocked.
+export async function compressToMp3(file, onProgress) {
+  if (!file) return file;
   try {
     if (onProgress) onProgress(2);
     const samples = await decodeAndDownsample(file);
     if (onProgress) onProgress(15);
 
     const mp3 = await encodeMp3InWorker(samples, TARGET_SAMPLE_RATE, (frac) => {
-      if (onProgress) {
-        // Map encoding progress (0..1) into the 15-95 % range so the
-        // bar keeps moving smoothly during the slow part.
-        onProgress(15 + Math.round(frac * 80));
-      }
+      // Map encoding progress (0..1) into the 15-95 % range so the bar
+      // keeps moving smoothly during the slow part.
+      if (onProgress) onProgress(15 + Math.round(frac * 80));
     });
     if (onProgress) onProgress(100);
 
-    const baseName = (file.name || 'meeting').replace(/\.[^.]+$/, '');
+    const baseName = (file.name || 'recording').replace(/\.[^.]+$/, '');
     return new File([mp3], `${baseName}.mp3`, {
       type: 'audio/mpeg',
       lastModified: Date.now(),
@@ -116,4 +118,10 @@ export async function compressIfLarge(file, onProgress) {
     console.warn('[audioCompressor] failed, using original file:', err);
     return file;
   }
+}
+
+// Compress only when the file is big enough to matter (legacy upload path).
+export async function compressIfLarge(file, onProgress) {
+  if (!file || file.size <= COMPRESSION_THRESHOLD_BYTES) return file;
+  return compressToMp3(file, onProgress);
 }
