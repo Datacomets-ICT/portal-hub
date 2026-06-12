@@ -381,6 +381,11 @@ export default function HubPage() {
                 ID {user?.employeeId}
               </span>
             </div>
+            {/* ป้ายไว้อาลัย — ร่วมน้อมรำลึก (ลบบล็อกนี้ออกเมื่อพ้นช่วงไว้ทุกข์) */}
+            <div title="ร่วมน้อมรำลึก" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 14, padding: '7px 14px 7px 11px', border: '1px solid #d8d8d8', borderRadius: 999, background: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
+              <svg width="18" height="23" viewBox="0 0 16 20" aria-hidden="true"><path d="M8 1C5.8 1 4 3.2 4 6c0 1.9 .9 3.6 2.2 4.5L3 18l1.7 .9 2.6-5.6 .7 1.5 .7-1.5 2.6 5.6L13 18l-3.2-7.5C11.1 9.6 12 7.9 12 6c0-2.8-1.8-5-4-5zm0 2.4c1.4 0 2.4 1.4 2.4 3.1S9.4 9.6 8 9.6 5.6 8.2 5.6 6.5 6.6 3.4 8 3.4z" fill="#161616"/></svg>
+              <span style={{ fontSize: 13.5, fontWeight: 600, color: '#2a2a2a', whiteSpace: 'nowrap' }}>ร่วมน้อมรำลึก</span>
+            </div>
           </div>
 
           <div className="hub-clock-card">
