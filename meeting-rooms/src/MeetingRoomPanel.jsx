@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from './lib/supabase.js';
 import { fmtTimeColon } from './components.jsx';
-import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
+import { useRecording } from './RecordingContext.jsx';
 
 const THAI_MONTHS_LONG = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
@@ -41,6 +41,13 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
   const [autoSummary, setAutoSummary] = useState(null);
   const [genBusy, setGenBusy] = useState(false);
   const [includeFiles, setIncludeFiles] = useState(true);
+
+  // Audio recording (app-level context — survives modal close + has the
+  // floating "🔴 กำลังอัด" indicator). Narrowed to THIS booking.
+  const rec = useRecording();
+  const recForThis = rec.bookingId === booking?.id;
+  const isRecording = rec.recording && recForThis;
+  const recUploadedRef = useRef(null);
 
   const showToast = (msg, kind = 'ok') => {
     setToast({ msg, kind });
@@ -195,12 +202,13 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
     persistAgenda(agenda.filter((it) => it.id !== id));
   };
 
-  const onFilePick = async (e) => {
-    const file = e.target.files?.[0];
+  // Shared uploader — used by BOTH the file picker and the audio recorder.
+  // Recorded audio lands here as a normal attachment, so the on-prem Ollama
+  // worker transcribes it with local whisper (no cloud) just like any file.
+  const uploadFile = async (file) => {
     if (!file || !currentUser?.code) return;
     if (file.size > 500 * 1024 * 1024) {
       showToast('ไฟล์ใหญ่เกิน 500 MB — ลองตัดไฟล์เป็นช่วงสั้นกว่านี้', 'err');
-      e.target.value = '';
       return;
     }
     setUploading(true);
@@ -227,9 +235,39 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
       showToast(err.message || 'อัปโหลดไม่สำเร็จ', 'err');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+
+  const onFilePick = async (e) => {
+    const file = e.target.files?.[0];
+    await uploadFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // --- Audio recorder → attachment ---------------------------------------
+  const startRecording = async () => {
+    const ok = await rec.start(booking.id, booking.title || `Meeting ${booking?.id || ''}`);
+    if (!ok && rec.err) showToast(rec.err, 'err');
+  };
+  const stopRecording = () => rec.stop();
+
+  // When the recording stops, a blob appears for this booking — upload it once
+  // as an attachment, then clear it. Guarded by blob identity to avoid dupes.
+  useEffect(() => {
+    const blob = recForThis ? rec.recordedBlob : null;
+    if (!blob || rec.recording || recUploadedRef.current === blob) return;
+    recUploadedRef.current = blob;
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+    const file = blob instanceof File
+      ? blob
+      : new File([blob], `บันทึกเสียง-${stamp}.webm`, { type: blob.type || 'audio/webm' });
+    (async () => {
+      await uploadFile(file);
+      rec.clearBlob();
+      recUploadedRef.current = null;
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rec.recordedBlob, rec.recording, recForThis]);
 
   const removeAttachment = async (att) => {
     if (!confirm(`ลบ "${att.file_name}"?`)) return;
@@ -715,17 +753,34 @@ export default function MeetingRoomPanel({ booking, room, currentUser, onClose, 
               </ul>
             )}
             {isJoined && !isPast && (
-              <div className="mtg-file-upload">
+              <div className="mtg-file-upload" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <input
                   ref={fileInputRef}
                   type="file" id="mtg-file-pick"
                   style={{ display: 'none' }}
                   onChange={onFilePick}
-                  disabled={uploading}
+                  disabled={uploading || isRecording}
                 />
-                <label htmlFor="mtg-file-pick" className={`btn-primary ${uploading ? 'is-busy' : ''}`} style={{ cursor: 'pointer', display: 'inline-block' }}>
+                <label
+                  htmlFor="mtg-file-pick"
+                  className={`btn-primary ${uploading ? 'is-busy' : ''}`}
+                  style={{ display: 'inline-block', cursor: isRecording ? 'not-allowed' : 'pointer', opacity: isRecording ? 0.5 : 1, pointerEvents: isRecording ? 'none' : 'auto' }}
+                >
                   {uploading ? 'กำลังอัปโหลด...' : '⬆ เลือกไฟล์'}
                 </label>
+                {!isRecording ? (
+                  <button type="button" className="btn-secondary" onClick={startRecording} disabled={uploading}>
+                    🎤 อัดเสียงประชุม
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={stopRecording}
+                    style={{ background: '#dc2626', color: '#fff', border: 0, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    ⏹ หยุด &amp; อัปโหลด ({Math.floor(rec.elapsedSec / 60)}:{String(rec.elapsedSec % 60).padStart(2, '0')})
+                  </button>
+                )}
               </div>
             )}
           </section>
