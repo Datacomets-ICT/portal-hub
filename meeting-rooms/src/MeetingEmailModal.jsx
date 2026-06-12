@@ -36,57 +36,55 @@ function buildPlainBody({ summary, booking, message, signature }) {
     lines.push(message.trim());
     lines.push('');
   }
-  lines.push(`📋 สรุปการประชุม: ${booking?.title || ''}`);
+  lines.push(`สรุปการประชุม: ${booking?.title || ''}`);
   if (booking?.booking_date) lines.push(`วันที่: ${booking.booking_date}`);
   if (booking?.start_min != null && booking?.end_min != null) {
     const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    lines.push(`เวลา: ${fmt(booking.start_min)}–${fmt(booking.end_min)}`);
+    lines.push(`เวลา: ${fmt(booking.start_min)}-${fmt(booking.end_min)}`);
   }
   if (booking?.booker) lines.push(`ผู้จัด: ${booking.booker}`);
-  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
 
   if (summary?.tldr) {
-    lines.push('▌ สรุปย่อ');
+    lines.push('[ สรุปย่อ ]');
     lines.push(summary.tldr);
     lines.push('');
   }
 
   const topics = summary?.topics_discussed?.length ? summary.topics_discussed : (summary?.key_points || []);
   if (topics.length) {
-    lines.push('▌ หัวข้อหลักที่หารือ');
-    topics.forEach((t) => lines.push(`  • ${t}`));
+    lines.push('[ หัวข้อหลักที่หารือ ]');
+    topics.forEach((t) => lines.push(`- ${t}`));
     lines.push('');
   }
 
   if (summary?.decisions?.length) {
-    lines.push('▌ มติที่ประชุม / ข้อตัดสินใจ');
-    summary.decisions.forEach((d) => lines.push(`  • ${d}`));
+    lines.push('[ มติที่ประชุม / ข้อตัดสินใจ ]');
+    summary.decisions.forEach((d) => lines.push(`- ${d}`));
     lines.push('');
   }
 
   if (summary?.action_items?.length) {
-    lines.push('▌ สิ่งที่ต้องทำต่อ (Action Items)');
+    lines.push('[ สิ่งที่ต้องทำต่อ (Action Items) ]');
     summary.action_items.forEach((a, i) => {
-      lines.push(`  ${i + 1}. ${a.task || ''}`);
+      lines.push(`${i + 1}. ${a.task || ''}`);
       const meta = [];
       if (a.owner) meta.push(`ผู้รับผิดชอบ: ${a.owner}`);
       if (a.due)   meta.push(`กำหนด: ${a.due}`);
-      if (meta.length) lines.push(`     ${meta.join(' · ')}`);
+      if (meta.length) lines.push(`   (${meta.join(' · ')})`);
     });
     lines.push('');
   }
 
   const pending = summary?.pending_items?.length ? summary.pending_items : (summary?.next_steps || []);
   if (pending.length) {
-    lines.push('▌ ประเด็นค้างคา / ต้องตัดสินใจต่อ');
-    pending.forEach((p) => lines.push(`  • ${p}`));
+    lines.push('[ ประเด็นค้างคา / ต้องตัดสินใจต่อ ]');
+    pending.forEach((p) => lines.push(`- ${p}`));
     lines.push('');
   }
 
-  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   if (signature) {
-    lines.push('');
+    lines.push('--');
     lines.push(signature);
   }
 
@@ -191,16 +189,15 @@ export default function MeetingEmailModal({
   const finalSubject = (subject?.trim() || defaultSubject || 'สรุปการประชุม').trim();
 
   const openInOutlook = () => {
-    const body = buildPayload();
-    // Outlook web deeplink — works for both Office 365 (corporate) and
-    // Outlook.com (personal). Microsoft's official compose URL format.
-    const params = new URLSearchParams({
-      to:      toList.join(','),
-      subject: finalSubject,
-      body,
-    });
-    if (ccList.length) params.set('cc', ccList.join(','));
-    const url = `https://outlook.office.com/mail/deeplink/compose?${params.toString()}`;
+    // Build the query with encodeURIComponent (space → %20). URLSearchParams
+    // encodes space as "+", which mail clients show literally instead of a space.
+    const parts = [
+      `to=${encodeURIComponent(toList.join(','))}`,
+      `subject=${encodeURIComponent(finalSubject)}`,
+      `body=${encodeURIComponent(buildPayload())}`,
+    ];
+    if (ccList.length) parts.push(`cc=${encodeURIComponent(ccList.join(','))}`);
+    const url = `https://outlook.office.com/mail/deeplink/compose?${parts.join('&')}`;
     window.open(url, '_blank', 'noopener,noreferrer');
     setOkMsg('📧 เปิด Outlook แล้ว — กลับไปกด "Send" ใน Outlook');
   };
@@ -224,11 +221,14 @@ export default function MeetingEmailModal({
         copied = true;
       } catch { /* clipboard blocked — the plain mailto body still carries the summary */ }
     }
-    const params = new URLSearchParams();
-    params.set('subject', finalSubject);
-    params.set('body', buildPayload());
-    if (ccList.length) params.set('cc', ccList.join(','));
-    window.location.href = `mailto:${toList.join(',')}?${params.toString()}`;
+    // encodeURIComponent → space becomes %20 (Outlook decodes it to a real
+    // space). URLSearchParams would use "+", which Outlook shows literally.
+    const parts = [
+      `subject=${encodeURIComponent(finalSubject)}`,
+      `body=${encodeURIComponent(buildPayload())}`,
+    ];
+    if (ccList.length) parts.push(`cc=${encodeURIComponent(ccList.join(','))}`);
+    window.location.href = `mailto:${toList.join(',')}?${parts.join('&')}`;
     setOkMsg(copied
       ? '📧 เปิด Outlook เดสก์ท็อปแล้ว — เนื้อหาแบบมีรูปแบบ (ตาราง/สี) คัดลอกไว้ให้แล้ว กด Ctrl+V ในอีเมลเพื่อวางทับได้'
       : '📧 เปิด Outlook เดสก์ท็อปแล้ว');
