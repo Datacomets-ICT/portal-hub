@@ -2,3 +2,6 @@ node_modules/
 .env
 *.log
 worker.log
+
+# whisper.cpp binary + ggml model (large; download separately, see README)
+stt/

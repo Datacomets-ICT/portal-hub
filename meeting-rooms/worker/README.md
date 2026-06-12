@@ -14,10 +14,11 @@ Background worker that summarizes meetings using a self-hosted Ollama model. Run
 [this worker, running on the office PC]
   poll → claim job → pipeline → save → mark done
                        │
-                       │
-                       ▼
-              localhost:11434
-              (Ollama qwen2.5:14b)
+          ┌────────────┴────────────┐
+          ▼                          ▼
+   audio attachment?          localhost:11434
+   whisper.cpp (local STT)    (Ollama qwen2.5:14b)
+   → transcript ─────────────► summarize
 ```
 
 ## Prerequisites
@@ -27,8 +28,10 @@ Background worker that summarizes meetings using a self-hosted Ollama model. Run
 | Windows / macOS / Linux | — | Any OS that runs Ollama |
 | Ollama | 0.3+ | https://ollama.com/download |
 | Node.js | 20+ | https://nodejs.org |
+| ffmpeg | any recent | decodes audio attachments before transcription. `winget install Gyan.FFmpeg` |
+| whisper.cpp + ggml model | — | local speech-to-text for audio attachments. See step 1b. |
 | RAM | 12 GB free | `qwen2.5:14b` needs ~9 GB. Use `7b` if tight. |
-| Disk | 12 GB free | model + cache |
+| Disk | 13 GB free | LLM model + cache + ~0.6 GB whisper model |
 
 ## First-time setup (Windows PC)
 
@@ -56,6 +59,46 @@ The Ollama server auto-starts as a background service on Windows. Confirm with:
 ```powershell
 curl http://localhost:11434/api/version
 ```
+
+### 1b. Set up speech-to-text (whisper.cpp)
+
+Audio attachments (`.mp3`, `.wav`, `.m4a`, …) are transcribed locally with
+[whisper.cpp](https://github.com/ggml-org/whisper.cpp) before being summarized —
+same "nothing leaves the machine" principle as the local LLM. The binary + model
+live under `worker/stt/` and are **gitignored** (the model is ~0.6 GB), so each
+machine downloads them once.
+
+PowerShell, from the `worker` directory:
+
+```powershell
+$stt = "stt"
+New-Item -ItemType Directory -Force $stt | Out-Null
+
+# 1. Prebuilt Windows binary (CPU) — gives stt\Release\whisper-cli.exe
+Invoke-WebRequest "https://github.com/ggml-org/whisper.cpp/releases/latest/download/whisper-bin-x64.zip" -OutFile "$stt\whisper.zip"
+Expand-Archive "$stt\whisper.zip" -DestinationPath $stt -Force
+
+# 2. Thai-capable model — large-v3-turbo quantized (~0.55 GB; best speed/quality on CPU)
+Invoke-WebRequest "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin" -OutFile "$stt\ggml-large-v3-turbo-q5_0.bin"
+
+# 3. VAD model — tiny (~0.9 MB). Stops whisper hallucinating "oh oh oh…" over music/silence.
+curl.exe -L -o "$stt\ggml-silero-v5.1.2.bin" "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin"
+```
+
+Smoke-test (should print model-load lines and exit 0):
+
+```powershell
+ffmpeg -y -f lavfi -i "sine=frequency=440:duration=2" -ar 16000 -ac 1 "$env:TEMP\t.wav"
+stt\Release\whisper-cli.exe -m stt\ggml-large-v3-turbo-q5_0.bin -f "$env:TEMP\t.wav" -l th -nt
+```
+
+Paths are auto-resolved relative to `worker/`; override via `.env`
+(`WHISPER_CLI`, `WHISPER_MODEL`, `WHISPER_VAD_MODEL`, `WHISPER_LANG`,
+`WHISPER_THREADS`, `STT_TIMEOUT_MS`) only if you move them.
+
+> Transcription is CPU-bound: roughly **1 minute of wall-clock per ~1 minute of
+> audio** with the turbo model on a typical office CPU. A job with audio will
+> sit in `processing` for several minutes — that's normal.
 
 ### 2. Install worker dependencies
 
@@ -174,6 +217,16 @@ ollama pull qwen2.5:14b
 - Switch to a smaller model: edit `.env` → `OLLAMA_MODEL=qwen2.5:7b` (~3× faster, slightly lower quality)
 - Run on a machine with a discrete GPU (NVIDIA only — Ollama auto-detects CUDA)
 - Trim transcript: shorter input → shorter wait
+
+**Audio attachment shows "อ่านไม่ได้" / not transcribed**
+The whisper toolchain isn't set up or isn't found. Check:
+- `stt\Release\whisper-cli.exe` and `stt\ggml-large-v3-turbo-q5_0.bin` exist (step 1b)
+- `ffmpeg` is on PATH (`where.exe ffmpeg`)
+- worker.err.log shows the actual error (e.g. `whisper-cli not found at …`)
+
+**Job with audio sits in 'processing' for minutes**
+Expected — transcription is CPU-bound (~1 min per 1 min of audio). Not a hang.
+It only counts as stuck past `STT_TIMEOUT_MS` (default 20 min) or the row below.
 
 **Job stuck in 'processing' forever**
 The worker crashed mid-job. The job won't auto-recover (intentional — avoids loops on poison inputs). Manually reset in Supabase SQL Editor:

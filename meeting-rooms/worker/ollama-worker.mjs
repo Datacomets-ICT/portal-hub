@@ -11,6 +11,7 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { extractAttachmentText, capFileText, summarize } from './pipeline.mjs';
+import { isAudioAttachment } from './stt.mjs';
 
 // ---------------------------------------------------------------------------
 // Env validation — fail loud rather than silently looping with no work.
@@ -107,13 +108,15 @@ async function collectAttachmentTexts(bookingId) {
   const results = [];
   for (const a of atts) {
     try {
+      const audio = isAudioAttachment(a.file_name, a.mime_type);
+      if (audio) log(`  transcribing audio ${a.file_name} … (this can take a few minutes on CPU)`);
       const buf = await downloadAttachment(a.storage_path);
-      const raw = await extractAttachmentText(a, buf);
+      const raw = await extractAttachmentText(a, buf, (msg) => log(`    [stt] ${msg}`));
       const { text, status } = capFileText(raw);
-      results.push({ file_name: a.file_name, status, text });
+      results.push({ file_name: a.file_name, status, text, audio });
     } catch (err) {
       logErr(`attachment ${a.file_name}:`, err.message);
-      results.push({ file_name: a.file_name, status: 'error', text: '' });
+      results.push({ file_name: a.file_name, status: 'error', text: '', audio: isAudioAttachment(a.file_name, a.mime_type) });
     }
   }
   return results;
@@ -135,9 +138,22 @@ async function processJob(job) {
 
     const fileTexts = await collectAttachmentTexts(bookingId);
 
+    // Audio transcripts are long-form spoken content. Promote them to
+    // audio_note.transcript so summarize() runs them through its chunked
+    // map-reduce path (a 1-2h meeting transcript far exceeds one LLM context).
+    // Non-audio docs stay in fileTexts and render as attachments.
+    const audioTranscript = fileTexts
+      .filter((f) => f.audio && f.text)
+      .map((f) => f.text)
+      .join('\n\n');
+    if (audioTranscript && !inputs.audio_note?.transcript) {
+      inputs.audio_note = { ...(inputs.audio_note || {}), transcript: audioTranscript };
+    }
+    const docTexts = fileTexts.filter((f) => !f.audio);
+
     const summary = await summarize({
       inputs,
-      fileTexts,
+      fileTexts: docTexts,
       ollama: {
         baseUrl:   OLLAMA_BASE_URL,
         model:     OLLAMA_MODEL,
@@ -152,7 +168,10 @@ async function processJob(job) {
       file_name: f.file_name,
       status:    f.status,
     }));
-    summary._used_audio = !!inputs.audio_note?.transcript;
+    // Audio was actually used if a recorded audio_note transcript exists OR an
+    // uploaded audio attachment was transcribed to usable text.
+    summary._used_audio = !!inputs.audio_note?.transcript
+      || fileTexts.some((f) => f.audio && f.text);
     summary._model = OLLAMA_MODEL;
 
     await saveSummary(bookingId, summary);
@@ -185,28 +204,38 @@ async function tick() {
 
 async function preflight() {
   // 1. Supabase reachable?
+  // NOTE: must be a READ-ONLY check. We used to call mtg_claim_next_summary_job
+  // here, but that actually CLAIMS the oldest queued job (queued→processing) and
+  // then threw the result away — orphaning a job every time the worker booted
+  // while a job was already queued. A head/count select tests connectivity +
+  // service-role auth without mutating anything.
   try {
-    const { error } = await sb.rpc('mtg_claim_next_summary_job');
-    // Allowed errors: function returned no rows. We just want the round-trip
-    // to succeed. If error mentions auth/permission, surface it.
-    if (error && /permission|jwt|auth/i.test(error.message)) {
-      throw new Error(`Supabase auth: ${error.message}`);
+    const { error } = await sb
+      .from('mtg_summary_jobs')
+      .select('id', { count: 'exact', head: true });
+    if (error) {
+      throw new Error(error.message);
     }
   } catch (err) {
     logErr('preflight: cannot reach Supabase —', err.message || err);
     process.exit(2);
   }
 
-  // 2. Ollama reachable?
-  try {
-    const r = await fetch(`${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/version`);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const v = await r.json();
-    log(`Ollama OK · version ${v.version}`);
-  } catch (err) {
-    logErr(`preflight: cannot reach Ollama at ${OLLAMA_BASE_URL} —`, err.message);
-    logErr('  → start it with `ollama serve` (or check OLLAMA_BASE_URL in .env)');
-    process.exit(3);
+  // 2. Ollama reachable? RETRY instead of exiting — at auto-start (logon) the
+  //    Ollama server may still be coming up, and the Startup-folder launcher
+  //    won't restart us if we die. So wait for it rather than giving up.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const r = await fetch(`${OLLAMA_BASE_URL.replace(/\/$/, '')}/api/version`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      log(`Ollama OK · version ${(await r.json()).version}`);
+      break;
+    } catch (err) {
+      if (attempt === 1 || attempt % 6 === 0) {
+        logErr(`preflight: Ollama not reachable at ${OLLAMA_BASE_URL} yet (${err.message}) — retrying every 10s…`);
+      }
+      await new Promise((ok) => setTimeout(ok, 10_000));
+    }
   }
 
   // 3. Model pulled?
@@ -215,9 +244,8 @@ async function preflight() {
     const data = await r.json();
     const names = (data.models || []).map((m) => m.name);
     if (!names.some((n) => n.startsWith(OLLAMA_MODEL.split(':')[0]))) {
-      logErr(`preflight: model "${OLLAMA_MODEL}" not pulled. Run:`);
-      logErr(`  ollama pull ${OLLAMA_MODEL}`);
-      process.exit(4);
+      logErr(`preflight: model "${OLLAMA_MODEL}" not pulled yet — run: ollama pull ${OLLAMA_MODEL}`);
+      logErr('  (continuing anyway; the job will report the error if it is still missing)');
     }
     log(`Model ${OLLAMA_MODEL} OK`);
   } catch (err) {
