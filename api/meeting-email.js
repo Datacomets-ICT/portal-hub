@@ -201,7 +201,7 @@ function buildEmailHtml({ booking, room, note, message, signature }) {
 
           ${sectionTitle('ข้อมูลการประชุม')}
           <tr><td style="padding:8px 0 4px;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="6" border="0" style="font-size:13.5px;color:#1F2937;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="6" border="0" style="font-size:14.5px;color:#1F2937;">
               ${dateStr     ? `<tr><td width="120" style="color:#6B7280;font-weight:600;padding:4px 0;">วันที่</td><td style="padding:4px 0;">${esc(dateStr)}</td></tr>` : ''}
               ${timeStr     ? `<tr><td style="color:#6B7280;font-weight:600;padding:4px 0;">เวลา</td><td style="padding:4px 0;">${esc(timeStr)}</td></tr>` : ''}
               ${roomName    ? `<tr><td style="color:#6B7280;font-weight:600;padding:4px 0;">ห้องประชุม</td><td style="padding:4px 0;">${esc(roomName)}${location ? ' (' + esc(location) + ')' : ''}</td></tr>` : ''}
@@ -215,15 +215,15 @@ function buildEmailHtml({ booking, room, note, message, signature }) {
           <tr><td style="padding:8px 0 4px;">
             ${topics.length > 0 ? topics.map(t => `
               <div style="margin-bottom:14px;">
-                <div style="font-weight:700;color:#0F172A;font-size:14px;border-left:3px solid #1E40AF;padding:2px 0 2px 10px;margin-bottom:6px;">${esc(t.topic || '')}</div>
-                ${Array.isArray(t.points) && t.points.length ? `<ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:13px;line-height:1.7;">
+                <div style="font-weight:700;color:#0F172A;font-size:16px;border-left:4px solid #1E40AF;padding:3px 0 3px 12px;margin-bottom:7px;">${esc(t.topic || '')}</div>
+                ${Array.isArray(t.points) && t.points.length ? `<ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:15px;line-height:1.85;">
                   ${t.points.map(p => `<li style="margin-bottom:4px;">${esc(p)}</li>`).join('')}
                 </ul>` : ''}
               </div>
             `).join('') : (
               summaryItems.length > 0
-                ? `<ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:13.5px;line-height:1.75;">
-                    ${summaryItems.map(s => `<li style="margin-bottom:5px;">${esc(s)}</li>`).join('')}
+                ? `<ul style="margin:0 0 0 22px;padding:0;color:#1F2937;font-size:15px;line-height:1.9;">
+                    ${summaryItems.map(s => `<li style="margin-bottom:7px;">${esc(s)}</li>`).join('')}
                   </ul>`
                 : `<div style="color:#9CA3AF;font-style:italic;font-size:13px;">ไม่มีข้อมูล</div>`
             )}
@@ -234,8 +234,8 @@ function buildEmailHtml({ booking, room, note, message, signature }) {
             <tr><td style="padding:8px 0 4px;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr><td style="background:#DBEAFE;padding:14px 16px 14px 32px;border-radius:6px;border-left:4px solid #1E40AF;">
-                  <ul style="margin:0;padding:0;color:#1E3A8A;font-size:13.5px;line-height:1.75;">
-                    ${decisions.map(d => `<li style="margin-bottom:5px;font-weight:500;">${esc(d)}</li>`).join('')}
+                  <ul style="margin:0;padding:0;color:#1E3A8A;font-size:15px;line-height:1.85;">
+                    ${decisions.map(d => `<li style="margin-bottom:7px;font-weight:600;">${esc(d)}</li>`).join('')}
                   </ul>
                 </td></tr>
               </table>
@@ -245,7 +245,7 @@ function buildEmailHtml({ booking, room, note, message, signature }) {
           ${actions.length > 0 ? `
             ${sectionTitle('Action Items')}
             <tr><td style="padding:8px 0 4px;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;font-size:13px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse:collapse;font-size:14.5px;">
                 <tr>
                   <th align="left" style="background:linear-gradient(90deg,#0F172A 0%,#1E293B 100%);color:#60A5FA;padding:10px 12px;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:0.5px;">งาน</th>
                   <th align="left" style="background:linear-gradient(90deg,#0F172A 0%,#1E293B 100%);color:#60A5FA;padding:10px 12px;font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:0.5px;width:25%;">ผู้รับผิดชอบ</th>
