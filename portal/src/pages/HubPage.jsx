@@ -182,7 +182,6 @@ export default function HubPage() {
     <div className="shell">
       <header className="shell-nav">
         <div className="brand">
-          <div className="brand-mark">P</div>
           <div className="brand-name">Workspace</div>
         </div>
         <div className="spacer" />

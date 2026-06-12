@@ -3,6 +3,17 @@ import MeetingSummaryPanel from './MeetingSummaryPanel.jsx';
 import MeetingEmailModal from './MeetingEmailModal.jsx';
 import { supabase } from './lib/supabase.js';
 
+// Fire a desktop notification when a summary finishes (works while the tab is
+// open or backgrounded; needs the user to have granted permission — requested
+// when they click "สร้างสรุป AI"). Silently no-ops if unsupported / denied.
+function notifySummary(title, bookingTitle) {
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body: bookingTitle, tag: 'mtg-summary', renotify: true });
+    }
+  } catch { /* ignore */ }
+}
+
 export const DAY_START = 8 * 60 + 30;   // 08:30
 export const DAY_END = 20 * 60 + 30;    // 20:30
 export const SLOT = 30;
@@ -1163,6 +1174,9 @@ function BookingAttendeesAndFiles({ booking, isPast = false, currentUser = null 
           setJob(row);
           if (row.status === 'done') {
             await refreshSummaryFromBooking();
+            notifySummary('✅ สรุปการประชุมเสร็จแล้ว', booking?.title || 'การประชุม');
+          } else if (row.status === 'error') {
+            notifySummary('❌ สรุปการประชุมไม่สำเร็จ', booking?.title || 'การประชุม');
           }
         },
       )
@@ -1176,6 +1190,13 @@ function BookingAttendeesAndFiles({ booking, isPast = false, currentUser = null 
 
   const enqueueSummary = useCallback(async () => {
     if (!bookingId) return;
+    // Ask for notification permission up-front — the summary can take a few
+    // minutes and the user may switch tabs / close the modal. We ping when done.
+    try {
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    } catch { /* unsupported — silently skip */ }
     setEnqueueBusy(true);
     setEnqueueErr(null);
     try {

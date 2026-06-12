@@ -31,7 +31,7 @@ function ForgotModal({ initialEmpId, onClose }) {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok || !data.success) throw new Error(data.message || data.error || 'ส่งคำขอไม่สำเร็จ');
-      setMsg({ kind: 'success', text: data.message || 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมล' });
+      setMsg({ kind: 'success', text: data.message || 'ส่งคำขอไปทีม Admin เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมล' });
     } catch (err) {
       setMsg({ kind: 'error', text: err.message || 'เกิดข้อผิดพลาด' });
     } finally {
@@ -43,7 +43,7 @@ function ForgotModal({ initialEmpId, onClose }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>🔑 ลืมรหัสผ่าน</h3>
-        <p className="modal-desc">กรอกข้อมูลของคุณ — ทีม IT จะติดต่อกลับทางอีเมลเพื่อตั้งรหัสผ่านใหม่ให้</p>
+        <p className="modal-desc">กรอกข้อมูลของคุณ — ทีม Admin จะติดต่อกลับทางอีเมลเพื่อตั้งรหัสผ่านใหม่ให้</p>
         {msg && <div className={msg.kind === 'error' ? 'error' : 'success'}>{msg.text}</div>}
         <form onSubmit={submit}>
           <div className="field">
@@ -72,7 +72,7 @@ function ForgotModal({ initialEmpId, onClose }) {
               ปิด
             </button>
             <button type="submit" className="btn btn-primary" disabled={busy}>
-              {busy ? 'กำลังส่ง…' : 'ส่งคำขอไปทีม IT'}
+              {busy ? 'กำลังส่ง…' : 'ส่งคำขอไปทีม Admin'}
             </button>
           </div>
         </form>

@@ -94,7 +94,7 @@ export default async function handler(req, res) {
   if (!GMAIL_USER || !GMAIL_APP_PWD) {
     return res.status(500).json({
       success: false,
-      message: 'ระบบส่งอีเมลยังไม่พร้อม: ขาด GMAIL_USER / GMAIL_APP_PASSWORD (ติดต่อ IT)',
+      message: 'ระบบส่งอีเมลยังไม่พร้อม: ขาด GMAIL_USER / GMAIL_APP_PASSWORD (ติดต่อ Admin)',
     });
   }
 
@@ -126,7 +126,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       success: true,
-      message: 'ส่งคำขอไปทีม IT เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมลที่คุณระบุ',
+      message: 'ส่งคำขอไปทีม Admin เรียบร้อย — เจ้าหน้าที่จะติดต่อกลับทางอีเมลที่คุณระบุ',
     });
   } catch (err) {
     console.error('forgot-password error:', err);
