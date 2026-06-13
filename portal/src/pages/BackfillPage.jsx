@@ -20,6 +20,22 @@ const COMPLETED_STATUSES = new Set([
   'ปิดงานแล้ว',
 ]);
 
+// Emoji per worklist category (job_type), matched by keyword. Falls back to 🛠️.
+// Order matters: more specific keywords (สิทธิ, print) are checked first.
+function worklistEmoji(name) {
+  const s = String(name || '');
+  if (/สิทธิ|permission|access|express|\bsap\b/i.test(s)) return '🔑';
+  if (/ปริ้น|พริน|print|พิมพ์/i.test(s)) return '🖨️';
+  if (/เครือข่าย|network|internet|อินเทอร์เน็ต|wi-?fi|ไวไฟ|\blan\b|เน็ต/i.test(s)) return '🌐';
+  if (/คอม|computer|พีซี|\bpc\b|โน้?ตบุ๊|notebook|laptop/i.test(s)) return '💻';
+  if (/โปรแกรม|program|software|ซอฟต์แวร์|แอป|\bapp\b|office|outlook|e-?mail|อีเมล|ระบบ/i.test(s)) return '🧩';
+  if (/อุปกรณ์|hardware|ฮาร์ดแวร์|เมาส์|mouse|คีย์บอร์ด|keyboard|จอ|monitor|สาย|cable/i.test(s)) return '🖥️';
+  if (/โทรศัพท์|phone|มือถือ|เบอร์/i.test(s)) return '📞';
+  if (/กล้อง|cctv|camera/i.test(s)) return '📷';
+  if (/server|เซิร์ฟเวอร์|ฐานข้อมูล|database/i.test(s)) return '🗄️';
+  return '🛠️';
+}
+
 export default function BackfillPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -194,7 +210,9 @@ export default function BackfillPage() {
                 className="bf-drill-item"
                 onClick={() => pick(value)}
               >
-                <span className="bf-drill-label">{value}</span>
+                <span className="bf-drill-label">
+                  {currentLevel === 'job_type' ? `${worklistEmoji(value)}  ${value}` : value}
+                </span>
                 <span className="bf-drill-chev">›</span>
               </button>
             ))}
